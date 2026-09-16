@@ -1,0 +1,25 @@
+# Generated outputs
+snapshots/
+cloud_gifs/
+cloud gifs/
+diag.csv
+
+# Test / scratch images
+*.png
+*.gif
+*.mp4
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Secrets / config
+.cdsapirc
+~.?cdsapirc
