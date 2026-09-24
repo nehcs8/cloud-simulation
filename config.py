@@ -1,29 +1,29 @@
 """Central configuration for the cloud simulation."""
 
 # ── Grid ──────────────────────────────────────────────────────────────────────
-NX: int   = 240          # cells in x
-NY: int   = 240          # cells in y
+NX: int   = 120          # cells in x  (100m resolution for baseline)
+NY: int   = 120          # cells in y  (12×12 km domain)
 NZ: int   = 80           # cells in z
-DX: float = 50.0         # m
-DY: float = 50.0         # m
+DX: float = 100.0        # m  (baseline resolution - adjust as needed)
+DY: float = 100.0        # m
 Z_TOP: float = 5000.0    # m, domain top
 
 # ── Time ──────────────────────────────────────────────────────────────────────
 DT: float = 2.0          # s, time step (kept small for stability)
-T_END: float = 7200.0    # s, 2 hours
+T_END: float = 3600.0    # s - 60 minutes (longer for mature clouds)
 OUTPUT_EVERY: float = 60.0  # s
 
 # ── Reference atmosphere ───────────────────────────────────────────────────────
 THETA_S: float = 300.0   # K, surface potential temperature
 Z_BL: float   = 1500.0   # m, nominal BL top
-GAMMA_BL: float = 2.0    # K/km, dθ/dz in BL  (slightly stable)
+GAMMA_BL: float = 1.0    # K/km, dθ/dz in BL  (near-neutral, convective conditions)
 GAMMA_FT: float = 6.0    # K/km, dθ/dz in free troposphere
-QV_SURF: float  = 0.011  # kg/kg, surface water-vapour mixing ratio
-QV_SCALE: float = 2500.0 # m, exponential decay scale height for qv
+QV_SURF: float = 0.016
+QV_SCALE: float = 4000.0
 
 # ── Surface forcing ────────────────────────────────────────────────────────────
-SHF: float = 150.0       # W/m², domain-mean sensible heat flux (summer afternoon)
-LHF: float = 5.0         # W/m², low LHF — dry continental conditions
+SHF: float = 200.0       # W/m², domain-mean sensible heat flux (strong summer afternoon)
+LHF: float = 100.0
 SHF_SIGMA: float = 0.4   # relative std of spatial SHF variation (±40% of mean)
 SHF_CORR:  float = 2000.0  # m, spatial correlation length of SHF pattern
 
@@ -32,9 +32,9 @@ CS:   float = 0.18       # Smagorinsky constant
 PR_T: float = 0.33       # turbulent Prandtl number  (K_H = K_M / PR_T)
 
 # ── Large-scale forcing ───────────────────────────────────────────────────────
-W_SUBS: float    = 0.005   # m/s, subsidence at and above BL top
+W_SUBS: float = 0.005
 TAU_NUDGE_T: float = 3600.0  # s, relaxation timescale for domain-mean θ′
-TAU_NUDGE_Q: float = 1800.0  # s, relaxation timescale for domain-mean qv
+TAU_NUDGE_Q: float = 5400.0
 
 # ── Sponge layer ──────────────────────────────────────────────────────────────
 Z_SPONGE: float   = 4000.0  # m, base of sponge
@@ -54,3 +54,18 @@ THETA_NOISE: float = 0.2    # K,      amplitude of random θ′ perturbations in
 QV_NOISE:    float = 3e-4   # kg/kg,  amplitude of random qv perturbations in BL
 NOISE_CORR:  float = 800.0  # m,      horizontal correlation length of noise
 RANDOM_SEED: int   = 42
+
+# ── Background wind profile ────────────────────────────────────────────────────
+U_GEO: float = 2.0         # m/s, geostrophic wind (E-W component)
+V_GEO: float = 0.0         # m/s, geostrophic wind (N-S component)
+# Wind initialized uniform in vertical, will adjust via turbulence/shear
+
+# ── Terrain (Phase 2) ──────────────────────────────────────────────────────────
+TERRAIN_TYPE: str = "flat"       # "flat", "gaussian_hill", "sine_ridge", "random", "dem"
+TERRAIN_H_MAX: float = 300.0     # m, max height for synthetic terrain
+TERRAIN_SIGMA: float = 2000.0    # m, Gaussian hill width or correlation length
+TERRAIN_FILE: str | None = None  # Path to DEM file (if TERRAIN_TYPE="dem")
+
+# ── Initial conditions ─────────────────────────────────────────────────────────
+RESTART_FROM: str | None = None  # Set to None to start fresh with background wind
+                                  # If None, use warm-start from noise perturbations

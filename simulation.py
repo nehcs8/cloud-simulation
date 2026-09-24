@@ -19,11 +19,12 @@ from scipy.ndimage import label
 import config as cfg
 from grid import Grid
 from state import State
+from terrain import Terrain
 from dynamics import compute_tendencies
 from pressure import project
 from microphysics import apply_microphysics
 from forcing import build_flux_map, apply_surface_fluxes, apply_subsidence, apply_profile_nudging, apply_cold_pool, apply_sponge
-from visualize import Visualizer
+from scripts.visualize.visualize import Visualizer
 
 SNAPSHOT_DIR = "snapshots"
 DIAG_CSV     = "diag.csv"
@@ -38,13 +39,19 @@ _DIAG_FIELDS = [
     "qv_bl", "qv_sfc",                 # BL and surface moisture
     "theta_bl",                        # BL mean buoyancy perturbation
     "tke",                             # domain-mean TKE
+    "u_mean", "v_mean",                # domain-mean winds
+    "vort_max", "vort_cloud_mean",     # vorticity (max and in-cloud mean)
 ]
 
 
 class Simulation:
     def __init__(self) -> None:
-        self.grid  = Grid()
-        self.state = State(self.grid)
+        # ── Terrain setup ─────────────────────────────────────────────────────
+        terrain = self._create_terrain()
+
+        # ── Grid and state ────────────────────────────────────────────────────
+        self.grid  = Grid(terrain=terrain)
+        self.state = State(self.grid, restart_file=cfg.RESTART_FROM)
         self.shf_map, self.lhf_map = build_flux_map(self.grid)
         self.t     = 0.0
         self.step  = 0
@@ -55,7 +62,58 @@ class Simulation:
         self._writer.writeheader()
         self._csv.flush()
         print(self.grid)
+        if terrain is not None:
+            print(f"  {terrain}")
+        if cfg.RESTART_FROM is not None:
+            print(f"  Restart: enabled from {cfg.RESTART_FROM}")
         print(f"  dt={cfg.DT}s, t_end={cfg.T_END}s, output every {cfg.OUTPUT_EVERY}s")
+
+    def _create_terrain(self):
+        """Create terrain based on config.TERRAIN_TYPE."""
+        if cfg.TERRAIN_TYPE == "flat":
+            return None
+
+        # Create temporary grid for terrain generation
+        temp_grid = Grid(terrain=None)
+
+        if cfg.TERRAIN_TYPE == "gaussian_hill":
+            terrain = Terrain.from_gaussian_hill(
+                temp_grid,
+                h_max=cfg.TERRAIN_H_MAX,
+                sigma=cfg.TERRAIN_SIGMA
+            )
+            print(f"Created Gaussian hill: h_max={cfg.TERRAIN_H_MAX}m, sigma={cfg.TERRAIN_SIGMA}m")
+
+        elif cfg.TERRAIN_TYPE == "sine_ridge":
+            terrain = Terrain.from_sine_ridge(
+                temp_grid,
+                h_max=cfg.TERRAIN_H_MAX,
+                axis='x'
+            )
+            print(f"Created sine ridge: h_max={cfg.TERRAIN_H_MAX}m along x-axis")
+
+        elif cfg.TERRAIN_TYPE == "random":
+            terrain = Terrain.from_random_field(
+                temp_grid,
+                h_mean=cfg.TERRAIN_H_MAX / 2,
+                h_std=cfg.TERRAIN_H_MAX / 4,
+                correlation_length=cfg.TERRAIN_SIGMA
+            )
+            print(f"Created random terrain: h_mean={cfg.TERRAIN_H_MAX/2}m, correlation={cfg.TERRAIN_SIGMA}m")
+
+        elif cfg.TERRAIN_TYPE == "dem":
+            if cfg.TERRAIN_FILE is None:
+                raise ValueError("TERRAIN_TYPE='dem' but TERRAIN_FILE is not set")
+            terrain = Terrain.from_dem_file(temp_grid, cfg.TERRAIN_FILE)
+            print(f"Loaded DEM from {cfg.TERRAIN_FILE}")
+
+        else:
+            raise ValueError(
+                f"Unknown TERRAIN_TYPE='{cfg.TERRAIN_TYPE}'. "
+                f"Valid options: 'flat', 'gaussian_hill', 'sine_ridge', 'random', 'dem'"
+            )
+
+        return terrain
 
     # ── CFL-limited time step ─────────────────────────────────────────────────
     def _cfl_dt(self) -> float:
@@ -113,6 +171,27 @@ class Simulation:
         s.qv = np.maximum(s.qv, 0.0)
         s.qc = np.maximum(s.qc, 0.0)
         s.qr = np.maximum(s.qr, 0.0)
+
+        # 9. Terrain masking (if terrain is present)
+        if g.terrain is not None:
+            mask = g.terrain.mask
+            # Zero out all fields inside terrain
+            s.u[mask] = 0.0
+            s.v[mask] = 0.0
+            s.theta[mask] = 0.0
+            # For qv, set to background profile value at each level
+            # Broadcast qv0 (nz,) to full grid (nx,ny,nz), then apply mask
+            qv0_full = np.broadcast_to(s.qv0, (g.nx, g.ny, g.nz))
+            s.qv[mask] = qv0_full[mask]
+            s.qc[mask] = 0.0
+            s.qr[mask] = 0.0
+
+            # w mask (face-staggered, nz+1 levels)
+            # A face is inside terrain if either cell below or above is masked
+            mask_w_lower = np.concatenate([mask[:, :, :1], mask], axis=2)  # (nx,ny,nz+1)
+            mask_w_upper = np.concatenate([mask, mask[:, :, -1:]], axis=2)  # (nx,ny,nz+1)
+            mask_w = mask_w_lower | mask_w_upper
+            s.w[mask_w] = 0.0
 
     # ── Run ───────────────────────────────────────────────────────────────────
     def run(self) -> None:
@@ -189,6 +268,23 @@ class Simulation:
         # Domain-mean TKE
         tke = float(0.5 * (s.u**2 + s.v**2 + w_cc**2).mean())
 
+        # Domain-mean winds
+        u_mean = float(s.u.mean())
+        v_mean = float(s.v.mean())
+
+        # Vertical vorticity: ζ = ∂v/∂x - ∂u/∂y
+        dvdx = np.gradient(s.v, g.dx, axis=0)
+        dudy = np.gradient(s.u, g.dy, axis=1)
+        vort = dvdx - dudy
+        vort_max = float(np.abs(vort).max())
+
+        # Mean vorticity in cloudy regions (qc > 0.1 g/kg)
+        cloud_mask_3d = s.qc > 1e-4
+        if cloud_mask_3d.any():
+            vort_cloud_mean = float(np.abs(vort[cloud_mask_3d]).mean())
+        else:
+            vort_cloud_mean = 0.0
+
         return dict(
             t=self.t, step=self.step, dt=dt,
             w_max=w_max, w_99=w_99,
@@ -198,6 +294,8 @@ class Simulation:
             CB=cb, CT=ct,
             qv_bl=qv_bl, qv_sfc=qv_sfc,
             theta_bl=theta_bl, tke=tke,
+            u_mean=u_mean, v_mean=v_mean,
+            vort_max=vort_max, vort_cloud_mean=vort_cloud_mean,
         )
 
     def _report(self, d: dict) -> None:
@@ -217,6 +315,8 @@ class Simulation:
         np.savez_compressed(
             path,
             t       = np.array(self.t),
+            u       = s.u.astype(np.float32),
+            v       = s.v.astype(np.float32),
             qc      = s.qc.astype(np.float32),
             qr      = s.qr.astype(np.float32),
             qv      = s.qv.astype(np.float32),
@@ -225,6 +325,8 @@ class Simulation:
             z_face  = g.z_face.astype(np.float32),
             z       = g.z.astype(np.float32),
             # Mean vertical profiles (cheap summary of domain state)
+            prof_u     = s.u.mean(axis=(0, 1)).astype(np.float32),
+            prof_v     = s.v.mean(axis=(0, 1)).astype(np.float32),
             prof_qc    = s.qc.mean(axis=(0, 1)).astype(np.float32),
             prof_qr    = s.qr.mean(axis=(0, 1)).astype(np.float32),
             prof_qv    = s.qv.mean(axis=(0, 1)).astype(np.float32),

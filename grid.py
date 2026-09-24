@@ -1,13 +1,14 @@
 """Grid geometry: uniform horizontal, exponentially stretched vertical."""
 
 import numpy as np
+from typing import Optional
 import config as cfg
 
 
 class Grid:
     """Holds all geometric arrays needed by the solver."""
 
-    def __init__(self) -> None:
+    def __init__(self, terrain: Optional['Terrain'] = None) -> None:
         # ── Horizontal ────────────────────────────────────────────────────────
         self.nx = cfg.NX
         self.ny = cfg.NY
@@ -37,6 +38,9 @@ class Grid:
         # shape (1, 1, nz)
         self.Z3   = self.z[np.newaxis, np.newaxis, :]
         self.DZ3  = self.dz_face[np.newaxis, np.newaxis, :]
+
+        # ── Terrain (optional) ────────────────────────────────────────────────
+        self.terrain = terrain  # None for flat domain, or Terrain instance
 
     # ── Convenience ───────────────────────────────────────────────────────────
     def __repr__(self) -> str:

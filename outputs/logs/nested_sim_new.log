@@ -1,0 +1,67 @@
+======================================================================
+NESTED CLOUD SIMULATION
+======================================================================
+Resolution: 25.0m × 25.0m (4× finer than parent)
+Domain: 2.5 × 2.5 × 3.0 km
+Duration: 900.0s (15.0 min)
+======================================================================
+
+Initializing nested simulation...
+Loading initial conditions from: nested_ic.npz
+  Snapshot time: t = 1200.0s
+  Loaded: qc_max=3.95g/kg, qr_max=0.34g/kg, w_max=6.52m/s
+  RelaxationBC: 8-cell zone, τ_min=5.0s, 2944 cells (29.4% of domain)
+
+Loading parent data for BC and forcing...
+  ✓ Loaded parent data
+
+Grid(100×100×60, dx=25.0m, dz=21.8–95.3m, z_top=3000m)
+  Restart: nested_ic.npz
+  dt=0.5s, t_end=900.0s
+Initialization complete (0.2s)
+
+Starting time integration...
+Expected timesteps: ~1800
+t=     0s  step=    1  w_max= 5.33m/s  w99=3.07m/s  qc_max=3.89g/kg  cov=36.3%  N=  3  CB=895m  CT=2858m  prec=0.00mm/h  qv_bl=11.84g/kg
+t=    30s  step=   61  w_max= 5.66m/s  w99=3.18m/s  qc_max=4.25g/kg  cov=33.1%  N=  3  CB=895m  CT=2858m  prec=0.00mm/h  qv_bl=11.82g/kg
+t=    60s  step=  121  w_max= 6.06m/s  w99=3.39m/s  qc_max=4.74g/kg  cov=31.5%  N=  2  CB=895m  CT=2858m  prec=0.00mm/h  qv_bl=11.76g/kg
+t=    90s  step=  181  w_max= 6.50m/s  w99=3.71m/s  qc_max=5.31g/kg  cov=30.0%  N=  3  CB=895m  CT=2858m  prec=0.00mm/h  qv_bl=11.69g/kg
+t=   120s  step=  241  w_max= 6.99m/s  w99=3.99m/s  qc_max=5.94g/kg  cov=28.5%  N=  4  CB=895m  CT=2858m  prec=0.00mm/h  qv_bl=11.61g/kg
+t=   150s  step=  301  w_max= 7.52m/s  w99=4.19m/s  qc_max=6.61g/kg  cov=27.6%  N=  5  CB=895m  CT=2858m  prec=0.00mm/h  qv_bl=11.53g/kg
+t=   180s  step=  361  w_max= 8.08m/s  w99=4.38m/s  qc_max=7.31g/kg  cov=27.3%  N=  4  CB=895m  CT=2858m  prec=0.00mm/h  qv_bl=11.45g/kg
+t=   210s  step=  421  w_max= 8.64m/s  w99=4.55m/s  qc_max=7.40g/kg  cov=28.7%  N=  4  CB=895m  CT=2858m  prec=0.00mm/h  qv_bl=11.38g/kg
+t=   240s  step=  481  w_max= 9.39m/s  w99=4.72m/s  qc_max=7.99g/kg  cov=29.2%  N=  5  CB=810m  CT=2858m  prec=0.00mm/h  qv_bl=11.30g/kg
+t=   270s  step=  541  w_max=11.00m/s  w99=4.90m/s  qc_max=8.16g/kg  cov=29.9%  N=  4  CB=769m  CT=2858m  prec=0.00mm/h  qv_bl=11.23g/kg
+t=   300s  step=  601  w_max=12.39m/s  w99=5.06m/s  qc_max=9.06g/kg  cov=30.5%  N=  4  CB=769m  CT=2858m  prec=0.00mm/h  qv_bl=11.16g/kg
+t=   330s  step=  661  w_max=13.57m/s  w99=5.26m/s  qc_max=10.89g/kg  cov=31.1%  N=  4  CB=651m  CT=2858m  prec=0.00mm/h  qv_bl=11.09g/kg
+t=   360s  step=  721  w_max=14.15m/s  w99=5.54m/s  qc_max=12.27g/kg  cov=31.8%  N=  4  CB=541m  CT=2858m  prec=0.00mm/h  qv_bl=11.03g/kg
+t=   390s  step=  781  w_max=14.59m/s  w99=5.81m/s  qc_max=12.30g/kg  cov=32.4%  N=  4  CB=440m  CT=2858m  prec=0.00mm/h  qv_bl=10.97g/kg
+t=   420s  step=  841  w_max=15.07m/s  w99=6.13m/s  qc_max=14.34g/kg  cov=33.1%  N=  4  CB=541m  CT=2858m  prec=0.00mm/h  qv_bl=10.90g/kg
+t=   450s  step=  901  w_max=15.04m/s  w99=6.40m/s  qc_max=16.20g/kg  cov=34.0%  N=  4  CB=577m  CT=2858m  prec=0.00mm/h  qv_bl=10.84g/kg
+t=   480s  step=  961  w_max=14.61m/s  w99=6.49m/s  qc_max=17.50g/kg  cov=34.8%  N=  4  CB=577m  CT=2858m  prec=0.00mm/h  qv_bl=10.78g/kg
+t=   510s  step= 1021  w_max=13.25m/s  w99=6.39m/s  qc_max=19.28g/kg  cov=36.3%  N=  4  CB=613m  CT=2858m  prec=0.00mm/h  qv_bl=10.72g/kg
+t=   540s  step= 1081  w_max=11.72m/s  w99=6.27m/s  qc_max=19.44g/kg  cov=37.7%  N=  4  CB=577m  CT=2858m  prec=0.00mm/h  qv_bl=10.66g/kg
+t=   570s  step= 1141  w_max=13.12m/s  w99=6.10m/s  qc_max=17.43g/kg  cov=38.7%  N=  3  CB=507m  CT=2858m  prec=0.00mm/h  qv_bl=10.62g/kg
+t=   600s  step= 1201  w_max=14.85m/s  w99=5.82m/s  qc_max=18.39g/kg  cov=39.7%  N=  3  CB=440m  CT=2858m  prec=0.00mm/h  qv_bl=10.57g/kg
+t=   630s  step= 1261  w_max=16.26m/s  w99=5.44m/s  qc_max=21.91g/kg  cov=40.9%  N=  4  CB=440m  CT=2858m  prec=0.00mm/h  qv_bl=10.52g/kg
+t=   660s  step= 1321  w_max=15.34m/s  w99=5.00m/s  qc_max=25.97g/kg  cov=43.3%  N=  2  CB=689m  CT=2858m  prec=0.00mm/h  qv_bl=10.48g/kg
+t=   690s  step= 1381  w_max=11.95m/s  w99=4.53m/s  qc_max=26.53g/kg  cov=44.5%  N=  2  CB=810m  CT=2858m  prec=0.00mm/h  qv_bl=10.43g/kg
+t=   720s  step= 1441  w_max= 9.45m/s  w99=4.21m/s  qc_max=24.24g/kg  cov=45.2%  N=  6  CB=895m  CT=2858m  prec=0.00mm/h  qv_bl=10.38g/kg
+t=   750s  step= 1501  w_max= 9.56m/s  w99=4.11m/s  qc_max=20.13g/kg  cov=45.3%  N=  2  CB=895m  CT=2858m  prec=0.00mm/h  qv_bl=10.33g/kg
+t=   780s  step= 1561  w_max= 9.73m/s  w99=4.18m/s  qc_max=19.66g/kg  cov=46.1%  N=  3  CB=852m  CT=2858m  prec=0.00mm/h  qv_bl=10.28g/kg
+t=   810s  step= 1621  w_max= 9.64m/s  w99=4.34m/s  qc_max=21.69g/kg  cov=47.6%  N=  2  CB=769m  CT=2858m  prec=0.00mm/h  qv_bl=10.23g/kg
+t=   840s  step= 1681  w_max= 9.33m/s  w99=4.51m/s  qc_max=21.37g/kg  cov=49.7%  N=  2  CB=651m  CT=2858m  prec=0.00mm/h  qv_bl=10.19g/kg
+t=   870s  step= 1741  w_max=11.00m/s  w99=4.70m/s  qc_max=19.08g/kg  cov=51.5%  N=  2  CB=507m  CT=2858m  prec=0.00mm/h  qv_bl=10.15g/kg
+t=   900s  step= 1801  w_max=11.79m/s  w99=4.90m/s  qc_max=16.89g/kg  cov=52.8%  N=  2  CB=408m  CT=2858m  prec=0.00mm/h  qv_bl=10.11g/kg
+
+======================================================================
+SIMULATION COMPLETE
+======================================================================
+Wall-clock time: 1142.1s (19.0 min)
+Simulation time: 900s (15.0 min)
+Speed: 0.79× realtime
+Timesteps: 1801
+Average dt: 0.500s
+
+Outputs in: snapshots/
+Diagnostics: diag.csv

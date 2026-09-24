@@ -1,0 +1,88 @@
+Exception in Tkinter callback
+Traceback (most recent call last):
+  File "/usr/lib/python3.12/tkinter/__init__.py", line 1967, in __call__
+    return self.func(*args)
+           ^^^^^^^^^^^^^^^^
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/matplotlib/backends/_backend_tk.py", line 612, in destroy
+    Gcf.destroy(self)
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/matplotlib/_pylab_helpers.py", line 68, in destroy
+    manager.destroy()
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/matplotlib/backends/_backend_tk.py", line 647, in destroy
+    delayed_destroy()
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/matplotlib/backends/_backend_tk.py", line 637, in delayed_destroy
+    self.window.destroy()
+  File "/usr/lib/python3.12/tkinter/__init__.py", line 2387, in destroy
+    self.tk.call('destroy', self._w)
+_tkinter.TclError: can't invoke "destroy" command: application has been destroyed
+Exception in Tkinter callback
+Traceback (most recent call last):
+  File "/usr/lib/python3.12/tkinter/__init__.py", line 1967, in __call__
+    return self.func(*args)
+           ^^^^^^^^^^^^^^^^
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/matplotlib/backends/_backend_tk.py", line 612, in destroy
+    Gcf.destroy(self)
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/matplotlib/_pylab_helpers.py", line 68, in destroy
+    manager.destroy()
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/matplotlib/backends/_backend_tk.py", line 647, in destroy
+    delayed_destroy()
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/matplotlib/backends/_backend_tk.py", line 637, in delayed_destroy
+    self.window.destroy()
+  File "/usr/lib/python3.12/tkinter/__init__.py", line 2387, in destroy
+    self.tk.call('destroy', self._w)
+_tkinter.TclError: can't invoke "destroy" command: application has been destroyed
+Exception in Tkinter callback
+Traceback (most recent call last):
+  File "/usr/lib/python3.12/tkinter/__init__.py", line 1967, in __call__
+    return self.func(*args)
+           ^^^^^^^^^^^^^^^^
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/matplotlib/backends/_backend_tk.py", line 612, in destroy
+    Gcf.destroy(self)
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/matplotlib/_pylab_helpers.py", line 68, in destroy
+    manager.destroy()
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/matplotlib/backends/_backend_tk.py", line 647, in destroy
+    delayed_destroy()
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/matplotlib/backends/_backend_tk.py", line 637, in delayed_destroy
+    self.window.destroy()
+  File "/usr/lib/python3.12/tkinter/__init__.py", line 2387, in destroy
+    self.tk.call('destroy', self._w)
+_tkinter.TclError: can't invoke "destroy" command: application has been destroyed
+Exception in Tkinter callback
+Traceback (most recent call last):
+  File "/usr/lib/python3.12/tkinter/__init__.py", line 1967, in __call__
+    return self.func(*args)
+           ^^^^^^^^^^^^^^^^
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/matplotlib/backends/_backend_tk.py", line 612, in destroy
+    Gcf.destroy(self)
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/matplotlib/_pylab_helpers.py", line 68, in destroy
+    manager.destroy()
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/matplotlib/backends/_backend_tk.py", line 647, in destroy
+    delayed_destroy()
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/matplotlib/backends/_backend_tk.py", line 637, in delayed_destroy
+    self.window.destroy()
+  File "/usr/lib/python3.12/tkinter/__init__.py", line 2387, in destroy
+    self.tk.call('destroy', self._w)
+_tkinter.TclError: can't invoke "destroy" command: application has been destroyed
+Exception in Tkinter callback
+Traceback (most recent call last):
+  File "/usr/lib/python3.12/tkinter/__init__.py", line 1967, in __call__
+    return self.func(*args)
+           ^^^^^^^^^^^^^^^^
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/matplotlib/backends/_backend_tk.py", line 612, in destroy
+    Gcf.destroy(self)
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/matplotlib/_pylab_helpers.py", line 68, in destroy
+    manager.destroy()
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/matplotlib/backends/_backend_tk.py", line 647, in destroy
+    delayed_destroy()
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/matplotlib/backends/_backend_tk.py", line 637, in delayed_destroy
+    self.window.destroy()
+  File "/usr/lib/python3.12/tkinter/__init__.py", line 2387, in destroy
+    self.tk.call('destroy', self._w)
+_tkinter.TclError: can't invoke "destroy" command: application has been destroyed
+Grid(120×120×80, dx=100.0m, dz=27.2–119.6m, z_top=5000m)
+  dt=2.0s, t_end=300.0s, output every 60.0s
+t=     0s  step=    1  w_max= 0.00m/s  w99=0.00m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=8.65g/kg
+t=    60s  step=   31  w_max= 0.39m/s  w99=0.15m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=8.65g/kg
+t=   120s  step=   61  w_max= 0.72m/s  w99=0.27m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=8.65g/kg
+t=   180s  step=   91  w_max= 0.93m/s  w99=0.34m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=8.64g/kg
+t=   240s  step=  121  w_max= 1.00m/s  w99=0.39m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=8.64g/kg
+t=   300s  step=  151  w_max= 1.04m/s  w99=0.40m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=8.64g/kg

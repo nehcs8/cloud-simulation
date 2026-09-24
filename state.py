@@ -23,7 +23,7 @@ class State:
         pi0    – Exner function π₀(z)       [-]
     """
 
-    def __init__(self, grid: Grid) -> None:
+    def __init__(self, grid: Grid, restart_file: str = None) -> None:
         self.grid = grid
         g = grid
 
@@ -43,7 +43,13 @@ class State:
         self.theta0, self.qv0, self.rho0 = self._build_reference(g.z)
 
         # ── Apply initial conditions ──────────────────────────────────────────
-        self._init_random_bl(g)
+        if restart_file is not None:
+            self._load_from_snapshot(restart_file, g)
+        else:
+            self._init_random_bl(g)
+            # Initialize background wind (uniform in space)
+            self.u[:] = cfg.U_GEO
+            self.v[:] = cfg.V_GEO
 
     # ── Reference atmosphere ──────────────────────────────────────────────────
     def _build_reference(self, z: np.ndarray):
@@ -104,6 +110,82 @@ class State:
 
         self.theta += cfg.THETA_NOISE * theta_noise_2d[:, :, np.newaxis] * taper
         self.qv    += cfg.QV_NOISE    * qv_noise_2d  [:, :, np.newaxis] * taper
+
+        # Zero out terrain cells (if terrain is present)
+        if g.terrain is not None:
+            self.theta[g.terrain.mask] = 0.0
+            self.qv[g.terrain.mask] = 0.0
+
+    # ── Load from snapshot ────────────────────────────────────────────────────
+    def _load_from_snapshot(self, snapshot_path: str, g: Grid) -> None:
+        """
+        Load state from a saved snapshot file.
+
+        Snapshots contain: qc, qr, qv, w, theta (and their mean profiles).
+        We need to also initialize u, v (set to zero for simplicity, or could
+        compute from geostrophic balance if needed).
+        """
+        import os
+        if not os.path.exists(snapshot_path):
+            raise FileNotFoundError(f"Snapshot file not found: {snapshot_path}")
+
+        data = np.load(snapshot_path)
+        print(f"Loading initial conditions from: {snapshot_path}")
+        print(f"  Snapshot time: t = {data['t']:.1f}s")
+
+        # Check grid compatibility
+        if data['qc'].shape != (g.nx, g.ny, g.nz):
+            raise ValueError(
+                f"Snapshot grid size {data['qc'].shape} does not match "
+                f"current grid ({g.nx}, {g.ny}, {g.nz})"
+            )
+
+        # Load fields
+        self.qc = data['qc'].astype(float)
+        self.qr = data['qr'].astype(float)
+        self.qv = data['qv'].astype(float)
+        self.theta = data['theta'].astype(float)
+
+        # w handling depends on snapshot format
+        w_data = data['w']
+        if w_data.shape[2] == g.nz:  # cell-centered (old format)
+            # Reconstruct face values
+            w_cc = w_data
+            self.w[:, :, 1:-1] = 0.5 * (w_cc[:, :, :-1] + w_cc[:, :, 1:])
+            self.w[:, :, 0] = 0.0
+            self.w[:, :, -1] = 0.0
+        elif w_data.shape[2] == g.nz + 1:  # face-staggered (nested IC format)
+            # Direct copy
+            self.w[:] = w_data
+            w_cc = 0.5 * (w_data[:, :, :-1] + w_data[:, :, 1:])  # for reporting
+        else:
+            raise ValueError(f"w shape {w_data.shape} incompatible with grid nz={g.nz}")
+
+        # u, v: load if available, otherwise initialize to zero
+        if 'u' in data:
+            self.u[:] = data['u'].astype(float)
+        else:
+            self.u[:] = 0.0
+
+        if 'v' in data:
+            self.v[:] = data['v'].astype(float)
+        else:
+            self.v[:] = 0.0
+
+        # Apply terrain mask if terrain is present
+        if g.terrain is not None:
+            mask = g.terrain.mask
+            self.u[mask] = 0.0
+            self.v[mask] = 0.0
+            self.theta[mask] = 0.0
+            qv0_full = np.broadcast_to(self.qv0, (g.nx, g.ny, g.nz))
+            self.qv[mask] = qv0_full[mask]
+            self.qc[mask] = 0.0
+            self.qr[mask] = 0.0
+
+        print(f"  Loaded: qc_max={self.qc.max()*1e3:.2f}g/kg, "
+              f"qr_max={self.qr.max()*1e3:.2f}g/kg, "
+              f"w_max={w_cc.max():.2f}m/s")
 
     # ── Derived quantities ────────────────────────────────────────────────────
     def buoyancy(self) -> np.ndarray:

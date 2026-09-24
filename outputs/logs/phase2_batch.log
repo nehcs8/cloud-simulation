@@ -1,0 +1,66 @@
+======================================================
+Phase 2: TAU_NUDGE_Q Sweep (4 experiments)
+Goal: Minimize qv_bl drift while maintaining clouds
+======================================================
+
+[1/4] Running exp11_tau1800 (TAU_NUDGE_Q=1800s)...
+🔬 Running experiment: exp11_tau1800
+   Phase: phase2_nudging
+   Duration: 1800.0s
+   📝 Updating config.py...
+   ▶ Running simulation...
+   📊 Analyzing results...
+   💾 Saving outputs...
+   💾 Saved 252 snapshots for GIF generation
+   ~ Status: MARGINAL
+   Cloud cover: 28.5% ± 2.4%
+   qc_max: 6.69 g/kg
+   qv_bl drift: 0.23 g/kg
+
+[2/4] Running exp12_tau2400 (TAU_NUDGE_Q=2400s)...
+🔬 Running experiment: exp12_tau2400
+   Phase: phase2_nudging
+   Duration: 1800.0s
+   📝 Updating config.py...
+   ▶ Running simulation...
+   📊 Analyzing results...
+   💾 Saving outputs...
+   💾 Saved 252 snapshots for GIF generation
+   ~ Status: MARGINAL
+   Cloud cover: 28.5% ± 1.0%
+   qc_max: 6.30 g/kg
+   qv_bl drift: 0.04 g/kg
+
+[3/4] Running exp13_tau3600 (TAU_NUDGE_Q=3600s - baseline)...
+🔬 Running experiment: exp13_tau3600
+   Phase: phase2_nudging
+   Duration: 1800.0s
+   📝 Updating config.py...
+   ▶ Running simulation...
+   📊 Analyzing results...
+   💾 Saving outputs...
+   💾 Saved 252 snapshots for GIF generation
+   ~ Status: MARGINAL
+   Cloud cover: 27.3% ± 1.4%
+   qc_max: 6.63 g/kg
+   qv_bl drift: -0.13 g/kg
+
+[4/4] Running exp14_tau5400 (TAU_NUDGE_Q=5400s)...
+🔬 Running experiment: exp14_tau5400
+   Phase: phase2_nudging
+   Duration: 1800.0s
+   📝 Updating config.py...
+   ▶ Running simulation...
+   📊 Analyzing results...
+   💾 Saving outputs...
+   💾 Saved 252 snapshots for GIF generation
+   ~ Status: MARGINAL
+   Cloud cover: 21.4% ± 2.3%
+   qc_max: 6.86 g/kg
+   qv_bl drift: -0.18 g/kg
+
+
+======================================================
+Phase 2 Complete!
+======================================================
+Check experiments/results_summary.csv for results

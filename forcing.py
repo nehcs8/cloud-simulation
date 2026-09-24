@@ -36,18 +36,41 @@ def build_flux_map(g: Grid) -> tuple[np.ndarray, np.ndarray]:
 def apply_surface_fluxes(s: State, g: Grid, dt: float,
                          shf_map: np.ndarray, lhf_map: np.ndarray) -> None:
     """
-    Apply spatially heterogeneous SHF and LHF into the lowest cell.
+    Apply spatially heterogeneous SHF and LHF into the surface cell.
+
+    For flat domain: surface is at k=0.
+    For terrain: surface follows terrain elevation (terrain-following).
+
     shf_map, lhf_map: (nx, ny) arrays in W/m².
     """
-    rho0_bot = s.rho0[0]
-    dz0      = g.dz_face[0]
-    pi0_bot  = s._pi0()[0, 0, 0]
+    if g.terrain is None:
+        # ── Flat domain (original code) ──────────────────────────────────────
+        rho0_bot = s.rho0[0]
+        dz0      = g.dz_face[0]
+        pi0_bot  = s._pi0()[0, 0, 0]
 
-    dtheta = shf_map * dt / (rho0_bot * cfg.CP * dz0 * pi0_bot)   # (nx,ny)
-    dqv    = lhf_map * dt / (rho0_bot * cfg.LV * dz0)
+        dtheta = shf_map * dt / (rho0_bot * cfg.CP * dz0 * pi0_bot)   # (nx,ny)
+        dqv    = lhf_map * dt / (rho0_bot * cfg.LV * dz0)
 
-    s.theta[:, :, 0] += dtheta
-    s.qv   [:, :, 0] += dqv
+        s.theta[:, :, 0] += dtheta
+        s.qv   [:, :, 0] += dqv
+
+    else:
+        # ── Terrain-following surface ────────────────────────────────────────
+        pi0 = s._pi0()[0, 0, :]  # (nz,) - Exner function at each level
+
+        # Apply fluxes at terrain surface level for each column
+        for i in range(g.nx):
+            for j in range(g.ny):
+                k = g.terrain.k_sfc[i, j]  # surface level index
+                dz = g.dz_face[k]
+                rho = s.rho0[k]
+
+                dtheta = shf_map[i, j] * dt / (rho * cfg.CP * dz * pi0[k])
+                dqv    = lhf_map[i, j] * dt / (rho * cfg.LV * dz)
+
+                s.theta[i, j, k] += dtheta
+                s.qv[i, j, k]    += dqv
 
 
 def apply_subsidence(s: State, g: Grid, dt: float) -> None:

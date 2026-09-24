@@ -1,0 +1,107 @@
+======================================================================
+NESTED CLOUD SIMULATION
+======================================================================
+Resolution: 25.0m × 25.0m
+Domain: 3.0 × 3.0 × 3.0 km
+Duration: 1800.0s (30.0 min)
+======================================================================
+
+Setting up run directory and metadata...
+Created nested run: /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/nested_runs/2026-09-22_1932_nest_cloud16_dx25m
+
+Run directory: 2026-09-22_1932_nest_cloud16_dx25m
+
+Initializing nested simulation...
+Loading initial conditions from: nested_ic_25m.npz
+  Snapshot time: t = 1200.0s
+  Loaded: qc_max=3.95g/kg, qr_max=0.34g/kg, w_max=6.52m/s
+  RelaxationBC: 8-cell zone, τ_min=5.0s, 3584 cells (24.9% of domain)
+
+Loading parent data for BC and forcing...
+  ✓ Loaded parent data
+
+Grid(120×120×60, dx=25.0m, dz=21.8–95.3m, z_top=3000m)
+  Restart: nested_ic_25m.npz
+  dt=0.5s, t_end=1800.0s
+Initialization complete (0.2s)
+
+Starting time integration...
+Expected timesteps: ~3600
+t=     0s  step=    1  w_max= 5.32m/s  w99=2.86m/s  qc_max=3.89g/kg  cov=35.8%  N=  2  CB=895m  CT=2952m  prec=0.00mm/h  qv_bl=12.94g/kg
+t=    60s  step=  121  w_max= 5.92m/s  w99=2.91m/s  qc_max=4.74g/kg  cov=32.0%  N=  2  CB=895m  CT=2952m  prec=0.00mm/h  qv_bl=12.91g/kg
+t=   120s  step=  241  w_max= 6.77m/s  w99=3.23m/s  qc_max=5.82g/kg  cov=29.5%  N=  5  CB=895m  CT=2952m  prec=0.00mm/h  qv_bl=12.90g/kg
+t=   180s  step=  361  w_max= 7.73m/s  w99=3.58m/s  qc_max=7.02g/kg  cov=27.8%  N=  5  CB=895m  CT=2952m  prec=0.00mm/h  qv_bl=12.88g/kg
+t=   240s  step=  481  w_max=10.28m/s  w99=3.95m/s  qc_max=7.75g/kg  cov=28.7%  N=  5  CB=810m  CT=2952m  prec=0.00mm/h  qv_bl=12.88g/kg
+t=   300s  step=  601  w_max=13.92m/s  w99=4.46m/s  qc_max=8.61g/kg  cov=29.6%  N=  5  CB=651m  CT=2952m  prec=0.00mm/h  qv_bl=12.88g/kg
+t=   360s  step=  721  w_max=16.30m/s  w99=5.19m/s  qc_max=11.50g/kg  cov=30.1%  N=  6  CB=408m  CT=2952m  prec=0.00mm/h  qv_bl=12.88g/kg
+t=   420s  step=  841  w_max=16.65m/s  w99=5.98m/s  qc_max=14.42g/kg  cov=30.3%  N=  4  CB=541m  CT=2952m  prec=0.00mm/h  qv_bl=12.88g/kg
+t=   480s  step=  961  w_max=14.19m/s  w99=5.63m/s  qc_max=15.29g/kg  cov=30.6%  N=  4  CB=473m  CT=2952m  prec=0.00mm/h  qv_bl=12.87g/kg
+t=   540s  step= 1081  w_max=17.98m/s  w99=5.17m/s  qc_max=13.01g/kg  cov=30.2%  N=  3  CB=287m  CT=2952m  prec=0.00mm/h  qv_bl=12.86g/kg
+t=   600s  step= 1201  w_max=17.52m/s  w99=4.90m/s  qc_max=11.94g/kg  cov=28.7%  N=  6  CB=287m  CT=2952m  prec=0.00mm/h  qv_bl=12.85g/kg
+t=   660s  step= 1321  w_max=16.21m/s  w99=4.51m/s  qc_max=12.52g/kg  cov=27.2%  N=  8  CB=377m  CT=2952m  prec=0.00mm/h  qv_bl=12.84g/kg
+t=   720s  step= 1441  w_max=15.67m/s  w99=4.41m/s  qc_max=11.63g/kg  cov=25.9%  N= 11  CB=152m  CT=2952m  prec=0.00mm/h  qv_bl=12.84g/kg
+t=   780s  step= 1561  w_max=14.13m/s  w99=4.39m/s  qc_max=9.21g/kg  cov=24.6%  N= 11  CB=178m  CT=2952m  prec=0.00mm/h  qv_bl=12.83g/kg
+t=   840s  step= 1681  w_max=14.69m/s  w99=4.48m/s  qc_max=11.61g/kg  cov=23.0%  N= 13  CB=259m  CT=2952m  prec=0.00mm/h  qv_bl=12.82g/kg
+t=   900s  step= 1801  w_max=13.35m/s  w99=4.23m/s  qc_max=20.13g/kg  cov=21.9%  N= 16  CB=152m  CT=2952m  prec=0.00mm/h  qv_bl=12.82g/kg
+t=   960s  step= 1921  w_max=12.48m/s  w99=3.77m/s  qc_max=16.01g/kg  cov=21.2%  N= 14  CB=178m  CT=2952m  prec=0.00mm/h  qv_bl=12.82g/kg
+t=  1020s  step= 2041  w_max=14.92m/s  w99=3.69m/s  qc_max=10.52g/kg  cov=20.4%  N= 14  CB=127m  CT=2952m  prec=0.00mm/h  qv_bl=12.82g/kg
+t=  1080s  step= 2161  w_max=13.83m/s  w99=3.82m/s  qc_max=11.62g/kg  cov=18.9%  N= 17  CB=152m  CT=2952m  prec=0.00mm/h  qv_bl=12.82g/kg
+t=  1140s  step= 2281  w_max=15.68m/s  w99=3.93m/s  qc_max=17.30g/kg  cov=19.2%  N= 13  CB=152m  CT=2952m  prec=0.00mm/h  qv_bl=12.83g/kg
+t=  1200s  step= 2401  w_max=15.59m/s  w99=4.12m/s  qc_max=19.22g/kg  cov=20.3%  N= 13  CB=577m  CT=2952m  prec=0.00mm/h  qv_bl=12.83g/kg
+t=  1260s  step= 2521  w_max=14.10m/s  w99=4.07m/s  qc_max=16.81g/kg  cov=18.6%  N= 12  CB=541m  CT=2952m  prec=0.00mm/h  qv_bl=12.83g/kg
+t=  1320s  step= 2641  w_max=13.52m/s  w99=3.80m/s  qc_max=16.66g/kg  cov=18.3%  N= 12  CB=473m  CT=2952m  prec=0.00mm/h  qv_bl=12.82g/kg
+t=  1380s  step= 2761  w_max=13.23m/s  w99=3.74m/s  qc_max=16.89g/kg  cov=17.2%  N= 13  CB=577m  CT=2952m  prec=0.00mm/h  qv_bl=12.83g/kg
+t=  1440s  step= 2881  w_max=11.97m/s  w99=3.61m/s  qc_max=14.90g/kg  cov=17.0%  N= 15  CB=473m  CT=2952m  prec=0.00mm/h  qv_bl=12.83g/kg
+t=  1500s  step= 3001  w_max=13.06m/s  w99=3.65m/s  qc_max=13.60g/kg  cov=16.9%  N= 14  CB=577m  CT=2952m  prec=0.00mm/h  qv_bl=12.83g/kg
+t=  1560s  step= 3121  w_max=13.94m/s  w99=3.85m/s  qc_max=8.11g/kg  cov=17.0%  N= 14  CB=377m  CT=2952m  prec=0.00mm/h  qv_bl=12.84g/kg
+t=  1620s  step= 3241  w_max=15.42m/s  w99=4.02m/s  qc_max=6.26g/kg  cov=16.8%  N= 12  CB=178m  CT=2952m  prec=0.00mm/h  qv_bl=12.85g/kg
+t=  1680s  step= 3361  w_max=13.71m/s  w99=3.96m/s  qc_max=5.32g/kg  cov=14.7%  N= 15  CB=473m  CT=2952m  prec=0.00mm/h  qv_bl=12.86g/kg
+t=  1740s  step= 3481  w_max= 9.02m/s  w99=3.50m/s  qc_max=5.70g/kg  cov=12.8%  N= 15  CB=507m  CT=2952m  prec=0.00mm/h  qv_bl=12.86g/kg
+t=  1800s  step= 3601  w_max= 8.28m/s  w99=3.22m/s  qc_max=6.02g/kg  cov=12.1%  N= 11  CB=651m  CT=2952m  prec=0.00mm/h  qv_bl=12.86g/kg
+
+======================================================================
+SIMULATION COMPLETE
+======================================================================
+Wall-clock time: 3481.3s (58.0 min)
+Simulation time: 1800s (30.0 min)
+Speed: 0.52× realtime
+Timesteps: 3601
+Average dt: 0.500s
+Traceback (most recent call last):
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/main_nested.py", line 339, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/main_nested.py", line 326, in main
+    manager.finalize_run(run_dir, status=status, notes=notes)
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/scripts/run_manager.py", line 185, in finalize_run
+    
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/scripts/run_manager.py", line 236, in _read_metadata
+    else:
+          
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/yaml/__init__.py", line 125, in safe_load
+    return load(stream, SafeLoader)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/yaml/__init__.py", line 81, in load
+    return loader.get_single_data()
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/yaml/constructor.py", line 51, in get_single_data
+    return self.construct_document(node)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/yaml/constructor.py", line 60, in construct_document
+    for dummy in generator:
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/yaml/constructor.py", line 413, in construct_yaml_map
+    value = self.construct_mapping(node)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/yaml/constructor.py", line 218, in construct_mapping
+    return super().construct_mapping(node, deep=deep)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/yaml/constructor.py", line 143, in construct_mapping
+    value = self.construct_object(value_node, deep=deep)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/yaml/constructor.py", line 100, in construct_object
+    data = constructor(self, node)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/yaml/constructor.py", line 427, in construct_undefined
+    raise ConstructorError(None, None,
+yaml.constructor.ConstructorError: could not determine a constructor for the tag 'tag:yaml.org,2002:python/object/apply:numpy._core.multiarray.scalar'
+  in "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/nested_runs/2026-09-22_1932_nest_cloud16_dx25m/metadata.yaml", line 14, column 21

@@ -1,0 +1,77 @@
+======================================================================
+NESTED CLOUD SIMULATION
+======================================================================
+Resolution: 50.0m × 50.0m
+Domain: 3.0 × 3.0 × 3.0 km
+Duration: 1800.0s (30.0 min)
+======================================================================
+
+Setting up run directory and metadata...
+Created nested run: /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/nested_runs/2026-09-23_1933_nest_cloud16_dx50m
+
+Run directory: 2026-09-23_1933_nest_cloud16_dx50m
+
+Initializing nested simulation...
+Loading initial conditions from: nested_ic_50m_withwind.npz
+  Snapshot time: t = 2400.0s
+  Loaded: qc_max=8.20g/kg, qr_max=4.72g/kg, w_max=6.96m/s
+  RelaxationBC: 4-cell zone, τ_min=5.0s, 896 cells (24.9% of domain)
+
+Loading parent data for BC and forcing...
+  ✓ Loaded parent data
+
+Grid(60×60×60, dx=50.0m, dz=21.8–95.3m, z_top=3000m)
+  Restart: nested_ic_50m_withwind.npz
+  dt=0.4s, t_end=1800.0s
+Initialization complete (0.1s)
+
+Starting time integration...
+Expected timesteps: ~4500
+t=     0s  step=    1  w_max= 6.97m/s  w99=4.16m/s  qc_max=8.17g/kg  cov=44.7%  N=  2  CB=852m  CT=2952m  prec=0.00mm/h  qv_bl=12.24g/kg
+t=    60s  step=  151  w_max= 6.37m/s  w99=3.87m/s  qc_max=7.90g/kg  cov=37.7%  N=  2  CB=852m  CT=2952m  prec=0.00mm/h  qv_bl=12.39g/kg
+t=   120s  step=  301  w_max= 7.85m/s  w99=4.18m/s  qc_max=7.44g/kg  cov=35.0%  N=  4  CB=852m  CT=2952m  prec=0.00mm/h  qv_bl=12.42g/kg
+t=   180s  step=  451  w_max=10.05m/s  w99=4.48m/s  qc_max=6.97g/kg  cov=34.5%  N=  2  CB=852m  CT=2952m  prec=0.00mm/h  qv_bl=12.40g/kg
+t=   240s  step=  601  w_max=12.00m/s  w99=4.82m/s  qc_max=8.93g/kg  cov=35.4%  N=  2  CB=577m  CT=2952m  prec=0.00mm/h  qv_bl=12.37g/kg
+t=   300s  step=  751  w_max=14.67m/s  w99=5.21m/s  qc_max=11.60g/kg  cov=36.1%  N=  2  CB=377m  CT=2952m  prec=0.00mm/h  qv_bl=12.35g/kg
+t=   360s  step=  901  w_max=15.17m/s  w99=5.85m/s  qc_max=15.74g/kg  cov=36.4%  N=  3  CB=541m  CT=2952m  prec=0.00mm/h  qv_bl=12.32g/kg
+t=   420s  step= 1051  w_max=13.18m/s  w99=6.48m/s  qc_max=13.06g/kg  cov=36.6%  N=  2  CB=541m  CT=2952m  prec=0.00mm/h  qv_bl=12.29g/kg
+t=   480s  step= 1201  w_max=15.07m/s  w99=8.10m/s  qc_max=8.04g/kg  cov=36.4%  N=  2  CB=259m  CT=2952m  prec=0.00mm/h  qv_bl=12.29g/kg
+t=   540s  step= 1351  w_max=15.72m/s  w99=9.18m/s  qc_max=4.67g/kg  cov=35.1%  N=  2  CB=127m  CT=2952m  prec=0.00mm/h  qv_bl=12.29g/kg
+t=   600s  step= 1501  w_max=14.07m/s  w99=7.95m/s  qc_max=5.86g/kg  cov=33.2%  N=  4  CB=103m  CT=2952m  prec=0.00mm/h  qv_bl=12.27g/kg
+t=   660s  step= 1651  w_max= 9.91m/s  w99=5.76m/s  qc_max=8.11g/kg  cov=31.7%  N=  5  CB=178m  CT=2952m  prec=0.00mm/h  qv_bl=12.22g/kg
+t=   720s  step= 1801  w_max= 8.22m/s  w99=4.22m/s  qc_max=7.55g/kg  cov=29.6%  N=  3  CB=152m  CT=2952m  prec=0.00mm/h  qv_bl=12.17g/kg
+t=   780s  step= 1951  w_max= 9.60m/s  w99=3.85m/s  qc_max=6.37g/kg  cov=28.6%  N=  3  CB=103m  CT=2952m  prec=0.00mm/h  qv_bl=12.13g/kg
+t=   840s  step= 2101  w_max=11.18m/s  w99=3.57m/s  qc_max=5.72g/kg  cov=27.2%  N=  3  CB=79m  CT=2952m  prec=0.00mm/h  qv_bl=12.11g/kg
+t=   900s  step= 2251  w_max=11.44m/s  w99=3.43m/s  qc_max=6.35g/kg  cov=25.0%  N=  3  CB=56m  CT=2952m  prec=0.00mm/h  qv_bl=12.08g/kg
+t=   960s  step= 2401  w_max= 8.65m/s  w99=3.30m/s  qc_max=7.16g/kg  cov=23.8%  N=  3  CB=33m  CT=2952m  prec=0.00mm/h  qv_bl=12.06g/kg
+t=  1020s  step= 2551  w_max= 6.07m/s  w99=3.17m/s  qc_max=7.39g/kg  cov=21.7%  N=  2  CB=852m  CT=2952m  prec=0.00mm/h  qv_bl=12.04g/kg
+t=  1080s  step= 2701  w_max= 6.52m/s  w99=3.11m/s  qc_max=6.82g/kg  cov=20.9%  N=  3  CB=852m  CT=2952m  prec=0.00mm/h  qv_bl=12.03g/kg
+t=  1140s  step= 2851  w_max= 7.17m/s  w99=3.12m/s  qc_max=7.70g/kg  cov=19.8%  N=  5  CB=810m  CT=2952m  prec=0.00mm/h  qv_bl=12.01g/kg
+t=  1200s  step= 3001  w_max= 8.27m/s  w99=3.18m/s  qc_max=9.31g/kg  cov=19.3%  N=  5  CB=852m  CT=2952m  prec=0.00mm/h  qv_bl=12.00g/kg
+t=  1260s  step= 3151  w_max= 8.68m/s  w99=3.24m/s  qc_max=10.61g/kg  cov=18.2%  N=  5  CB=810m  CT=2952m  prec=0.00mm/h  qv_bl=11.99g/kg
+t=  1320s  step= 3301  w_max= 9.85m/s  w99=3.31m/s  qc_max=11.49g/kg  cov=16.6%  N=  5  CB=810m  CT=2952m  prec=0.00mm/h  qv_bl=11.98g/kg
+t=  1380s  step= 3451  w_max=10.55m/s  w99=3.39m/s  qc_max=11.79g/kg  cov=15.1%  N=  5  CB=769m  CT=2952m  prec=0.00mm/h  qv_bl=11.98g/kg
+t=  1440s  step= 3601  w_max= 9.99m/s  w99=3.40m/s  qc_max=10.78g/kg  cov=13.9%  N=  7  CB=810m  CT=2952m  prec=0.00mm/h  qv_bl=11.96g/kg
+t=  1500s  step= 3751  w_max=10.16m/s  w99=3.29m/s  qc_max=9.95g/kg  cov=14.2%  N=  5  CB=852m  CT=2952m  prec=0.00mm/h  qv_bl=11.95g/kg
+t=  1560s  step= 3901  w_max= 8.62m/s  w99=3.08m/s  qc_max=8.66g/kg  cov=14.6%  N=  5  CB=852m  CT=2952m  prec=0.00mm/h  qv_bl=11.94g/kg
+t=  1620s  step= 4051  w_max= 6.66m/s  w99=3.06m/s  qc_max=7.92g/kg  cov=14.1%  N=  6  CB=852m  CT=2952m  prec=0.00mm/h  qv_bl=11.92g/kg
+t=  1680s  step= 4201  w_max= 6.95m/s  w99=3.05m/s  qc_max=7.77g/kg  cov=14.0%  N=  5  CB=852m  CT=2952m  prec=0.00mm/h  qv_bl=11.90g/kg
+t=  1740s  step= 4351  w_max= 8.51m/s  w99=3.03m/s  qc_max=8.02g/kg  cov=14.0%  N=  5  CB=852m  CT=2952m  prec=0.00mm/h  qv_bl=11.89g/kg
+t=  1800s  step= 4501  w_max= 9.65m/s  w99=3.16m/s  qc_max=8.22g/kg  cov=13.8%  N=  5  CB=852m  CT=2952m  prec=0.00mm/h  qv_bl=11.87g/kg
+
+======================================================================
+SIMULATION COMPLETE
+======================================================================
+Wall-clock time: 967.2s (16.1 min)
+Simulation time: 1800s (30.0 min)
+Speed: 1.86× realtime
+Timesteps: 4501
+Average dt: 0.400s
+Finalized run 2026-09-23_1933_nest_cloud16_dx50m: complete
+
+======================================================================
+Run directory: /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/nested_runs/2026-09-23_1933_nest_cloud16_dx50m
+Metadata: /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/nested_runs/2026-09-23_1933_nest_cloud16_dx50m/metadata.yaml
+Diagnostics: /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/nested_runs/2026-09-23_1933_nest_cloud16_dx50m/diag.csv
+Snapshots: /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/nested_runs/2026-09-23_1933_nest_cloud16_dx50m/snapshots/ (31 files)
+======================================================================
