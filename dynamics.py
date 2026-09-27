@@ -242,9 +242,14 @@ def compute_tendencies(s: State, g: Grid) -> dict:
     tend_qc    = -adv_weno_h(s.qc)
     tend_qr    = -adv_weno_h(s.qr)
 
-    # ── Momentum advection — upwind everywhere ────────────────────────────────
-    tend_u = -adv_upwind(s.u)
-    tend_v = -adv_upwind(s.v)
+    # ── Momentum advection ─────────────────────────────────────────────────────
+    # Use WENO-3 if enabled (reduces numerical diffusion), otherwise upwind
+    if cfg.ENABLE_WENO_MOMENTUM:
+        tend_u = -adv_weno_h(s.u)
+        tend_v = -adv_weno_h(s.v)
+    else:
+        tend_u = -adv_upwind(s.u)
+        tend_v = -adv_upwind(s.v)
 
     # ── Upwind advection for w (face-staggered) ───────────────────────────────
     u_at_w = np.zeros((g.nx, g.ny, g.nz + 1))
@@ -285,6 +290,13 @@ def compute_tendencies(s: State, g: Grid) -> dict:
                  + _kdiff_y(w_int, K_M_wface, dy)
                  + K_M_wface * (s.w[:,:,2:] - 2.0*w_int + s.w[:,:,:-2]) / dz_mid)
     tend_w[:,:,1:-1] += dw_diff
+
+    # ── Coriolis force (f-plane approximation) ────────────────────────────────
+    # Coriolis deflects horizontal winds: du/dt += f*v, dv/dt -= f*u
+    # This breaks axisymmetric flow patterns and prevents artificial rotation
+    if cfg.ENABLE_CORIOLIS:
+        tend_u += cfg.CORIOLIS_F * s.v
+        tend_v -= cfg.CORIOLIS_F * s.u
 
     # ── Buoyancy on w-faces ───────────────────────────────────────────────────
     B      = s.buoyancy()

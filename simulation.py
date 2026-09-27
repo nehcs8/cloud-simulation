@@ -41,6 +41,8 @@ _DIAG_FIELDS = [
     "tke",                             # domain-mean TKE
     "u_mean", "v_mean",                # domain-mean winds
     "vort_max", "vort_cloud_mean",     # vorticity (max and in-cloud mean)
+    "centroid_x", "centroid_y",        # cloud mass centroid (km)
+    "centroid_speed",                  # speed of centroid movement (m/s)
 ]
 
 
@@ -56,6 +58,10 @@ class Simulation:
         self.t     = 0.0
         self.step  = 0
         self.viz   = Visualizer(self.grid)
+
+        # Track previous centroid for speed calculation
+        self.prev_centroid = None
+        self.prev_t = 0.0
         os.makedirs(SNAPSHOT_DIR, exist_ok=True)
         self._csv  = open(DIAG_CSV, "w", newline="")
         self._writer = csv.DictWriter(self._csv, fieldnames=_DIAG_FIELDS)
@@ -285,6 +291,30 @@ class Simulation:
         else:
             vort_cloud_mean = 0.0
 
+        # Cloud centroid (mass-weighted center of qc)
+        if cloud_mask_3d.any():
+            x_grid, y_grid = np.meshgrid(np.arange(g.nx) * g.dx, np.arange(g.ny) * g.dy, indexing='ij')
+            x_grid_3d = np.broadcast_to(x_grid[:,:,np.newaxis], s.qc.shape)
+            y_grid_3d = np.broadcast_to(y_grid[:,:,np.newaxis], s.qc.shape)
+
+            total_qc = s.qc.sum()
+            centroid_x = float((s.qc * x_grid_3d).sum() / total_qc / 1000.0)  # km
+            centroid_y = float((s.qc * y_grid_3d).sum() / total_qc / 1000.0)  # km
+
+            # Calculate centroid speed (m/s)
+            if self.prev_centroid is not None:
+                dx_cent = (centroid_x - self.prev_centroid[0]) * 1000.0  # m
+                dy_cent = (centroid_y - self.prev_centroid[1]) * 1000.0  # m
+                dt_cent = self.t - self.prev_t
+                centroid_speed = float(np.sqrt(dx_cent**2 + dy_cent**2) / dt_cent) if dt_cent > 0 else 0.0
+            else:
+                centroid_speed = 0.0
+
+            self.prev_centroid = (centroid_x, centroid_y)
+            self.prev_t = self.t
+        else:
+            centroid_x = centroid_y = centroid_speed = 0.0
+
         return dict(
             t=self.t, step=self.step, dt=dt,
             w_max=w_max, w_99=w_99,
@@ -296,6 +326,8 @@ class Simulation:
             theta_bl=theta_bl, tke=tke,
             u_mean=u_mean, v_mean=v_mean,
             vort_max=vort_max, vort_cloud_mean=vort_cloud_mean,
+            centroid_x=centroid_x, centroid_y=centroid_y,
+            centroid_speed=centroid_speed,
         )
 
     def _report(self, d: dict) -> None:
@@ -312,6 +344,14 @@ class Simulation:
     def _save_snapshot(self, d: dict) -> None:
         s, g = self.state, self.grid
         path = os.path.join(SNAPSHOT_DIR, f"snap_{self.t:07.0f}.npz")
+
+        # Compute 2D vorticity field at mid-cloud height (z ~ 1500m) for visualization
+        z_mid_idx = np.argmin(np.abs(g.z - 1500.0))
+        dvdx = np.gradient(s.v, g.dx, axis=0)
+        dudy = np.gradient(s.u, g.dy, axis=1)
+        vort = dvdx - dudy
+        vort_2d_midcloud = vort[:, :, z_mid_idx].astype(np.float32)
+
         np.savez_compressed(
             path,
             t       = np.array(self.t),
@@ -324,6 +364,9 @@ class Simulation:
             theta   = s.theta.astype(np.float32),
             z_face  = g.z_face.astype(np.float32),
             z       = g.z.astype(np.float32),
+            # 2D vorticity field at mid-cloud level for rotation analysis
+            vort_2d = vort_2d_midcloud,
+            vort_z_level = np.array(g.z[z_mid_idx]),
             # Mean vertical profiles (cheap summary of domain state)
             prof_u     = s.u.mean(axis=(0, 1)).astype(np.float32),
             prof_v     = s.v.mean(axis=(0, 1)).astype(np.float32),

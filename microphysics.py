@@ -76,6 +76,74 @@ def saturation_adjustment(s: State, dt: float) -> None:
                            s.theta)
 
 
+# ── Turbulent entrainment ────────────────────────────────────────────────────
+
+def apply_entrainment(s: State, g: Grid, dt: float) -> None:
+    """
+    Parameterize turbulent entrainment of environmental air into cloud edges.
+
+    Physical process:
+    - Turbulence at cloud boundaries mixes dry environmental air into cloud
+    - Dilutes cloud water → evaporation → evaporative cooling
+    - Creates wispy, turbulent cloud structure
+
+    Method:
+    - Entrainment rate ε (s^-1) applied at cloud boundaries
+    - Gradient |∇qc| used to identify boundaries (weight 0-1)
+    - Relax cloud properties toward horizontal-mean environment
+    - Saturation adjustment handles resulting evaporation/cooling
+
+    Parameters from config:
+    - ENTRAINMENT_RATE: time rate (s^-1) (typical 0.001-0.01, ~100-1000s timescale)
+    """
+    if not cfg.ENABLE_ENTRAINMENT:
+        return
+
+    # Cloud threshold (0.1 g/kg)
+    QC_THRESHOLD = 1e-4  # kg/kg
+
+    # Identify cloudy regions
+    cloud_mask = s.qc > QC_THRESHOLD
+    if not cloud_mask.any():
+        return  # No clouds, skip
+
+    # Compute horizontal gradient of qc using centered differences
+    dqc_dx = (np.roll(s.qc, -1, axis=0) - np.roll(s.qc, 1, axis=0)) / (2.0 * g.dx)
+    dqc_dy = (np.roll(s.qc, -1, axis=1) - np.roll(s.qc, 1, axis=1)) / (2.0 * g.dy)
+    grad_qc = np.sqrt(dqc_dx**2 + dqc_dy**2)
+
+    # Entrainment rate: constant rate at cloud boundaries
+    # Use gradient to identify boundaries (normalized to 0-1 range)
+    # Typical cloud edge gradient: 1e-6 to 1e-5 kg/kg/m
+    grad_threshold = 1e-6  # kg/kg/m, threshold for "cloud boundary"
+    boundary_weight = np.minimum(grad_qc / grad_threshold, 1.0)  # dimensionless, 0-1
+
+    # ENTRAINMENT_RATE is now in s^-1 (time rate, not length^-1)
+    # Stronger entrainment at sharp boundaries, weaker in cloud core
+    epsilon = cfg.ENTRAINMENT_RATE * boundary_weight  # s^-1
+
+    # Environmental state = horizontal mean at each level
+    qv_env = s.qv.mean(axis=(0, 1))[np.newaxis, np.newaxis, :]     # (1,1,nz)
+    theta_env = s.theta.mean(axis=(0, 1))[np.newaxis, np.newaxis, :]
+
+    # Relaxation toward environment (only in cloudy regions)
+    # dφ/dt = -ε * (φ - φ_env)  →  φ(t+dt) = φ + dt * (-ε * (φ - φ_env))
+    relax_factor = epsilon * dt
+    relax_factor = np.minimum(relax_factor, 1.0)  # Limit to avoid overshoot
+
+    # Apply entrainment mixing
+    delta_qv = relax_factor * (qv_env - s.qv)
+    delta_theta = relax_factor * (theta_env - s.theta)
+    delta_qc = -relax_factor * s.qc  # Dilute cloud water
+
+    s.qv = np.where(cloud_mask, s.qv + delta_qv, s.qv)
+    s.theta = np.where(cloud_mask, s.theta + delta_theta, s.theta)
+    s.qc = np.where(cloud_mask, s.qc + delta_qc, s.qc)
+
+    # Ensure non-negative qc
+    s.qc = np.maximum(s.qc, 0.0)
+
+
 # ── Kessler collection / conversion ──────────────────────────────────────────
 
 _K1    = 1e-3    # s^-1,  autoconversion rate
@@ -148,9 +216,25 @@ def sedimentation(s: State, g: Grid, dt: float) -> None:
 # ── Main microphysics driver ──────────────────────────────────────────────────
 
 def apply_microphysics(s: State, g: Grid, dt: float) -> None:
+    """
+    Apply microphysical processes in sequence:
+    1. Saturation adjustment (condensation/evaporation)
+    2. Entrainment (turbulent mixing at cloud edges) - OPTIONAL
+    3. Warm rain (autoconversion, accretion, rain evaporation)
+    4. Sedimentation (rain fallout)
+    """
     saturation_adjustment(s, dt)
+
+    # Apply entrainment if enabled (creates wispy cloud structure)
+    if cfg.ENABLE_ENTRAINMENT:
+        apply_entrainment(s, g, dt)
+        # Re-run saturation adjustment after entrainment
+        # (diluted qc may evaporate, creating cooling)
+        saturation_adjustment(s, dt)
+
     warm_rain(s, g, dt)
     sedimentation(s, g, dt)
+
     # Enforce non-negative mixing ratios
     s.qv = np.maximum(s.qv, 0.0)
     s.qc = np.maximum(s.qc, 0.0)

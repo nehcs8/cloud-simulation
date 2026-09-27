@@ -60,6 +60,15 @@ U_GEO: float = 2.0         # m/s, geostrophic wind (E-W component)
 V_GEO: float = 0.0         # m/s, geostrophic wind (N-S component)
 # Wind initialized uniform in vertical, will adjust via turbulence/shear
 
+# ── Rotation fix experiments ───────────────────────────────────────────────────
+ENABLE_CORIOLIS: bool = True         # Add Coriolis force (f-plane approximation) - PROVEN EFFECTIVE
+CORIOLIS_F: float = 1.0e-4           # s^-1, Coriolis parameter (mid-latitudes ~45°N)
+ENABLE_WENO_MOMENTUM: bool = False   # Use WENO-3 for u,v advection (causes instability - keep OFF)
+
+# ── Entrainment parameterization ──────────────────────────────────────────────
+ENABLE_ENTRAINMENT: bool = False     # Add turbulent entrainment at cloud boundaries
+ENTRAINMENT_RATE: float = 0.002      # s^-1, entrainment time rate (typical: 0.001-0.01, ~100-1000s timescale)
+
 # ── Terrain (Phase 2) ──────────────────────────────────────────────────────────
 TERRAIN_TYPE: str = "flat"       # "flat", "gaussian_hill", "sine_ridge", "random", "dem"
 TERRAIN_H_MAX: float = 300.0     # m, max height for synthetic terrain
