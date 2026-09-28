@@ -1,0 +1,123 @@
+Grid(120×120×80, dx=100.0m, dz=27.2–119.6m, z_top=5000m)
+  dt=2.0s, t_end=7200.0s, output every 60.0s
+t=     0s  step=    1  w_max= 0.00m/s  w99=0.00m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=13.72g/kg
+t=    60s  step=   31  w_max= 0.39m/s  w99=0.14m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=13.72g/kg
+t=   120s  step=   61  w_max= 0.74m/s  w99=0.27m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=13.73g/kg
+t=   180s  step=   91  w_max= 1.03m/s  w99=0.37m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=13.73g/kg
+t=   240s  step=  121  w_max= 1.18m/s  w99=0.45m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=13.73g/kg
+t=   300s  step=  151  w_max= 1.34m/s  w99=0.51m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=13.73g/kg
+t=   360s  step=  181  w_max= 1.54m/s  w99=0.55m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=13.73g/kg
+t=   420s  step=  211  w_max= 1.69m/s  w99=0.57m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=13.73g/kg
+t=   480s  step=  241  w_max= 1.95m/s  w99=0.59m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=13.73g/kg
+t=   540s  step=  271  w_max= 2.05m/s  w99=0.60m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=13.73g/kg
+t=   600s  step=  301  w_max= 2.32m/s  w99=0.61m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=13.72g/kg
+t=   660s  step=  331  w_max= 2.55m/s  w99=0.61m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=13.72g/kg
+t=   720s  step=  361  w_max= 2.68m/s  w99=0.63m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=13.72g/kg
+t=   780s  step=  391  w_max= 2.70m/s  w99=0.66m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=13.72g/kg
+t=   840s  step=  421  w_max= 2.79m/s  w99=0.70m/s  qc_max=0.03g/kg  cov= 0.1%  N=  1  CB=837m  CT=969m  prec=0.00mm/h  qv_bl=13.72g/kg
+t=   900s  step=  451  w_max= 3.38m/s  w99=0.75m/s  qc_max=0.11g/kg  cov= 0.3%  N=  2  CB=837m  CT=1061m  prec=0.00mm/h  qv_bl=13.72g/kg
+t=   960s  step=  481  w_max= 4.04m/s  w99=0.82m/s  qc_max=0.19g/kg  cov= 0.9%  N=  3  CB=837m  CT=1156m  prec=0.00mm/h  qv_bl=13.71g/kg
+t=  1020s  step=  511  w_max= 4.77m/s  w99=0.91m/s  qc_max=0.31g/kg  cov= 1.4%  N=  3  CB=837m  CT=1255m  prec=0.00mm/h  qv_bl=13.71g/kg
+t=  1080s  step=  541  w_max= 5.53m/s  w99=1.03m/s  qc_max=0.46g/kg  cov= 2.0%  N=  5  CB=837m  CT=1358m  prec=0.00mm/h  qv_bl=13.71g/kg
+t=  1140s  step=  571  w_max= 6.38m/s  w99=1.19m/s  qc_max=0.64g/kg  cov= 2.8%  N=  5  CB=837m  CT=1465m  prec=0.00mm/h  qv_bl=13.70g/kg
+t=  1200s  step=  601  w_max= 7.15m/s  w99=1.39m/s  qc_max=0.88g/kg  cov= 3.7%  N=  8  CB=837m  CT=1576m  prec=0.00mm/h  qv_bl=13.70g/kg
+t=  1260s  step=  631  w_max= 7.69m/s  w99=1.63m/s  qc_max=1.14g/kg  cov= 4.8%  N=  8  CB=795m  CT=1750m  prec=0.00mm/h  qv_bl=13.69g/kg
+t=  1320s  step=  661  w_max= 8.20m/s  w99=1.90m/s  qc_max=1.47g/kg  cov= 5.8%  N=  9  CB=795m  CT=1935m  prec=0.00mm/h  qv_bl=13.68g/kg
+t=  1380s  step=  691  w_max= 8.76m/s  w99=2.23m/s  qc_max=1.71g/kg  cov= 6.6%  N= 10  CB=795m  CT=2130m  prec=0.00mm/h  qv_bl=13.67g/kg
+t=  1440s  step=  721  w_max=10.45m/s  w99=2.58m/s  qc_max=1.95g/kg  cov= 7.4%  N= 11  CB=795m  CT=2266m  prec=0.00mm/h  qv_bl=13.65g/kg
+t=  1500s  step=  753  w_max=12.09m/s  w99=2.96m/s  qc_max=2.25g/kg  cov= 8.6%  N= 14  CB=795m  CT=2480m  prec=0.00mm/h  qv_bl=13.62g/kg
+t=  1560s  step=  789  w_max=13.27m/s  w99=3.31m/s  qc_max=2.57g/kg  cov= 9.8%  N= 14  CB=795m  CT=2630m  prec=0.00mm/h  qv_bl=13.59g/kg
+t=  1620s  step=  827  w_max=13.48m/s  w99=3.62m/s  qc_max=2.94g/kg  cov=11.1%  N= 12  CB=795m  CT=2865m  prec=0.00mm/h  qv_bl=13.56g/kg
+t=  1680s  step=  864  w_max=13.08m/s  w99=3.86m/s  qc_max=3.39g/kg  cov=12.4%  N= 11  CB=795m  CT=3029m  prec=0.00mm/h  qv_bl=13.52g/kg
+t=  1740s  step=  900  w_max=12.47m/s  w99=3.98m/s  qc_max=3.67g/kg  cov=13.5%  N= 11  CB=795m  CT=3114m  prec=0.00mm/h  qv_bl=13.49g/kg
+t=  1800s  step=  935  w_max=12.97m/s  w99=4.00m/s  qc_max=3.65g/kg  cov=14.5%  N=  9  CB=795m  CT=3200m  prec=0.00mm/h  qv_bl=13.45g/kg
+t=  1860s  step=  972  w_max=13.79m/s  w99=3.96m/s  qc_max=3.57g/kg  cov=15.2%  N= 10  CB=837m  CT=3288m  prec=0.00mm/h  qv_bl=13.42g/kg
+t=  1920s  step= 1011  w_max=13.97m/s  w99=3.86m/s  qc_max=3.97g/kg  cov=15.9%  N= 10  CB=837m  CT=3288m  prec=0.00mm/h  qv_bl=13.38g/kg
+t=  1980s  step= 1050  w_max=13.59m/s  w99=3.70m/s  qc_max=4.78g/kg  cov=16.5%  N=  8  CB=837m  CT=3288m  prec=0.00mm/h  qv_bl=13.35g/kg
+t=  2040s  step= 1087  w_max=12.68m/s  w99=3.52m/s  qc_max=5.74g/kg  cov=16.8%  N=  8  CB=837m  CT=3288m  prec=0.00mm/h  qv_bl=13.32g/kg
+t=  2100s  step= 1122  w_max=11.92m/s  w99=3.41m/s  qc_max=6.20g/kg  cov=17.0%  N=  7  CB=837m  CT=3377m  prec=0.00mm/h  qv_bl=13.29g/kg
+t=  2160s  step= 1154  w_max=10.76m/s  w99=3.35m/s  qc_max=5.83g/kg  cov=17.0%  N=  7  CB=837m  CT=3468m  prec=0.00mm/h  qv_bl=13.27g/kg
+t=  2220s  step= 1185  w_max=11.09m/s  w99=3.33m/s  qc_max=5.66g/kg  cov=16.9%  N=  7  CB=837m  CT=3468m  prec=0.00mm/h  qv_bl=13.25g/kg
+t=  2280s  step= 1216  w_max=10.75m/s  w99=3.31m/s  qc_max=6.21g/kg  cov=16.8%  N=  7  CB=837m  CT=3468m  prec=0.00mm/h  qv_bl=13.23g/kg
+t=  2340s  step= 1246  w_max= 9.92m/s  w99=3.31m/s  qc_max=6.22g/kg  cov=16.2%  N=  9  CB=837m  CT=3468m  prec=0.00mm/h  qv_bl=13.21g/kg
+t=  2400s  step= 1276  w_max= 9.53m/s  w99=3.27m/s  qc_max=5.96g/kg  cov=15.8%  N=  9  CB=837m  CT=3468m  prec=0.00mm/h  qv_bl=13.19g/kg
+t=  2460s  step= 1306  w_max=10.60m/s  w99=3.21m/s  qc_max=6.48g/kg  cov=15.5%  N=  9  CB=754m  CT=3377m  prec=0.00mm/h  qv_bl=13.17g/kg
+t=  2520s  step= 1338  w_max=12.37m/s  w99=3.21m/s  qc_max=6.92g/kg  cov=15.4%  N= 11  CB=521m  CT=3200m  prec=0.00mm/h  qv_bl=13.16g/kg
+t=  2580s  step= 1375  w_max=14.40m/s  w99=3.29m/s  qc_max=8.25g/kg  cov=15.3%  N= 10  CB=248m  CT=3114m  prec=0.00mm/h  qv_bl=13.15g/kg
+t=  2640s  step= 1417  w_max=15.60m/s  w99=3.39m/s  qc_max=8.59g/kg  cov=15.6%  N= 10  CB=97m  CT=3114m  prec=0.00mm/h  qv_bl=13.14g/kg
+t=  2700s  step= 1459  w_max=14.54m/s  w99=3.45m/s  qc_max=8.37g/kg  cov=15.8%  N= 12  CB=69m  CT=3029m  prec=0.00mm/h  qv_bl=13.14g/kg
+t=  2760s  step= 1499  w_max=13.93m/s  w99=3.46m/s  qc_max=6.80g/kg  cov=15.8%  N= 13  CB=69m  CT=2946m  prec=0.00mm/h  qv_bl=13.13g/kg
+t=  2820s  step= 1541  w_max=16.74m/s  w99=3.46m/s  qc_max=4.40g/kg  cov=15.7%  N= 11  CB=186m  CT=2865m  prec=0.00mm/h  qv_bl=13.13g/kg
+t=  2880s  step= 1591  w_max=18.56m/s  w99=3.45m/s  qc_max=4.33g/kg  cov=15.4%  N= 16  CB=126m  CT=2630m  prec=0.00mm/h  qv_bl=13.13g/kg
+t=  2940s  step= 1638  w_max=15.79m/s  w99=3.38m/s  qc_max=4.00g/kg  cov=15.3%  N= 18  CB=673m  CT=3377m  prec=0.00mm/h  qv_bl=13.12g/kg
+t=  3000s  step= 1679  w_max=13.18m/s  w99=3.28m/s  qc_max=3.41g/kg  cov=15.2%  N= 19  CB=558m  CT=3200m  prec=0.00mm/h  qv_bl=13.11g/kg
+t=  3060s  step= 1717  w_max=13.69m/s  w99=3.23m/s  qc_max=3.55g/kg  cov=15.4%  N= 21  CB=754m  CT=3114m  prec=0.00mm/h  qv_bl=13.10g/kg
+t=  3120s  step= 1755  w_max=12.51m/s  w99=3.17m/s  qc_max=3.61g/kg  cov=15.6%  N= 21  CB=713m  CT=3029m  prec=0.00mm/h  qv_bl=13.10g/kg
+t=  3180s  step= 1792  w_max=13.39m/s  w99=3.10m/s  qc_max=3.17g/kg  cov=15.8%  N= 21  CB=634m  CT=2865m  prec=0.00mm/h  qv_bl=13.09g/kg
+t=  3240s  step= 1826  w_max=11.15m/s  w99=3.02m/s  qc_max=2.23g/kg  cov=15.7%  N= 23  CB=596m  CT=2785m  prec=0.00mm/h  qv_bl=13.08g/kg
+t=  3300s  step= 1857  w_max=11.08m/s  w99=2.92m/s  qc_max=2.45g/kg  cov=15.7%  N= 21  CB=558m  CT=2707m  prec=0.00mm/h  qv_bl=13.07g/kg
+t=  3360s  step= 1889  w_max=10.98m/s  w99=2.83m/s  qc_max=2.71g/kg  cov=15.8%  N= 22  CB=837m  CT=2785m  prec=0.00mm/h  qv_bl=13.06g/kg
+t=  3420s  step= 1920  w_max= 9.55m/s  w99=2.76m/s  qc_max=2.94g/kg  cov=16.3%  N= 22  CB=795m  CT=2785m  prec=0.00mm/h  qv_bl=13.05g/kg
+t=  3480s  step= 1950  w_max= 9.57m/s  w99=2.71m/s  qc_max=3.24g/kg  cov=16.6%  N= 23  CB=837m  CT=2865m  prec=0.00mm/h  qv_bl=13.04g/kg
+t=  3540s  step= 1980  w_max= 8.88m/s  w99=2.67m/s  qc_max=3.57g/kg  cov=16.4%  N= 25  CB=837m  CT=2865m  prec=0.00mm/h  qv_bl=13.03g/kg
+t=  3600s  step= 2010  w_max= 7.88m/s  w99=2.63m/s  qc_max=3.78g/kg  cov=16.5%  N= 22  CB=837m  CT=2865m  prec=0.00mm/h  qv_bl=13.02g/kg
+t=  3660s  step= 2040  w_max= 8.21m/s  w99=2.66m/s  qc_max=3.94g/kg  cov=16.3%  N= 21  CB=924m  CT=2785m  prec=0.00mm/h  qv_bl=13.02g/kg
+t=  3720s  step= 2070  w_max= 8.22m/s  w99=2.69m/s  qc_max=4.27g/kg  cov=16.0%  N= 20  CB=924m  CT=2707m  prec=0.00mm/h  qv_bl=13.01g/kg
+t=  3780s  step= 2100  w_max= 8.26m/s  w99=2.75m/s  qc_max=4.93g/kg  cov=16.0%  N= 16  CB=754m  CT=2630m  prec=0.00mm/h  qv_bl=13.00g/kg
+t=  3840s  step= 2131  w_max=11.18m/s  w99=2.81m/s  qc_max=4.35g/kg  cov=15.8%  N= 14  CB=521m  CT=2407m  prec=0.00mm/h  qv_bl=13.00g/kg
+t=  3900s  step= 2166  w_max=13.85m/s  w99=2.83m/s  qc_max=2.53g/kg  cov=15.4%  N= 17  CB=280m  CT=2480m  prec=0.00mm/h  qv_bl=13.00g/kg
+t=  3960s  step= 2208  w_max=15.28m/s  w99=2.80m/s  qc_max=2.41g/kg  cov=15.1%  N= 19  CB=521m  CT=2554m  prec=0.00mm/h  qv_bl=12.99g/kg
+t=  4020s  step= 2246  w_max=11.27m/s  w99=2.71m/s  qc_max=2.61g/kg  cov=14.9%  N= 18  CB=969m  CT=2554m  prec=0.00mm/h  qv_bl=12.99g/kg
+t=  4080s  step= 2277  w_max= 7.84m/s  w99=2.58m/s  qc_max=2.78g/kg  cov=14.5%  N= 19  CB=969m  CT=2630m  prec=0.00mm/h  qv_bl=12.99g/kg
+t=  4140s  step= 2307  w_max= 7.91m/s  w99=2.48m/s  qc_max=3.04g/kg  cov=14.2%  N= 17  CB=969m  CT=2630m  prec=0.00mm/h  qv_bl=12.98g/kg
+t=  4200s  step= 2337  w_max= 8.16m/s  w99=2.40m/s  qc_max=3.37g/kg  cov=13.8%  N= 17  CB=969m  CT=2707m  prec=0.00mm/h  qv_bl=12.98g/kg
+t=  4260s  step= 2367  w_max= 8.07m/s  w99=2.33m/s  qc_max=3.97g/kg  cov=13.5%  N= 16  CB=969m  CT=2630m  prec=0.00mm/h  qv_bl=12.98g/kg
+t=  4320s  step= 2397  w_max= 7.73m/s  w99=2.30m/s  qc_max=5.01g/kg  cov=13.0%  N= 17  CB=969m  CT=2630m  prec=0.00mm/h  qv_bl=12.97g/kg
+t=  4380s  step= 2427  w_max= 7.08m/s  w99=2.29m/s  qc_max=5.39g/kg  cov=13.0%  N= 15  CB=969m  CT=2554m  prec=0.00mm/h  qv_bl=12.97g/kg
+t=  4440s  step= 2457  w_max= 7.88m/s  w99=2.29m/s  qc_max=4.89g/kg  cov=13.0%  N= 15  CB=924m  CT=2630m  prec=0.00mm/h  qv_bl=12.97g/kg
+t=  4500s  step= 2487  w_max= 8.87m/s  w99=2.31m/s  qc_max=5.25g/kg  cov=13.1%  N= 16  CB=754m  CT=2630m  prec=0.00mm/h  qv_bl=12.97g/kg
+t=  4560s  step= 2517  w_max=10.19m/s  w99=2.36m/s  qc_max=5.64g/kg  cov=12.9%  N= 15  CB=521m  CT=2630m  prec=0.00mm/h  qv_bl=12.97g/kg
+t=  4620s  step= 2548  w_max=11.32m/s  w99=2.44m/s  qc_max=5.32g/kg  cov=12.6%  N= 16  CB=346m  CT=2630m  prec=0.00mm/h  qv_bl=12.97g/kg
+t=  4680s  step= 2582  w_max=13.17m/s  w99=2.50m/s  qc_max=4.57g/kg  cov=12.1%  N= 16  CB=313m  CT=2554m  prec=0.00mm/h  qv_bl=12.98g/kg
+t=  4740s  step= 2619  w_max=13.42m/s  w99=2.57m/s  qc_max=4.12g/kg  cov=11.6%  N= 14  CB=248m  CT=2480m  prec=0.00mm/h  qv_bl=12.98g/kg
+t=  4800s  step= 2659  w_max=14.84m/s  w99=2.61m/s  qc_max=3.63g/kg  cov=11.2%  N= 16  CB=346m  CT=2407m  prec=0.00mm/h  qv_bl=12.98g/kg
+t=  4860s  step= 2700  w_max=14.35m/s  w99=2.59m/s  qc_max=3.13g/kg  cov=10.7%  N= 17  CB=449m  CT=2336m  prec=0.00mm/h  qv_bl=12.99g/kg
+t=  4920s  step= 2737  w_max=12.21m/s  w99=2.54m/s  qc_max=3.15g/kg  cov=10.3%  N= 14  CB=521m  CT=2407m  prec=0.00mm/h  qv_bl=12.99g/kg
+t=  4980s  step= 2774  w_max=13.53m/s  w99=2.50m/s  qc_max=2.84g/kg  cov=10.1%  N= 16  CB=673m  CT=2480m  prec=0.00mm/h  qv_bl=12.99g/kg
+t=  5040s  step= 2811  w_max=12.79m/s  w99=2.48m/s  qc_max=2.88g/kg  cov= 9.6%  N= 15  CB=713m  CT=2480m  prec=0.00mm/h  qv_bl=12.99g/kg
+t=  5100s  step= 2846  w_max=12.53m/s  w99=2.40m/s  qc_max=2.59g/kg  cov= 9.0%  N= 15  CB=713m  CT=2554m  prec=0.00mm/h  qv_bl=12.99g/kg
+t=  5160s  step= 2881  w_max=12.07m/s  w99=2.29m/s  qc_max=2.83g/kg  cov= 8.5%  N= 15  CB=837m  CT=2554m  prec=0.00mm/h  qv_bl=12.99g/kg
+t=  5220s  step= 2915  w_max=12.02m/s  w99=2.21m/s  qc_max=3.19g/kg  cov= 8.3%  N= 15  CB=969m  CT=2554m  prec=0.00mm/h  qv_bl=12.99g/kg
+t=  5280s  step= 2946  w_max= 9.47m/s  w99=2.19m/s  qc_max=3.67g/kg  cov= 8.1%  N= 12  CB=969m  CT=2554m  prec=0.00mm/h  qv_bl=12.99g/kg
+t=  5340s  step= 2976  w_max= 8.17m/s  w99=2.21m/s  qc_max=3.81g/kg  cov= 8.2%  N= 14  CB=969m  CT=2480m  prec=0.00mm/h  qv_bl=12.99g/kg
+t=  5400s  step= 3006  w_max= 6.42m/s  w99=2.22m/s  qc_max=3.75g/kg  cov= 8.5%  N= 15  CB=969m  CT=2480m  prec=0.00mm/h  qv_bl=12.99g/kg
+t=  5460s  step= 3036  w_max= 6.00m/s  w99=2.24m/s  qc_max=3.41g/kg  cov= 8.9%  N= 16  CB=969m  CT=2554m  prec=0.00mm/h  qv_bl=12.99g/kg
+t=  5520s  step= 3066  w_max= 7.39m/s  w99=2.26m/s  qc_max=2.84g/kg  cov= 9.6%  N= 13  CB=969m  CT=2630m  prec=0.00mm/h  qv_bl=13.00g/kg
+t=  5580s  step= 3096  w_max= 9.35m/s  w99=2.27m/s  qc_max=2.10g/kg  cov= 9.8%  N= 13  CB=969m  CT=2630m  prec=0.00mm/h  qv_bl=13.00g/kg
+t=  5640s  step= 3127  w_max=10.90m/s  w99=2.31m/s  qc_max=2.28g/kg  cov= 9.9%  N= 12  CB=969m  CT=2707m  prec=0.00mm/h  qv_bl=13.00g/kg
+t=  5700s  step= 3158  w_max=10.02m/s  w99=2.34m/s  qc_max=2.85g/kg  cov= 9.6%  N= 13  CB=969m  CT=2707m  prec=0.00mm/h  qv_bl=13.00g/kg
+t=  5760s  step= 3188  w_max= 8.12m/s  w99=2.37m/s  qc_max=3.36g/kg  cov= 9.4%  N= 12  CB=969m  CT=2630m  prec=0.00mm/h  qv_bl=13.00g/kg
+t=  5820s  step= 3218  w_max= 8.24m/s  w99=2.38m/s  qc_max=3.95g/kg  cov= 9.3%  N= 10  CB=969m  CT=2630m  prec=0.00mm/h  qv_bl=13.00g/kg
+t=  5880s  step= 3248  w_max= 8.91m/s  w99=2.39m/s  qc_max=4.56g/kg  cov= 9.4%  N= 10  CB=924m  CT=2630m  prec=0.00mm/h  qv_bl=13.00g/kg
+t=  5940s  step= 3278  w_max= 9.28m/s  w99=2.41m/s  qc_max=5.58g/kg  cov= 9.7%  N= 10  CB=837m  CT=2554m  prec=0.00mm/h  qv_bl=13.00g/kg
+t=  6000s  step= 3308  w_max= 9.67m/s  w99=2.43m/s  qc_max=6.69g/kg  cov=10.3%  N= 12  CB=673m  CT=2480m  prec=0.00mm/h  qv_bl=13.00g/kg
+t=  6060s  step= 3339  w_max=11.67m/s  w99=2.46m/s  qc_max=7.86g/kg  cov=10.7%  N= 11  CB=414m  CT=2407m  prec=0.00mm/h  qv_bl=13.00g/kg
+t=  6120s  step= 3376  w_max=14.51m/s  w99=2.50m/s  qc_max=7.64g/kg  cov=11.2%  N= 16  CB=186m  CT=2336m  prec=0.00mm/h  qv_bl=13.00g/kg
+t=  6180s  step= 3418  w_max=15.49m/s  w99=2.53m/s  qc_max=6.80g/kg  cov=11.6%  N= 17  CB=126m  CT=2266m  prec=0.00mm/h  qv_bl=13.00g/kg
+t=  6240s  step= 3463  w_max=15.87m/s  w99=2.53m/s  qc_max=4.64g/kg  cov=11.9%  N= 19  CB=97m  CT=2197m  prec=0.00mm/h  qv_bl=13.01g/kg
+t=  6300s  step= 3509  w_max=16.58m/s  w99=2.51m/s  qc_max=2.58g/kg  cov=11.9%  N= 16  CB=156m  CT=2266m  prec=0.00mm/h  qv_bl=13.01g/kg
+t=  6360s  step= 3554  w_max=15.74m/s  w99=2.51m/s  qc_max=1.50g/kg  cov=11.8%  N= 15  CB=558m  CT=2266m  prec=0.00mm/h  qv_bl=13.01g/kg
+t=  6420s  step= 3596  w_max=13.15m/s  w99=2.51m/s  qc_max=1.57g/kg  cov=11.4%  N= 18  CB=924m  CT=2336m  prec=0.00mm/h  qv_bl=13.01g/kg
+t=  6480s  step= 3629  w_max=10.52m/s  w99=2.51m/s  qc_max=1.59g/kg  cov=11.4%  N= 15  CB=1015m  CT=2336m  prec=0.00mm/h  qv_bl=13.01g/kg
+t=  6540s  step= 3659  w_max= 8.84m/s  w99=2.51m/s  qc_max=1.60g/kg  cov=11.4%  N= 17  CB=1015m  CT=2336m  prec=0.00mm/h  qv_bl=13.00g/kg
+t=  6600s  step= 3689  w_max= 8.55m/s  w99=2.50m/s  qc_max=1.68g/kg  cov=11.4%  N= 16  CB=1015m  CT=2407m  prec=0.00mm/h  qv_bl=13.00g/kg
+t=  6660s  step= 3719  w_max= 9.24m/s  w99=2.47m/s  qc_max=1.84g/kg  cov=11.5%  N= 16  CB=1015m  CT=2407m  prec=0.00mm/h  qv_bl=13.00g/kg
+t=  6720s  step= 3749  w_max= 9.58m/s  w99=2.45m/s  qc_max=1.83g/kg  cov=11.6%  N= 16  CB=1015m  CT=2407m  prec=0.00mm/h  qv_bl=13.00g/kg
+t=  6780s  step= 3779  w_max= 9.63m/s  w99=2.41m/s  qc_max=1.82g/kg  cov=12.0%  N= 13  CB=1015m  CT=2407m  prec=0.00mm/h  qv_bl=12.99g/kg
+t=  6840s  step= 3809  w_max= 9.31m/s  w99=2.40m/s  qc_max=2.04g/kg  cov=12.3%  N= 12  CB=1015m  CT=2407m  prec=0.00mm/h  qv_bl=12.99g/kg
+t=  6900s  step= 3839  w_max= 8.69m/s  w99=2.38m/s  qc_max=2.30g/kg  cov=12.6%  N= 11  CB=1015m  CT=2407m  prec=0.00mm/h  qv_bl=12.99g/kg
+t=  6960s  step= 3869  w_max= 7.90m/s  w99=2.36m/s  qc_max=2.59g/kg  cov=12.8%  N= 11  CB=1015m  CT=2407m  prec=0.00mm/h  qv_bl=12.98g/kg
+t=  7020s  step= 3899  w_max= 7.07m/s  w99=2.35m/s  qc_max=2.95g/kg  cov=12.6%  N= 10  CB=1015m  CT=2336m  prec=0.00mm/h  qv_bl=12.98g/kg
+t=  7080s  step= 3929  w_max= 6.82m/s  w99=2.35m/s  qc_max=3.27g/kg  cov=12.4%  N= 10  CB=1015m  CT=2336m  prec=0.00mm/h  qv_bl=12.98g/kg
+t=  7140s  step= 3959  w_max= 6.80m/s  w99=2.33m/s  qc_max=3.03g/kg  cov=12.3%  N=  9  CB=1015m  CT=2336m  prec=0.00mm/h  qv_bl=12.98g/kg
+t=  7200s  step= 3989  w_max= 6.75m/s  w99=2.31m/s  qc_max=2.82g/kg  cov=11.8%  N=  9  CB=969m  CT=2336m  prec=0.00mm/h  qv_bl=12.98g/kg

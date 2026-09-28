@@ -42,7 +42,33 @@ def apply_surface_fluxes(s: State, g: Grid, dt: float,
     For terrain: surface follows terrain elevation (terrain-following).
 
     shf_map, lhf_map: (nx, ny) arrays in W/m².
+
+    Optional cloud-radiative feedback:
+    - Compute column-integrated cloud water (liquid water path, LWP)
+    - Calculate optical depth: τ = extinction × LWP
+    - Reduce surface fluxes by transmittance = exp(-τ)
+    - Creates self-limiting clouds and oscillating thermals
     """
+    # Cloud-radiative feedback (optional)
+    if cfg.ENABLE_CLOUD_SHADING:
+        # Liquid water path: column integral of qc [kg/m²]
+        LWP = np.sum(s.qc * g.dz_face[np.newaxis, np.newaxis, :], axis=2)  # (nx, ny)
+
+        # Cloud optical depth (dimensionless)
+        # τ = extinction_coeff [m²/kg] × LWP [kg/m²]
+        # Typical extinction: 100-200 m²/kg for liquid water clouds
+        tau = cfg.CLOUD_EXTINCTION * LWP
+
+        # Beer's law transmittance (0 = opaque, 1 = clear)
+        transmittance = np.exp(-tau)
+
+        # Enforce minimum transmittance (even thick clouds let some diffuse light through)
+        transmittance = np.maximum(transmittance, cfg.MIN_TRANSMITTANCE)
+
+        # Reduce fluxes under clouds
+        shf_map = shf_map * transmittance
+        lhf_map = lhf_map * transmittance
+
     if g.terrain is None:
         # ── Flat domain (original code) ──────────────────────────────────────
         rho0_bot = s.rho0[0]

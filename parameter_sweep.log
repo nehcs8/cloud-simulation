@@ -1,0 +1,225 @@
+
+======================================================================
+SYSTEMATIC PARAMETER SWEEP
+======================================================================
+Duration: 60 minutes per simulation
+Total simulations: 9 (3 sets × 3 variations)
+======================================================================
+
+✓ Backed up config and state
+
+
+######################################################################
+# SET: WIND SHEAR
+######################################################################
+
+
+--- No wind shear (U=2m/s uniform) ---
+✓ Config modified: SHF=100.0, LHF=50.0, U_shear=0.0, Entrainment=0.0002
+
+======================================================================
+Running: wind_shear_no_shear
+======================================================================
+
+✓ Simulation completed
+✓ Moved outputs
+Generating GIF...
+✓ Generated GIF
+
+Metrics:
+  Cloud depth: 2947 m
+  QC max: 5.79 g/kg
+  W max: 10.21 m/s
+  Cloud fraction: 10.4%
+
+--- Moderate shear (+5m/s over 3km) ---
+✓ Config modified: SHF=100.0, LHF=50.0, U_shear=5.0, Entrainment=0.0002
+
+======================================================================
+Running: wind_shear_moderate_shear
+======================================================================
+
+✓ Simulation completed
+✓ Moved outputs
+Generating GIF...
+✓ Generated GIF
+
+Metrics:
+  Cloud depth: 2276 m
+  QC max: 4.83 g/kg
+  W max: 8.25 m/s
+  Cloud fraction: 14.1%
+
+--- Strong shear (+10m/s over 3km) ---
+✓ Config modified: SHF=100.0, LHF=50.0, U_shear=10.0, Entrainment=0.0002
+
+======================================================================
+Running: wind_shear_strong_shear
+======================================================================
+
+✓ Simulation completed
+✓ Moved outputs
+Generating GIF...
+✓ Generated GIF
+
+Metrics:
+  Cloud depth: 2276 m
+  QC max: 4.83 g/kg
+  W max: 8.25 m/s
+  Cloud fraction: 14.1%
+
+######################################################################
+# SET: SURFACE FORCING
+######################################################################
+
+
+--- Weak forcing (50/25 W/m²) ---
+✓ Config modified: SHF=50.0, LHF=25.0, U_shear=5.0, Entrainment=0.0002
+
+======================================================================
+Running: surface_forcing_weak_forcing
+======================================================================
+
+✓ Simulation completed
+✓ Moved outputs
+Generating GIF...
+✓ Generated GIF
+
+Metrics:
+  Cloud depth: 1749 m
+  QC max: 2.77 g/kg
+  W max: 6.74 m/s
+  Cloud fraction: 5.5%
+
+--- Moderate forcing (100/50 W/m²) ---
+✓ Config modified: SHF=100.0, LHF=50.0, U_shear=5.0, Entrainment=0.0002
+
+======================================================================
+Running: surface_forcing_moderate_forcing
+======================================================================
+
+✓ Simulation completed
+✓ Moved outputs
+Generating GIF...
+✓ Generated GIF
+
+Metrics:
+  Cloud depth: 2276 m
+  QC max: 4.83 g/kg
+  W max: 8.25 m/s
+  Cloud fraction: 14.1%
+
+--- Strong forcing (200/100 W/m²) ---
+✓ Config modified: SHF=200.0, LHF=100.0, U_shear=5.0, Entrainment=0.0002
+
+======================================================================
+Running: surface_forcing_strong_forcing
+======================================================================
+
+✓ Simulation completed
+✓ Moved outputs
+Generating GIF...
+✓ Generated GIF
+
+Metrics:
+  Cloud depth: 2312 m
+  QC max: 3.36 g/kg
+  W max: 8.16 m/s
+  Cloud fraction: 17.2%
+
+######################################################################
+# SET: ENTRAINMENT
+######################################################################
+
+
+--- No entrainment ---
+✓ Config modified: SHF=100.0, LHF=50.0, U_shear=5.0, Entrainment=0.0
+
+======================================================================
+Running: entrainment_no_entrainment
+======================================================================
+
+✓ Simulation completed
+✓ Moved outputs
+Generating GIF...
+✓ Generated GIF
+
+Metrics:
+  Cloud depth: 2276 m
+  QC max: 4.83 g/kg
+  W max: 8.25 m/s
+  Cloud fraction: 14.1%
+
+--- Moderate entrainment (0.0002) ---
+✓ Config modified: SHF=100.0, LHF=50.0, U_shear=5.0, Entrainment=0.0002
+
+======================================================================
+Running: entrainment_moderate_entrainment
+======================================================================
+
+✓ Simulation completed
+✓ Moved outputs
+Generating GIF...
+✓ Generated GIF
+
+Metrics:
+  Cloud depth: 2276 m
+  QC max: 4.83 g/kg
+  W max: 8.25 m/s
+  Cloud fraction: 14.1%
+
+--- Strong entrainment (0.0004) ---
+✓ Config modified: SHF=100.0, LHF=50.0, U_shear=5.0, Entrainment=0.0004
+
+======================================================================
+Running: entrainment_strong_entrainment
+======================================================================
+
+✓ Simulation completed
+✓ Moved outputs
+Generating GIF...
+✓ Generated GIF
+
+Metrics:
+  Cloud depth: 2276 m
+  QC max: 4.83 g/kg
+  W max: 8.25 m/s
+  Cloud fraction: 14.1%
+
+✓ Restored original config and state
+
+======================================================================
+RESULTS SUMMARY
+======================================================================
+
+WIND_SHEAR - no_shear:
+  Depth: 2947m  QC: 5.79g/kg  W: 10.21m/s  Cover: 10.4%
+
+WIND_SHEAR - moderate_shear:
+  Depth: 2276m  QC: 4.83g/kg  W: 8.25m/s  Cover: 14.1%
+
+WIND_SHEAR - strong_shear:
+  Depth: 2276m  QC: 4.83g/kg  W: 8.25m/s  Cover: 14.1%
+
+SURFACE_FORCING - weak_forcing:
+  Depth: 1749m  QC: 2.77g/kg  W: 6.74m/s  Cover: 5.5%
+
+SURFACE_FORCING - moderate_forcing:
+  Depth: 2276m  QC: 4.83g/kg  W: 8.25m/s  Cover: 14.1%
+
+SURFACE_FORCING - strong_forcing:
+  Depth: 2312m  QC: 3.36g/kg  W: 8.16m/s  Cover: 17.2%
+
+ENTRAINMENT - no_entrainment:
+  Depth: 2276m  QC: 4.83g/kg  W: 8.25m/s  Cover: 14.1%
+
+ENTRAINMENT - moderate_entrainment:
+  Depth: 2276m  QC: 4.83g/kg  W: 8.25m/s  Cover: 14.1%
+
+ENTRAINMENT - strong_entrainment:
+  Depth: 2276m  QC: 4.83g/kg  W: 8.25m/s  Cover: 14.1%
+======================================================================
+
+All results saved to: /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/20260925_param_sweep
+
+Compare GIFs to see which parameter most affects cloud shape!

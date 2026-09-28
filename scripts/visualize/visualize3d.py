@@ -43,6 +43,7 @@ def _next_output_path(ext: str) -> str:
 
 Z_EXP   = 2.0    # vertical exaggeration so clouds don't look pancake-flat
 QC_MAX  = 1.5    # g/kg — top of colour scale
+QR_MAX  = 2.0    # kg/m² — rain water path for ground overlay
 
 
 # ── Opacity transfer function ──────────────────────────────────────────────────
@@ -84,11 +85,14 @@ def _make_plotter() -> tuple[pv.Plotter, dict]:
     pl = pv.Plotter(off_screen=True, window_size=(1280, 720))
     pl.set_background("white")
 
-    # Ground
-    pl.add_mesh(
-        pv.Plane(center=(xm/2, ym/2, 0), direction=(0,0,1), i_size=xm, j_size=ym),
-        color="#7B9E6B", opacity=0.85, name="ground",
-    )
+    # Ground mesh (will be updated per frame with rain colors)
+    # Create a structured grid for the ground to show spatial rain patterns
+    x_ground = np.linspace(0, xm, cfg.NX)
+    y_ground = np.linspace(0, ym, cfg.NY)
+    xx, yy = np.meshgrid(x_ground, y_ground, indexing='ij')
+    zz = np.zeros_like(xx)
+    ground_mesh = pv.StructuredGrid(xx, yy, zz)
+
     # Domain wireframe
     pl.add_mesh(
         pv.Box(bounds=(0, xm, 0, ym, 0, zm)),
@@ -112,36 +116,68 @@ def _make_plotter() -> tuple[pv.Plotter, dict]:
             position_x=0.87, position_y=0.05, height=0.35, width=0.04,
         ),
     )
-    return pl, vol_kwargs
+    return pl, vol_kwargs, ground_mesh
 
 
 # ── Render one frame: set data → add volume → screenshot → remove volume ───────
 
 def _render_frame(pl: pv.Plotter, vol_kwargs: dict, grid: pv.RectilinearGrid,
-                  qc_gkg: np.ndarray, t: float) -> np.ndarray:
+                  ground_mesh: pv.StructuredGrid, qc_gkg: np.ndarray,
+                  qr_kgkg: np.ndarray, dz_face: np.ndarray, t: float) -> np.ndarray:
     """
     Data must be in the grid BEFORE add_volume — VTK doesn't pick up in-place updates.
     So we: set data → add_volume → render → screenshot → remove volume actor.
+
+    Also computes rain water path (RWP) and colors the ground accordingly.
     """
     grid.cell_data["qc"] = qc_gkg
     vol_actor = pl.add_volume(grid, scalars="qc", name="cloud_vol", **vol_kwargs)
+
+    # Calculate rain water path (RWP) = column integral of qr [kg/m²]
+    # qr_kgkg has shape (nx, ny, nz) in Fortran order, need to reshape
+    qr_3d = qr_kgkg.reshape((cfg.NX, cfg.NY, cfg.NZ), order='F')
+    rwp = np.sum(qr_3d * dz_face[np.newaxis, np.newaxis, :], axis=2)  # (nx, ny) in kg/m²
+
+    # Color ground based on rain: green (no rain) → blue (heavy rain)
+    # Flatten for pyvista (structured grid point data)
+    rwp_flat = rwp.ravel(order='F')
+    ground_mesh.point_data["rwp"] = rwp_flat
+
+    # Add ground with rain coloring
+    ground_actor = pl.add_mesh(
+        ground_mesh,
+        scalars="rwp",
+        clim=[0.0, QR_MAX],
+        cmap="Greens_r",  # Green (dry) → white (wet)
+        opacity=0.85,
+        name="ground",
+    )
+
     pl.add_text(f"Cloud water qc  —  t = {t/60:.0f} min",
                 position="upper_edge", font_size=12, color="black", name="title")
     pl.render()
     img = pl.screenshot(return_img=True)
     pl.remove_actor(vol_actor)
+    pl.remove_actor(ground_actor)
     return img
 
 
 # ── Single frame ───────────────────────────────────────────────────────────────
 
 def render_single(path: str, out: str = "cloud_frame.png") -> None:
-    d       = np.load(path)
-    t       = float(d["t"])
-    grid    = _make_grid()
-    pl, kw  = _make_plotter()
-    img     = _render_frame(pl, kw, grid,
-                            (d["qc"] * 1e3).astype(np.float32).ravel(order="F"), t)
+    d              = np.load(path)
+    t              = float(d["t"])
+    grid           = _make_grid()
+    pl, kw, gmesh  = _make_plotter()
+    sim_grid       = SimGrid()
+
+    img = _render_frame(
+        pl, kw, grid, gmesh,
+        (d["qc"] * 1e3).astype(np.float32).ravel(order="F"),
+        d["qr"].astype(np.float32).ravel(order="F"),
+        sim_grid.dz_face,
+        t
+    )
     pl.close()
     imageio.imwrite(out, img)
     print(f"Saved: {out}")
@@ -168,15 +204,17 @@ def render_all(out: str | None = None, fps: float = 8.0, snapshot_dir: str | Non
         os.makedirs(GIF_DIR, exist_ok=True)
 
     print(f"Rendering {len(paths)} frames → {out}  (fps={fps})")
-    grid   = _make_grid()
-    pl, kw = _make_plotter()
+    grid     = _make_grid()
+    pl, kw, gmesh = _make_plotter()
+    sim_grid = SimGrid()
 
     imgs = []
     for i, path in enumerate(paths):
         d      = np.load(path)
         t      = float(d["t"])
         qc_gkg = (d["qc"] * 1e3).astype(np.float32).ravel(order="F")
-        imgs.append(_render_frame(pl, kw, grid, qc_gkg, t))
+        qr_kgkg = d["qr"].astype(np.float32).ravel(order="F")
+        imgs.append(_render_frame(pl, kw, grid, gmesh, qc_gkg, qr_kgkg, sim_grid.dz_face, t))
         print(f"  frame {i+1:3d}/{len(paths)}  t={t/60:5.1f} min", end="\r", flush=True)
 
     pl.close()

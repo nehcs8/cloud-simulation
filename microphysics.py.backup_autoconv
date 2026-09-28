@@ -159,8 +159,8 @@ def apply_entrainment(s: State, g: Grid, dt: float) -> None:
 
 # ── Kessler collection / conversion ──────────────────────────────────────────
 
-_K1    = 0.0     # s^-1,  autoconversion DISABLED
-_QC0   = 0.001    # kg/kg, autoconversion threshold
+_K1    = 1e-3    # s^-1,  autoconversion rate
+_QC0   = 2e-4    # kg/kg, autoconversion threshold (lower → more rain produced)
 _K2    = 2.2     # accretion coefficient  (Kessler 1969, SI units)
 _K_EVP = 2.0e-4  # rain evaporation coefficient (lower → rain penetrates deeper)
 
@@ -203,42 +203,25 @@ _B_VT = 0.1364  # exponent
 
 def sedimentation(s: State, g: Grid, dt: float) -> None:
     """
-    Implicit upstream sedimentation of rain with updraft interaction.
-
-    V_t = A_VT * (rho0 * qr)^B_VT  (terminal fall speed, positive downward)
-    V_net = V_t - w  (net velocity accounting for updrafts)
-
-    Physical motivation:
-    - Strong updrafts (w > V_t) can suspend raindrops → bigger clouds!
-    - Weak updrafts (w < V_t) let rain fall through → precipitation
-    - This creates realistic cumulus behavior: strong cores accumulate water
+    Implicit upstream sedimentation of rain.
+    V_t = A_VT * (rho0 * qr)^B_VT  (fall speed, positive downward).
     """
     rho0 = s.rho0[np.newaxis, np.newaxis, :]           # (1,1,nz)
-    V_t  = _A_VT * (rho0 * np.maximum(s.qr, 0.0)) ** _B_VT   # (nx,ny,nz) terminal velocity
-
-    # Vertical velocity at cell centers (interpolate from faces)
-    # w is defined on faces (nz+1), need it at centers (nz)
-    w_centers = 0.5 * (s.w[:, :, :-1] + s.w[:, :, 1:])  # (nx, ny, nz)
-
-    # Net downward velocity (terminal velocity - updraft)
-    # If w > V_t, rain is carried upward (V_net < 0)
-    # If w < V_t, rain falls downward (V_net > 0)
-    V_net = V_t - w_centers  # (nx, ny, nz)
+    V_t  = _A_VT * (rho0 * np.maximum(s.qr, 0.0)) ** _B_VT   # (nx,ny,nz)
 
     dz_f = g.dz_face[np.newaxis, np.newaxis, :]        # (1,1,nz)
 
-    # Flux calculation: only downward flux contributes to sedimentation
-    # Upward motion (V_net < 0) means rain stays in cell or moves up via advection
+    # Upstream (downward) flux: flux at top face of cell k  = V_t[k] * qr[k]
     flux_in  = np.zeros_like(s.qr)
-    flux_out = np.maximum(V_net, 0.0) * s.qr  # only positive (downward) flux
+    flux_out = V_t * s.qr
 
     # Flux entering from above (k-1) — shift down
     flux_in[:, :, 1:] = flux_out[:, :, :-1]
     # Bottom boundary: rain exits domain
     flux_in[:, :, 0] = 0.0
 
-    # Implicit factor for stability (use |V_net| to ensure positive denominator)
-    implicit = 1.0 + np.abs(V_net) * dt / dz_f
+    # Implicit factor for stability
+    implicit = 1.0 + V_t * dt / dz_f
     s.qr = (s.qr + dt / dz_f * flux_in) / implicit
     s.qr = np.maximum(s.qr, 0.0)
 

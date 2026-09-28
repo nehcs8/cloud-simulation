@@ -1,0 +1,79 @@
+
+======================================================================
+ENTRAINMENT FIX TEST
+======================================================================
+Duration: 30 minutes per simulation
+Total tests: 3
+======================================================================
+
+✓ Backed up config
+
+
+######################################################################
+# No entrainment (baseline)
+######################################################################
+
+✓ Config modified: ENABLE_ENTRAINMENT=False, RATE=0.0000 s^-1
+
+======================================================================
+Running: 20260926_no_entr
+======================================================================
+
+✓ Simulation completed
+✓ Moved outputs
+
+######################################################################
+# Weak entrainment (0.001 s^-1, ~1000s timescale)
+######################################################################
+
+✓ Config modified: ENABLE_ENTRAINMENT=True, RATE=0.0010 s^-1
+
+======================================================================
+Running: 20260926_weak_entr
+======================================================================
+
+✓ Simulation completed
+✓ Moved outputs
+
+######################################################################
+# Strong entrainment (0.01 s^-1, ~100s timescale)
+######################################################################
+
+✓ Config modified: ENABLE_ENTRAINMENT=True, RATE=0.0100 s^-1
+
+======================================================================
+Running: 20260926_strong_entr
+======================================================================
+
+✓ Simulation completed
+✓ Moved outputs
+
+✓ Restored original config
+
+======================================================================
+RESULTS
+======================================================================
+
+No entrainment (baseline):
+  QC max: 5.10 g/kg
+  QC mean: 0.0309 g/kg
+  Cloud fraction: 16.0%
+
+Weak entrainment (0.001 s^-1, ~1000s timescale):
+  QC max: 4.32 g/kg
+  QC mean: 0.0229 g/kg
+  Cloud fraction: 14.7%
+
+Strong entrainment (0.01 s^-1, ~100s timescale):
+  QC max: 1.08 g/kg
+  QC mean: 0.0032 g/kg
+  Cloud fraction: 12.4%
+======================================================================
+
+DIFFERENCE FROM BASELINE:
+  Weak entrainment:   QC max change = -0.78 g/kg
+  Strong entrainment: QC max change = -4.02 g/kg
+
+✓ FIX WORKS! Entrainment now has measurable effect.
+
+Results saved to: /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/20260926_entrainment_fix

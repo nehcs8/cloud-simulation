@@ -1,0 +1,65 @@
+
+======================================================================
+DYNAMIC ENTRAINMENT TEST
+======================================================================
+Duration: 2 hours per simulation
+Entrainment rate: 0.001 s^-1 (weak)
+Cloud shading: OFF (isolate dynamic entrainment effect)
+======================================================================
+
+✓ Backed up config
+
+
+######################################################################
+# TEST 1/2: Constant entrainment (0.001 s^-1)
+######################################################################
+
+✓ Config modified: ENABLE_DYNAMIC_ENTRAINMENT=False
+
+======================================================================
+Running: constant_entr
+======================================================================
+
+✓ Simulation completed
+✓ Moved outputs
+✓ Generated GIF: 20260927_constant_entr.gif
+
+######################################################################
+# TEST 2/2: Dynamic entrainment (0.001 s^-1, velocity-dependent)
+######################################################################
+
+✓ Config modified: ENABLE_DYNAMIC_ENTRAINMENT=True
+
+======================================================================
+Running: dynamic_entr
+======================================================================
+
+✓ Simulation completed
+✓ Moved outputs
+✓ Generated GIF: 20260927_dynamic_entr.gif
+
+✓ Restored original config
+
+======================================================================
+RESULTS COMPARISON
+======================================================================
+
+Metric               Constant        Dynamic         Change         
+----------------------------------------------------------------------
+QC max (g/kg)        2.03            3.31            +1.28
+QC mean (g/kg)       0.0039          0.0060          +0.0021
+Cloud depth (m)      1465            1834            +369
+Coverage (%)         9.3             10.8            +1.5
+
+======================================================================
+INTERPRETATION:
+======================================================================
+✓ Dynamic entrainment has significant effect!
+  Cloud water content changed by 63%
+  → Weaker entrainment allows more cloud water buildup
+
+======================================================================
+Results saved to: /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/20260927_dynamic_entrainment
+GIFs saved to: /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/cloud_gifs
+======================================================================
+

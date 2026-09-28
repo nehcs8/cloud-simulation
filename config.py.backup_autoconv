@@ -4,13 +4,13 @@
 NX: int   = 120          # cells in x  (100m resolution for baseline)
 NY: int   = 120          # cells in y  (12×12 km domain)
 NZ: int   = 80           # cells in z
-DX: float = 100.0  # m
-DY: float = 100.0  # m
+DX: float = 100.0        # m  (baseline resolution - adjust as needed)
+DY: float = 100.0        # m
 Z_TOP: float = 5000.0    # m, domain top
 
 # ── Time ──────────────────────────────────────────────────────────────────────
 DT: float = 2.0          # s, time step (kept small for stability)
-T_END: float = 7200.0  # s
+T_END: float = 3600.0    # s - 60 minutes (longer for mature clouds)
 OUTPUT_EVERY: float = 60.0  # s
 
 # ── Reference atmosphere ───────────────────────────────────────────────────────
@@ -66,15 +66,15 @@ CORIOLIS_F: float = 1.0e-4           # s^-1, Coriolis parameter (mid-latitudes ~
 ENABLE_WENO_MOMENTUM: bool = False   # Use WENO-3 for u,v advection (causes instability - keep OFF)
 
 # ── Entrainment parameterization ──────────────────────────────────────────────
-ENABLE_ENTRAINMENT: bool = True
-ENTRAINMENT_RATE: float = 0.001  # s^-1, weak
-ENABLE_DYNAMIC_ENTRAINMENT: bool = True
+ENABLE_ENTRAINMENT: bool = False     # Add turbulent entrainment at cloud boundaries
+ENTRAINMENT_RATE: float = 0.002      # s^-1, entrainment time rate (typical: 0.001-0.01, ~100-1000s timescale)
+ENABLE_DYNAMIC_ENTRAINMENT: bool = False  # Scale entrainment with updraft velocity (creates pulsating clouds)
 DYNAMIC_ENTR_W_SCALE: float = 5.0    # m/s, reference updraft velocity for scaling
 
 # ── Cloud-radiative feedback ───────────────────────────────────────────────────
-ENABLE_CLOUD_SHADING: bool = True
-CLOUD_EXTINCTION: float = 200.0  # m²/kg, strong
-MIN_TRANSMITTANCE: float = 0.1
+ENABLE_CLOUD_SHADING: bool = False   # Reduce surface forcing under clouds (creates oscillating thermals)
+CLOUD_EXTINCTION: float = 150.0      # m²/kg, cloud water extinction coefficient (typical: 100-200)
+MIN_TRANSMITTANCE: float = 0.1       # minimum light transmission under thick clouds (0-1, typ: 0.1-0.3)
 
 # ── Terrain (Phase 2) ──────────────────────────────────────────────────────────
 TERRAIN_TYPE: str = "flat"       # "flat", "gaussian_hill", "sine_ridge", "random", "dem"
@@ -83,5 +83,5 @@ TERRAIN_SIGMA: float = 2000.0    # m, Gaussian hill width or correlation length
 TERRAIN_FILE: str | None = None  # Path to DEM file (if TERRAIN_TYPE="dem")
 
 # ── Initial conditions ─────────────────────────────────────────────────────────
-RESTART_FROM: str | None = None
+RESTART_FROM: str | None = None  # Set to None to start fresh with background wind
                                   # If None, use warm-start from noise perturbations

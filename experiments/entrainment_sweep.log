@@ -1,0 +1,145 @@
+
+======================================================================
+EXTENDED ENTRAINMENT SWEEP TEST
+======================================================================
+Duration: 2 hours per simulation
+Total tests: 6
+Estimated total time: 12 hours
+======================================================================
+
+✓ Backed up config
+
+
+######################################################################
+# TEST 1/6: No entrainment (baseline)
+######################################################################
+
+✓ Config modified: ENABLE_ENTRAINMENT=False, RATE=0.0000 s^-1
+
+======================================================================
+Running: entr_none
+======================================================================
+
+✓ Simulation completed
+✓ Moved outputs
+✓ Generated GIF: 20260926_entr_none.gif
+
+######################################################################
+# TEST 2/6: Very weak (0.0005 s^-1, ~2000s timescale)
+######################################################################
+
+✓ Config modified: ENABLE_ENTRAINMENT=True, RATE=0.0005 s^-1
+
+======================================================================
+Running: entr_very_weak
+======================================================================
+
+✓ Simulation completed
+✓ Moved outputs
+✓ Generated GIF: 20260926_entr_very_weak.gif
+
+######################################################################
+# TEST 3/6: Weak (0.001 s^-1, ~1000s timescale)
+######################################################################
+
+✓ Config modified: ENABLE_ENTRAINMENT=True, RATE=0.0010 s^-1
+
+======================================================================
+Running: entr_weak
+======================================================================
+
+✓ Simulation completed
+✓ Moved outputs
+✓ Generated GIF: 20260926_entr_weak.gif
+
+######################################################################
+# TEST 4/6: Moderate (0.002 s^-1, ~500s timescale)
+######################################################################
+
+✓ Config modified: ENABLE_ENTRAINMENT=True, RATE=0.0020 s^-1
+
+======================================================================
+Running: entr_moderate
+======================================================================
+
+✓ Simulation completed
+✓ Moved outputs
+✓ Generated GIF: 20260926_entr_moderate.gif
+
+######################################################################
+# TEST 5/6: Strong (0.005 s^-1, ~200s timescale)
+######################################################################
+
+✓ Config modified: ENABLE_ENTRAINMENT=True, RATE=0.0050 s^-1
+
+======================================================================
+Running: entr_strong
+======================================================================
+
+✓ Simulation completed
+✓ Moved outputs
+✓ Generated GIF: 20260926_entr_strong.gif
+
+######################################################################
+# TEST 6/6: Very strong (0.01 s^-1, ~100s timescale)
+######################################################################
+
+✓ Config modified: ENABLE_ENTRAINMENT=True, RATE=0.0100 s^-1
+
+======================================================================
+Running: entr_very_strong
+======================================================================
+
+✓ Simulation completed
+✓ Moved outputs
+✓ Generated GIF: 20260926_entr_very_strong.gif
+
+✓ Restored original config
+
+======================================================================
+RESULTS SUMMARY
+======================================================================
+
+Rate (s^-1)  QC max     QC mean    Depth      Coverage  
+----------------------------------------------------------------------
+0.0000       6.56       0.0191     2839       18.7      %
+0.0005       2.91       0.0065     1941       12.1      %
+0.0010       2.03       0.0039     1465       9.3       %
+0.0020       2.25       0.0047     1770       10.0      %
+0.0050       1.06       0.0018     1346       9.0       %
+0.0100       0.82       0.0012     1299       10.6      %
+
+======================================================================
+EFFECT RELATIVE TO BASELINE:
+======================================================================
+
+Very weak (0.0005 s^-1, ~2000s timescale):
+  QC max change:  -3.66 g/kg (-56%)
+  Depth change:   -898 m
+  Coverage change: -6.6%
+
+Weak (0.001 s^-1, ~1000s timescale):
+  QC max change:  -4.53 g/kg (-69%)
+  Depth change:   -1373 m
+  Coverage change: -9.5%
+
+Moderate (0.002 s^-1, ~500s timescale):
+  QC max change:  -4.31 g/kg (-66%)
+  Depth change:   -1068 m
+  Coverage change: -8.7%
+
+Strong (0.005 s^-1, ~200s timescale):
+  QC max change:  -5.50 g/kg (-84%)
+  Depth change:   -1493 m
+  Coverage change: -9.7%
+
+Very strong (0.01 s^-1, ~100s timescale):
+  QC max change:  -5.74 g/kg (-87%)
+  Depth change:   -1540 m
+  Coverage change: -8.1%
+
+======================================================================
+Results saved to: /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/20260926_entrainment_sweep
+GIFs saved to: /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/cloud_gifs
+======================================================================
+

@@ -1,0 +1,80 @@
+
+======================================================================
+CLOUD-RADIATIVE FEEDBACK TEST
+======================================================================
+Duration: 2 hours per simulation
+Total tests: 3
+Dynamic entrainment: ON (0.001 s^-1)
+======================================================================
+
+✓ Backed up config
+
+
+######################################################################
+# TEST 1/3: No shading (baseline, dynamic entrainment only)
+######################################################################
+
+✓ Config: shading=False, extinction=150, min_trans=0.20
+
+======================================================================
+Running: no_shading
+======================================================================
+
+✓ Simulation completed
+✓ Moved outputs
+✓ Generated GIF: 20260927_shading_no_shading.gif
+
+######################################################################
+# TEST 2/3: Moderate shading (extinction=150, min_trans=0.2)
+######################################################################
+
+✓ Config: shading=True, extinction=150, min_trans=0.20
+
+======================================================================
+Running: moderate_shading
+======================================================================
+
+✗ Simulation failed: 1
+
+######################################################################
+# TEST 3/3: Strong shading (extinction=200, min_trans=0.1)
+######################################################################
+
+✓ Config: shading=True, extinction=200, min_trans=0.10
+
+======================================================================
+Running: strong_shading
+======================================================================
+
+✗ Simulation failed: 1
+
+✓ Restored original config
+
+======================================================================
+RESULTS COMPARISON
+======================================================================
+
+Test                 QC mean±std          CloudFrac±std        Depth     
+----------------------------------------------------------------------
+no_shading           2.47±1.33            10.4±5.1%            1834      
+
+======================================================================
+OSCILLATION ANALYSIS:
+======================================================================
+
+Baseline (no shading) std: 1.33 g/kg
+
+======================================================================
+INTERPRETATION:
+======================================================================
+
+Higher std = stronger oscillations (pulsating clouds)
+Lower std = steady-state behavior
+
+→ Shading doesn't increase oscillations (may need parameter tuning)
+
+======================================================================
+Results saved to: /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/20260927_cloud_shading
+GIFs saved to: /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/cloud_gifs
+======================================================================
+

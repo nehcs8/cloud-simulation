@@ -1,0 +1,130 @@
+usage: visualize3d.py [-h] [--out OUT] [--fps FPS] [--single SNAP.npz]
+                      [--snapshot-dir SNAPSHOT_DIR]
+visualize3d.py: error: unrecognized arguments: --snapshots /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/rotation_tests/20260924_rot_baseline/snapshots --output /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/rotation_tests/20260924_rot_baseline/clouds.gif
+usage: visualize3d.py [-h] [--out OUT] [--fps FPS] [--single SNAP.npz]
+                      [--snapshot-dir SNAPSHOT_DIR]
+visualize3d.py: error: unrecognized arguments: --snapshots /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/rotation_tests/20260924_rot_coriolis/snapshots --output /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/rotation_tests/20260924_rot_coriolis/clouds.gif
+usage: visualize3d.py [-h] [--out OUT] [--fps FPS] [--single SNAP.npz]
+                      [--snapshot-dir SNAPSHOT_DIR]
+visualize3d.py: error: unrecognized arguments: --snapshots /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/rotation_tests/20260924_rot_weno/snapshots --output /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/rotation_tests/20260924_rot_weno/clouds.gif
+usage: visualize3d.py [-h] [--out OUT] [--fps FPS] [--single SNAP.npz]
+                      [--snapshot-dir SNAPSHOT_DIR]
+visualize3d.py: error: unrecognized arguments: --snapshots /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/rotation_tests/20260924_rot_allfixes/snapshots --output /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/rotation_tests/20260924_rot_allfixes/clouds.gif
+
+======================================================================
+ROTATION FIX AUTOMATED TESTING
+======================================================================
+Test configurations: 4
+Simulation duration: 2.0 hours
+Resolution: 100.0m
+Domain size: 12.0 km
+======================================================================
+
+✓ Backed up config to /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/config.py.backup
+
+
+######################################################################
+# TEST: Baseline (no fixes)
+# Output: /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/rotation_tests/20260924_rot_baseline
+######################################################################
+
+✓ Modified config: Coriolis=False, WENO=False
+
+======================================================================
+Running simulation: 20260924_rot_baseline
+======================================================================
+
+✓ Simulation completed successfully
+✓ Moved snapshots to /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/rotation_tests/20260924_rot_baseline/snapshots
+✓ Moved diag.csv to /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/rotation_tests/20260924_rot_baseline/diag.csv
+
+Generating GIF...
+✗ GIF generation failed
+
+Creating diagnostic plots...
+✓ Created vorticity time series plot
+✓ Created centroid trajectory plot
+
+######################################################################
+# TEST: Coriolis force only
+# Output: /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/rotation_tests/20260924_rot_coriolis
+######################################################################
+
+✓ Modified config: Coriolis=True, WENO=False
+
+======================================================================
+Running simulation: 20260924_rot_coriolis
+======================================================================
+
+✓ Simulation completed successfully
+✓ Moved snapshots to /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/rotation_tests/20260924_rot_coriolis/snapshots
+✓ Moved diag.csv to /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/rotation_tests/20260924_rot_coriolis/diag.csv
+
+Generating GIF...
+✗ GIF generation failed
+
+Creating diagnostic plots...
+✓ Created vorticity time series plot
+✓ Created centroid trajectory plot
+
+######################################################################
+# TEST: WENO momentum only
+# Output: /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/rotation_tests/20260924_rot_weno
+######################################################################
+
+✓ Modified config: Coriolis=False, WENO=True
+
+======================================================================
+Running simulation: 20260924_rot_weno
+======================================================================
+
+✓ Simulation completed successfully
+✓ Moved snapshots to /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/rotation_tests/20260924_rot_weno/snapshots
+✓ Moved diag.csv to /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/rotation_tests/20260924_rot_weno/diag.csv
+
+Generating GIF...
+✗ GIF generation failed
+
+Creating diagnostic plots...
+✓ Created vorticity time series plot
+✓ Created centroid trajectory plot
+
+######################################################################
+# TEST: All fixes (Coriolis + WENO)
+# Output: /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/rotation_tests/20260924_rot_allfixes
+######################################################################
+
+✓ Modified config: Coriolis=True, WENO=True
+
+======================================================================
+Running simulation: 20260924_rot_allfixes
+======================================================================
+
+✓ Simulation completed successfully
+✓ Moved snapshots to /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/rotation_tests/20260924_rot_allfixes/snapshots
+✓ Moved diag.csv to /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/rotation_tests/20260924_rot_allfixes/diag.csv
+
+Generating GIF...
+✗ GIF generation failed
+
+Creating diagnostic plots...
+✓ Created vorticity time series plot
+✓ Created centroid trajectory plot
+
+Creating comparison grid...
+✓ Created comparison grid: /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/rotation_tests/20260924_comparison_grid.png
+
+✓ Restored original config
+
+======================================================================
+TEST SUMMARY
+======================================================================
+✓ 20260924_rot_baseline: SUCCESS
+✓ 20260924_rot_coriolis: SUCCESS
+✓ 20260924_rot_weno: SUCCESS
+✓ 20260924_rot_allfixes: SUCCESS
+======================================================================
+
+All results saved to: /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/rotation_tests
+
+Done!

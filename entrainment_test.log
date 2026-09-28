@@ -1,0 +1,58 @@
+
+======================================================================
+ENTRAINMENT PARAMETERIZATION TEST
+======================================================================
+Duration: 60 minutes
+Resolution: 100.0m
+======================================================================
+
+✓ Backed up config
+
+
+######################################################################
+# Baseline (no entrainment)
+# Output: /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/entrainment_tests/20260925_entr_no_entrainment
+######################################################################
+
+✓ Config modified: ENABLE_ENTRAINMENT=False
+
+======================================================================
+Running: 20260925_entr_no_entrainment
+======================================================================
+
+✓ Simulation completed
+✓ Moved outputs to /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/entrainment_tests/20260925_entr_no_entrainment
+
+Generating GIF...
+✓ Generated GIF: clouds.gif
+
+######################################################################
+# With entrainment (wispy clouds)
+# Output: /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/entrainment_tests/20260925_entr_with_entrainment
+######################################################################
+
+✓ Config modified: ENABLE_ENTRAINMENT=True
+
+======================================================================
+Running: 20260925_entr_with_entrainment
+======================================================================
+
+✓ Simulation completed
+✓ Moved outputs to /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/entrainment_tests/20260925_entr_with_entrainment
+
+Generating GIF...
+✓ Generated GIF: clouds.gif
+
+✓ Restored original config
+
+======================================================================
+TEST SUMMARY
+======================================================================
+✓ 20260925_entr_no_entrainment: SUCCESS
+✓ 20260925_entr_with_entrainment: SUCCESS
+======================================================================
+
+Results: /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/experiments/entrainment_tests
+
+Compare the GIFs to see the effect of entrainment!
+Expected: 'with_entrainment' should show wispy, evolving cloud edges.

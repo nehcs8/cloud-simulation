@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/main.py", line 3, in <module>
+    from simulation import Simulation
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/simulation.py", line 17, in <module>
+    import numpy as np
+ModuleNotFoundError: No module named 'numpy'
