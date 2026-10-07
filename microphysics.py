@@ -48,9 +48,13 @@ def saturation_adjustment(s: State, dt: float) -> None:
     cond_mask = excess > 0.0
     if cond_mask.any():
         # Newton correction for latent heating feedback (1 iteration)
+        # Physics: Condensing Δqc heats air by ΔT = (Lv/cp)*π₀*Δqc
+        # This changes saturation: Δq_s = (dq_s/dT)*ΔT = (dq_s/dT)*(Lv/cp)*π₀*Δqc
+        # So total change: Δqv = excess - Δq_s = excess - (dq_s/dT)*(Lv/cp)*π₀*Δqv
+        # Solving: Δqv = excess / (1 + (Lv/cp)*π₀*(dq_s/dT))
         L_cp  = cfg.LV / cfg.CP
         dqsdT = q_s * cfg.LV / (cfg.RV * T**2)            # dq_s/dT
-        denom = 1.0 + L_cp * dqsdT
+        denom = 1.0 + L_cp * pi0 * dqsdT                  # CRITICAL FIX: include π₀!
         delta = excess / denom                             # kg/kg condensed
 
         np.add.at   # suppress "unused"
@@ -66,7 +70,7 @@ def saturation_adjustment(s: State, dt: float) -> None:
     if evap_mask.any():
         L_cp  = cfg.LV / cfg.CP
         dqsdT = q_s * cfg.LV / (cfg.RV * T**2)
-        denom = 1.0 + L_cp * dqsdT
+        denom = 1.0 + L_cp * pi0 * dqsdT                  # CRITICAL FIX: include π₀!
         delta = np.minimum(-excess / denom, s.qc)         # can't evaporate more than exists
 
         s.qc    = np.where(evap_mask, s.qc - delta,    s.qc)

@@ -1,0 +1,46 @@
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/surface_layer.py:122: RuntimeWarning: overflow encountered in divide
+  L = -u_star**3 * theta_lowest / (KAPPA * cfg.G * theta_star)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/surface_layer.py:146: RuntimeWarning: overflow encountered in divide
+  L = -u_star**3 * theta_lowest / (KAPPA * cfg.G * theta_star)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/surface_layer.py:122: RuntimeWarning: overflow encountered in multiply
+  L = -u_star**3 * theta_lowest / (KAPPA * cfg.G * theta_star)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/surface_layer.py:146: RuntimeWarning: overflow encountered in multiply
+  L = -u_star**3 * theta_lowest / (KAPPA * cfg.G * theta_star)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/surface_layer.py:122: RuntimeWarning: overflow encountered in power
+  L = -u_star**3 * theta_lowest / (KAPPA * cfg.G * theta_star)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/surface_layer.py:146: RuntimeWarning: overflow encountered in power
+  L = -u_star**3 * theta_lowest / (KAPPA * cfg.G * theta_star)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/numpy/fft/_pocketfft.py:101: RuntimeWarning: overflow encountered in ifft
+  return ufunc(a, fct, axes=[(axis,), (), (axis,)], out=out)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/numpy/fft/_pocketfft.py:101: RuntimeWarning: invalid value encountered in irfft
+  return ufunc(a, fct, axes=[(axis,), (), (axis,)], out=out)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/forcing.py:193: RuntimeWarning: invalid value encountered in multiply
+  s.u     += (cfg.U_GEO - s.u) * relax         # → u_g
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:56: RuntimeWarning: overflow encountered in square
+  a0L = (1/3) / (eps + b0L)**2;  a1L = (2/3) / (eps + b1L)**2
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:57: RuntimeWarning: invalid value encountered in divide
+  w0L = a0L / (a0L + a1L)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:64: RuntimeWarning: overflow encountered in square
+  a0R = (1/3) / (eps + b0R)**2;  a1R = (2/3) / (eps + b1R)**2
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:65: RuntimeWarning: invalid value encountered in divide
+  w0R = a0R / (a0R + a1R)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:94: RuntimeWarning: overflow encountered in square
+  a0L = (1/3) / (eps + b0L)**2;  a1L = (2/3) / (eps + b1L)**2
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:95: RuntimeWarning: invalid value encountered in divide
+  w0L = a0L / (a0L + a1L)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:101: RuntimeWarning: overflow encountered in square
+  a0R = (1/3) / (eps + b0R)**2;  a1R = (2/3) / (eps + b1R)**2
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:102: RuntimeWarning: invalid value encountered in divide
+  w0R = a0R / (a0R + a1R)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:141: RuntimeWarning: overflow encountered in square
+  a0L = (1/3) / (eps + b0L)**2;  a1L = (2/3) / (eps + b1L)**2
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:142: RuntimeWarning: invalid value encountered in divide
+  w0L = a0L / (a0L + a1L)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:149: RuntimeWarning: overflow encountered in square
+  a0R = (1/3) / (eps + b0R)**2;  a1R = (2/3) / (eps + b1R)**2
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:150: RuntimeWarning: invalid value encountered in divide
+  w0R = a0R / (a0R + a1R)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/forcing.py:127: RuntimeWarning: Mean of empty slice
+  theta_mean = np.nanmean(s.theta, axis=(0, 1))        # (nz,)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/forcing.py:128: RuntimeWarning: Mean of empty slice
+  qv_mean    = np.nanmean(s.qv,   axis=(0, 1))        # (nz,)

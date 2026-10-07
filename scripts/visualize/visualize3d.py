@@ -62,33 +62,43 @@ def _opacity(n: int = 256) -> np.ndarray:
 
 # ── Grid (built once) ──────────────────────────────────────────────────────────
 
-def _make_grid() -> pv.RectilinearGrid:
-    g  = SimGrid()
-    xf = np.arange(cfg.NX + 1, dtype=np.float64) * cfg.DX
-    yf = np.arange(cfg.NY + 1, dtype=np.float64) * cfg.DY
-    zf = g.z_face * Z_EXP
+def _make_grid(nx=None, ny=None, dx=None, dy=None, z_face=None) -> pv.RectilinearGrid:
+    """Make grid from snapshot dimensions or config defaults."""
+    if nx is None:
+        g = SimGrid()
+        nx, ny = cfg.NX, cfg.NY
+        dx, dy = cfg.DX, cfg.DY
+        z_face = g.z_face
+    xf = np.arange(nx + 1, dtype=np.float64) * dx
+    yf = np.arange(ny + 1, dtype=np.float64) * dy
+    zf = z_face * Z_EXP
     return pv.RectilinearGrid(xf, yf, zf)
 
 
 # ── Plotter setup (fixed camera, built once) ───────────────────────────────────
 
-def _make_plotter() -> tuple[pv.Plotter, dict]:
+def _make_plotter(nx=None, ny=None, dx=None, dy=None, z_face=None) -> tuple[pv.Plotter, dict]:
     """
     Build the plotter with all static elements (ground, box, axes, camera).
     Returns the plotter and a dict of params needed to re-add the volume each frame.
     """
-    g  = SimGrid()
-    xm = cfg.NX * cfg.DX
-    ym = cfg.NY * cfg.DY
-    zm = g.z_face[-1] * Z_EXP
+    if nx is None:
+        g = SimGrid()
+        nx, ny = cfg.NX, cfg.NY
+        dx, dy = cfg.DX, cfg.DY
+        z_face = g.z_face
+
+    xm = nx * dx
+    ym = ny * dy
+    zm = z_face[-1] * Z_EXP
 
     pl = pv.Plotter(off_screen=True, window_size=(1280, 720))
     pl.set_background("white")
 
     # Ground mesh (will be updated per frame with rain colors)
     # Create a structured grid for the ground to show spatial rain patterns
-    x_ground = np.linspace(0, xm, cfg.NX)
-    y_ground = np.linspace(0, ym, cfg.NY)
+    x_ground = np.linspace(0, xm, nx)
+    y_ground = np.linspace(0, ym, ny)
     xx, yy = np.meshgrid(x_ground, y_ground, indexing='ij')
     zz = np.zeros_like(xx)
     ground_mesh = pv.StructuredGrid(xx, yy, zz)
@@ -101,9 +111,10 @@ def _make_plotter() -> tuple[pv.Plotter, dict]:
     pl.add_axes(line_width=3)
 
     # Fixed camera — outside the +x+y corner, elevated, looking at cloud-level centre
+    cam_z_idx = min(25, len(z_face) - 1)
     pl.camera_position = [
         (xm * 1.5,  ym * 1.5,  zm * 1.2),
-        (xm * 0.5,  ym * 0.5,  g.z_face[25] * Z_EXP),
+        (xm * 0.5,  ym * 0.5,  z_face[cam_z_idx] * Z_EXP),
         (0, 0, 1),
     ]
 
@@ -123,7 +134,7 @@ def _make_plotter() -> tuple[pv.Plotter, dict]:
 
 def _render_frame(pl: pv.Plotter, vol_kwargs: dict, grid: pv.RectilinearGrid,
                   ground_mesh: pv.StructuredGrid, qc_gkg: np.ndarray,
-                  qr_kgkg: np.ndarray, dz_face: np.ndarray, t: float) -> np.ndarray:
+                  qr_kgkg: np.ndarray, dz_face: np.ndarray, t: float, nx: int, ny: int, nz: int) -> np.ndarray:
     """
     Data must be in the grid BEFORE add_volume — VTK doesn't pick up in-place updates.
     So we: set data → add_volume → render → screenshot → remove volume actor.
@@ -135,7 +146,7 @@ def _render_frame(pl: pv.Plotter, vol_kwargs: dict, grid: pv.RectilinearGrid,
 
     # Calculate rain water path (RWP) = column integral of qr [kg/m²]
     # qr_kgkg has shape (nx, ny, nz) in Fortran order, need to reshape
-    qr_3d = qr_kgkg.reshape((cfg.NX, cfg.NY, cfg.NZ), order='F')
+    qr_3d = qr_kgkg.reshape((nx, ny, nz), order='F')
     rwp = np.sum(qr_3d * dz_face[np.newaxis, np.newaxis, :], axis=2)  # (nx, ny) in kg/m²
 
     # Color ground based on rain: green (no rain) → blue (heavy rain)
@@ -165,18 +176,38 @@ def _render_frame(pl: pv.Plotter, vol_kwargs: dict, grid: pv.RectilinearGrid,
 # ── Single frame ───────────────────────────────────────────────────────────────
 
 def render_single(path: str, out: str = "cloud_frame.png") -> None:
-    d              = np.load(path)
-    t              = float(d["t"])
-    grid           = _make_grid()
-    pl, kw, gmesh  = _make_plotter()
-    sim_grid       = SimGrid()
+    d = np.load(path)
+    t = float(d["t"])
+
+    # Extract dimensions from snapshot shape
+    qc_shape = d["qc"].shape
+    nx, ny, nz = qc_shape
+
+    # Extract grid parameters from snapshot
+    dx = d.get("dx", cfg.DX)
+    dy = d.get("dy", cfg.DY)
+    z_face = d["z_face"] if "z_face" in d else None
+
+    # If z_face not in snapshot, fall back to SimGrid (but this should always exist)
+    if z_face is None:
+        print("Warning: z_face not in snapshot, using SimGrid")
+        sim_grid = SimGrid()
+        z_face = sim_grid.z_face
+        dz_face = sim_grid.dz_face
+    else:
+        # Compute dz_face from z_face
+        dz_face = np.diff(z_face)
+
+    grid = _make_grid(nx=nx, ny=ny, dx=dx, dy=dy, z_face=z_face)
+    pl, kw, gmesh = _make_plotter(nx=nx, ny=ny, dx=dx, dy=dy, z_face=z_face)
 
     img = _render_frame(
         pl, kw, grid, gmesh,
         (d["qc"] * 1e3).astype(np.float32).ravel(order="F"),
         d["qr"].astype(np.float32).ravel(order="F"),
-        sim_grid.dz_face,
-        t
+        dz_face,
+        t,
+        nx, ny, nz
     )
     pl.close()
     imageio.imwrite(out, img)
@@ -203,10 +234,32 @@ def render_all(out: str | None = None, fps: float = 8.0, snapshot_dir: str | Non
     else:
         os.makedirs(GIF_DIR, exist_ok=True)
 
+    # Load first snapshot to extract grid dimensions
+    first_data = np.load(paths[0])
+
+    # Extract dimensions from snapshot shape
+    nx, ny, nz = first_data["qc"].shape
+
+    # Extract grid parameters from snapshot
+    dx = first_data.get("dx", cfg.DX)
+    dy = first_data.get("dy", cfg.DY)
+    z_face = first_data["z_face"] if "z_face" in first_data else None
+
+    # If z_face not in snapshot, fall back to SimGrid (but this should always exist)
+    if z_face is None:
+        print("Warning: z_face not in snapshot, using SimGrid")
+        sim_grid = SimGrid()
+        z_face = sim_grid.z_face
+        dz_face = sim_grid.dz_face
+    else:
+        # Compute dz_face from z_face
+        dz_face = np.diff(z_face)
+
     print(f"Rendering {len(paths)} frames → {out}  (fps={fps})")
-    grid     = _make_grid()
-    pl, kw, gmesh = _make_plotter()
-    sim_grid = SimGrid()
+    print(f"Grid: {nx}×{ny}×{nz}, dx={dx}m, dy={dy}m")
+
+    grid = _make_grid(nx=nx, ny=ny, dx=dx, dy=dy, z_face=z_face)
+    pl, kw, gmesh = _make_plotter(nx=nx, ny=ny, dx=dx, dy=dy, z_face=z_face)
 
     imgs = []
     for i, path in enumerate(paths):
@@ -214,7 +267,7 @@ def render_all(out: str | None = None, fps: float = 8.0, snapshot_dir: str | Non
         t      = float(d["t"])
         qc_gkg = (d["qc"] * 1e3).astype(np.float32).ravel(order="F")
         qr_kgkg = d["qr"].astype(np.float32).ravel(order="F")
-        imgs.append(_render_frame(pl, kw, grid, gmesh, qc_gkg, qr_kgkg, sim_grid.dz_face, t))
+        imgs.append(_render_frame(pl, kw, grid, gmesh, qc_gkg, qr_kgkg, dz_face, t, nx, ny, nz))
         print(f"  frame {i+1:3d}/{len(paths)}  t={t/60:5.1f} min", end="\r", flush=True)
 
     pl.close()

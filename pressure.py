@@ -25,14 +25,32 @@ def project(u: np.ndarray, v: np.ndarray, w: np.ndarray,
     dz_f = g.dz_face    # (nz,)   cell heights
     dz_c = g.dz_cen     # (nz-1,) inter-centre spacings
 
-    # ── Divergence of u*  (uses staggered w) ──────────────────────────────────
-    # Centred differences in x,y (periodic)
-    div_u = (np.roll(u, -1, 0) - np.roll(u, 1, 0)) / (2.0 * dx)
-    div_v = (np.roll(v, -1, 1) - np.roll(v, 1, 1)) / (2.0 * dy)
-    # Finite difference of staggered w across each cell
-    div_w = (w[:, :, 1:] - w[:, :, :-1]) / dz_f[np.newaxis, np.newaxis, :]
+    # ── Enforce periodic boundary conditions on face-staggered velocities ────────
+    # For C-grid with periodic BCs, the "extra" face is the same as the first face
+    # u[nx] = u[0] (same x-face due to wraparound)
+    # v[:, ny] = v[:, 0] (same y-face due to wraparound)
+    u[-1, :, :] = u[0, :, :]
+    v[:, -1, :] = v[:, 0, :]
 
-    rhs = (div_u + div_v + div_w) / dt    # (nx,ny,nz)
+    # ── Divergence of u*  (C-grid: all velocities face-staggered) ─────────────
+    # u is on x-faces (nx+1, ny, nz): simple difference gives cell-centered divergence
+    # v is on y-faces (nx, ny+1, nz): simple difference gives cell-centered divergence
+    # w is on z-faces (nx, ny, nz+1): simple difference gives cell-centered divergence
+    #
+    # This matches the Poisson operator eigenvalues exactly! (see plan line 36-38)
+
+    # du/dx: difference across each cell
+    # u[i+1, j, k] is at face i+1/2; u[i, j, k] is at face i-1/2
+    # cell i has left face i-1/2 and right face i+1/2
+    div_u = (u[1:, :, :] - u[:-1, :, :]) / dx         # (nx, ny, nz)
+
+    # dv/dy: difference across each cell
+    div_v = (v[:, 1:, :] - v[:, :-1, :]) / dy         # (nx, ny, nz)
+
+    # dw/dz: difference across each cell (already correct)
+    div_w = (w[:, :, 1:] - w[:, :, :-1]) / dz_f[np.newaxis, np.newaxis, :]  # (nx, ny, nz)
+
+    rhs = (div_u + div_v + div_w) / dt                # (nx, ny, nz)
 
     # ── 2-D FFT in x-y ────────────────────────────────────────────────────────
     rhs_hat = rfft2(rhs, axes=(0, 1))                     # (nx, ny//2+1, nz)
@@ -90,15 +108,36 @@ def project(u: np.ndarray, v: np.ndarray, w: np.ndarray,
     # ── Back to physical space ─────────────────────────────────────────────────
     phi = irfft2(phi_hat, s=(nx, ny), axes=(0, 1))        # (nx,ny,nz)
 
-    # ── Correct velocities ────────────────────────────────────────────────────
-    u -= dt * (np.roll(phi, -1, 0) - np.roll(phi, 1, 0)) / (2.0 * dx)
-    v -= dt * (np.roll(phi, -1, 1) - np.roll(phi, 1, 1)) / (2.0 * dy)
+    # ── Correct velocities (C-grid gradients matching divergence) ─────────────
+    # u is on x-faces: gradient between adjacent cells
+    # phi[i] is at cell center i, u[i] is at face i-1/2 (between cells i-1 and i)
+    # With periodic BCs, cells wrap: use np.roll or explicit indexing
 
-    # w correction on interior faces: dφ/dz between cell centres k and k+1
-    dphi_dz = np.zeros((g.nx, g.ny, g.nz + 1))
+    # Gradient at x-face i (between cells i-1 and i): (phi[i] - phi[i-1]) / dx
+    # u has shape (nx+1, ny, nz); phi has shape (nx, ny, nz)
+    # Interior faces i=1..nx-1: use phi[i] - phi[i-1]
+    # Boundary faces: i=0 (left) and i=nx (right) use periodic wrapping
+
+    dphi_dx = np.zeros_like(u)  # (nx+1, ny, nz)
+    dphi_dx[1:-1, :, :] = (phi[1:, :, :] - phi[:-1, :, :]) / dx
+    # Periodic BCs for x:
+    dphi_dx[0, :, :] = (phi[0, :, :] - phi[-1, :, :]) / dx   # left face wraps to right
+    dphi_dx[-1, :, :] = dphi_dx[0, :, :]                      # right face = left face (periodic)
+    u -= dt * dphi_dx
+
+    # v is on y-faces: gradient between adjacent cells
+    dphi_dy = np.zeros_like(v)  # (nx, ny+1, nz)
+    dphi_dy[:, 1:-1, :] = (phi[:, 1:, :] - phi[:, :-1, :]) / dy
+    # Periodic BCs for y:
+    dphi_dy[:, 0, :] = (phi[:, 0, :] - phi[:, -1, :]) / dy
+    dphi_dy[:, -1, :] = dphi_dy[:, 0, :]
+    v -= dt * dphi_dy
+
+    # w is on z-faces: gradient between adjacent cells (already correct stencil)
+    dphi_dz = np.zeros_like(w)  # (nx, ny, nz+1)
     dphi_dz[:, :, 1:-1] = (phi[:, :, 1:] - phi[:, :, :-1]) / dz_c[np.newaxis, np.newaxis, :]
     w -= dt * dphi_dz
-    # Enforce w=0 at boundaries
+    # Enforce w=0 at top/bottom boundaries (rigid lid)
     w[:, :, 0]  = 0.0
     w[:, :, -1] = 0.0
 
@@ -109,6 +148,11 @@ def project(u: np.ndarray, v: np.ndarray, w: np.ndarray,
     # Laplacian), so the standard solver cannot correct the mean; we do it
     # explicitly here instead.
     w[:, :, 1:-1] -= w[:, :, 1:-1].mean(axis=(0, 1), keepdims=True)
+
+    # ── Re-enforce periodic BCs after gradient correction ────────────────────
+    # This ensures the redundant faces stay equal (important for consistency)
+    u[-1, :, :] = u[0, :, :]
+    v[:, -1, :] = v[:, 0, :]
 
     return phi
 

@@ -10,7 +10,7 @@ Z_TOP: float = 5000.0    # m, domain top
 
 # ── Time ──────────────────────────────────────────────────────────────────────
 DT: float = 2.0          # s, time step (kept small for stability)
-T_END: float = 7200.0  # s
+T_END: float = 21600.0  # s (6 hours)
 OUTPUT_EVERY: float = 60.0  # s
 
 # ── Reference atmosphere ───────────────────────────────────────────────────────

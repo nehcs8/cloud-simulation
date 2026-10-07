@@ -1,0 +1,176 @@
+======================================================================
+BOMEX SHALLOW CUMULUS INTERCOMPARISON
+======================================================================
+Domain: 64×64×75 (100.0m × 100.0m × 3000.0m)
+Duration: 6.0 hours
+Timestep: 2.0 s
+Output interval: 300.0 s
+
+Phase 2: Core solver validation against Siebesma et al. (2003)
+======================================================================
+
+Creating grid...
+Creating state...
+Initializing BOMEX profiles...
+======================================================================
+BOMEX INITIALIZATION
+======================================================================
+Domain: 64×64×75 = 100.0×100.0m × 2962m height
+
+Reference profiles:
+  Surface θ_l: 298.7 K
+  Cloud base θ_l: 298.7 K
+  Cloud top θ_l: 302.3 K
+  Inversion θ_l: 308.3 K
+
+  Surface qt: 17.0 g/kg
+  Cloud top qt: 10.8 g/kg
+  Above inversion qt: 4.2 g/kg
+
+Geostrophic wind: u_g=-10.0 m/s, v_g=0.0 m/s
+Coriolis parameter: f=3.76e-05 s⁻¹ (15°N)
+
+Surface fluxes:
+  w'θ_l': 8.0 mK·m/s
+  w'qt': 52.0 mg/kg·m/s
+======================================================================
+
+Creating simulation...
+Starting BOMEX simulation...
+Expected completion: 6.0 hours simulation time
+
+t=     0s  step=    1  w_max= 0.00m/s  w99=0.00m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=16.68g/kg
+t=   300s  step=  151  w_max= 0.38m/s  w99=0.09m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=16.68g/kg
+t=   600s  step=  301  w_max= 0.56m/s  w99=0.17m/s  qc_max=0.02g/kg  cov= 2.4%  N=  2  CB=545m  CT=573m  prec=0.00mm/h  qv_bl=16.68g/kg
+t=   900s  step=  451  w_max= 0.80m/s  w99=0.25m/s  qc_max=0.09g/kg  cov=10.2%  N=  4  CB=517m  CT=632m  prec=0.00mm/h  qv_bl=16.68g/kg
+t=  1200s  step=  601  w_max= 1.35m/s  w99=0.36m/s  qc_max=0.34g/kg  cov=11.7%  N=  6  CB=490m  CT=756m  prec=0.00mm/h  qv_bl=16.67g/kg
+t=  1500s  step=  751  w_max= 5.21m/s  w99=0.65m/s  qc_max=1.10g/kg  cov=10.4%  N=  6  CB=463m  CT=1154m  prec=0.00mm/h  qv_bl=16.66g/kg
+t=  1800s  step=  901  w_max= 7.82m/s  w99=1.52m/s  qc_max=1.78g/kg  cov=10.9%  N=  7  CB=463m  CT=1915m  prec=0.00mm/h  qv_bl=16.64g/kg
+t=  2100s  step= 1080  w_max=13.85m/s  w99=2.54m/s  qc_max=3.19g/kg  cov=14.5%  N=  7  CB=463m  CT=2332m  prec=0.00mm/h  qv_bl=16.60g/kg
+t=  2400s  step= 1294  w_max=10.78m/s  w99=2.85m/s  qc_max=1.79g/kg  cov=15.3%  N=  6  CB=490m  CT=1971m  prec=0.00mm/h  qv_bl=16.55g/kg
+t=  2700s  step= 1453  w_max= 9.86m/s  w99=2.52m/s  qc_max=1.85g/kg  cov=17.9%  N=  5  CB=490m  CT=2028m  prec=0.00mm/h  qv_bl=16.50g/kg
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/thermodynamics.py:97: RuntimeWarning: overflow encountered in exp
+  e_s = 611.2 * np.exp(17.67 * T_C / (T_C + 243.5))   # Pa
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/thermodynamics.py:178: RuntimeWarning: invalid value encountered in divide
+  delta_qc = residual / denominator
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/surface_layer.py:122: RuntimeWarning: overflow encountered in divide
+  L = -u_star**3 * theta_lowest / (KAPPA * cfg.G * theta_star)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/surface_layer.py:146: RuntimeWarning: overflow encountered in divide
+  L = -u_star**3 * theta_lowest / (KAPPA * cfg.G * theta_star)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/surface_layer.py:122: RuntimeWarning: overflow encountered in multiply
+  L = -u_star**3 * theta_lowest / (KAPPA * cfg.G * theta_star)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/surface_layer.py:146: RuntimeWarning: overflow encountered in multiply
+  L = -u_star**3 * theta_lowest / (KAPPA * cfg.G * theta_star)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/surface_layer.py:122: RuntimeWarning: overflow encountered in power
+  L = -u_star**3 * theta_lowest / (KAPPA * cfg.G * theta_star)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/surface_layer.py:146: RuntimeWarning: overflow encountered in power
+  L = -u_star**3 * theta_lowest / (KAPPA * cfg.G * theta_star)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/numpy/fft/_pocketfft.py:101: RuntimeWarning: overflow encountered in ifft
+  return ufunc(a, fct, axes=[(axis,), (), (axis,)], out=out)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/lib/python3.12/site-packages/numpy/fft/_pocketfft.py:101: RuntimeWarning: invalid value encountered in irfft
+  return ufunc(a, fct, axes=[(axis,), (), (axis,)], out=out)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/forcing.py:193: RuntimeWarning: invalid value encountered in multiply
+  s.u     += (cfg.U_GEO - s.u) * relax         # → u_g
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:56: RuntimeWarning: overflow encountered in square
+  a0L = (1/3) / (eps + b0L)**2;  a1L = (2/3) / (eps + b1L)**2
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:57: RuntimeWarning: invalid value encountered in divide
+  w0L = a0L / (a0L + a1L)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:64: RuntimeWarning: overflow encountered in square
+  a0R = (1/3) / (eps + b0R)**2;  a1R = (2/3) / (eps + b1R)**2
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:65: RuntimeWarning: invalid value encountered in divide
+  w0R = a0R / (a0R + a1R)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:94: RuntimeWarning: overflow encountered in square
+  a0L = (1/3) / (eps + b0L)**2;  a1L = (2/3) / (eps + b1L)**2
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:95: RuntimeWarning: invalid value encountered in divide
+  w0L = a0L / (a0L + a1L)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:101: RuntimeWarning: overflow encountered in square
+  a0R = (1/3) / (eps + b0R)**2;  a1R = (2/3) / (eps + b1R)**2
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:102: RuntimeWarning: invalid value encountered in divide
+  w0R = a0R / (a0R + a1R)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:141: RuntimeWarning: overflow encountered in square
+  a0L = (1/3) / (eps + b0L)**2;  a1L = (2/3) / (eps + b1L)**2
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:142: RuntimeWarning: invalid value encountered in divide
+  w0L = a0L / (a0L + a1L)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:149: RuntimeWarning: overflow encountered in square
+  a0R = (1/3) / (eps + b0R)**2;  a1R = (2/3) / (eps + b1R)**2
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/dynamics.py:150: RuntimeWarning: invalid value encountered in divide
+  w0R = a0R / (a0R + a1R)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/forcing.py:127: RuntimeWarning: Mean of empty slice
+  theta_mean = np.nanmean(s.theta, axis=(0, 1))        # (nz,)
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/forcing.py:128: RuntimeWarning: Mean of empty slice
+  qv_mean    = np.nanmean(s.qv,   axis=(0, 1))        # (nz,)
+t=  3000s  step= 5786  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t=  3300s  step= 5936  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t=  3600s  step= 6086  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t=  3900s  step= 6236  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t=  4200s  step= 6386  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t=  4500s  step= 6536  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t=  4800s  step= 6686  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t=  5100s  step= 6836  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t=  5400s  step= 6986  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t=  5700s  step= 7136  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t=  6000s  step= 7286  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t=  6300s  step= 7436  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t=  6600s  step= 7586  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t=  6900s  step= 7736  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t=  7200s  step= 7886  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t=  7500s  step= 8036  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t=  7800s  step= 8186  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t=  8100s  step= 8336  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t=  8400s  step= 8486  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t=  8700s  step= 8636  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t=  9000s  step= 8786  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t=  9300s  step= 8936  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t=  9600s  step= 9086  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t=  9900s  step= 9236  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 10200s  step= 9386  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 10500s  step= 9536  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 10800s  step= 9686  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 11100s  step= 9836  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 11400s  step= 9986  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 11700s  step=10136  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 12000s  step=10286  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 12300s  step=10436  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 12600s  step=10586  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 12900s  step=10736  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 13200s  step=10886  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 13500s  step=11036  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 13800s  step=11186  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 14100s  step=11336  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 14400s  step=11486  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 14700s  step=11636  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 15000s  step=11786  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 15300s  step=11936  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 15600s  step=12086  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 15900s  step=12236  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 16200s  step=12386  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 16500s  step=12536  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 16800s  step=12686  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 17100s  step=12836  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 17400s  step=12986  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 17700s  step=13136  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 18000s  step=13286  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 18300s  step=13436  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 18600s  step=13586  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 18900s  step=13736  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 19200s  step=13886  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 19500s  step=14036  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 19800s  step=14186  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 20100s  step=14336  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 20400s  step=14486  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 20700s  step=14636  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 21000s  step=14786  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 21300s  step=14936  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+t= 21600s  step=15086  w_max=  nanm/s  w99= nanm/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=nanmm/h  qv_bl=nang/kg
+
+======================================================================
+BOMEX SIMULATION COMPLETE
+======================================================================
+Output saved to: snapshots/
+Diagnostics saved to: diag.csv
+
+Next steps:
+  1. Analyze vertical profiles: scripts/analyze_bomex.py
+  2. Compare to Siebesma et al. (2003) intercomparison
+  3. Generate visualizations: scripts/visualize/visualize3d.py
+======================================================================

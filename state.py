@@ -11,10 +11,14 @@ class State:
     Prognostic fields (all shape nx × ny × nz unless noted):
         u, v   – horizontal wind  [m/s]
         w      – vertical wind    [m/s]  shape nx × ny × (nz+1), face-staggered in z
-        theta  – potential temperature perturbation θ'  [K]
-        qv     – water-vapour mixing ratio  [kg/kg]
-        qc     – cloud-water mixing ratio   [kg/kg]
-        qr     – rain-water mixing ratio    [kg/kg]
+
+        theta_l – liquid water potential temperature θ_l  [K]  (Phase 1.4)
+        qt      – total water mixing ratio qt [kg/kg]           (Phase 1.4)
+        qr      – rain-water mixing ratio [kg/kg]
+
+        theta  – potential temperature perturbation θ'  [K]     (diagnostic)
+        qv     – water-vapour mixing ratio  [kg/kg]              (diagnostic)
+        qc     – cloud-water mixing ratio   [kg/kg]              (diagnostic)
 
     Reference profiles (1-D, length nz):
         theta0 – background θ₀(z)           [K]
@@ -28,16 +32,29 @@ class State:
         g = grid
 
         shape   = (g.nx, g.ny, g.nz)
-        shape_w = (g.nx, g.ny, g.nz + 1)
+        shape_u = (g.nx + 1, g.ny, g.nz)  # face-staggered in x (Arakawa C-grid)
+        shape_v = (g.nx, g.ny + 1, g.nz)  # face-staggered in y
+        shape_w = (g.nx, g.ny, g.nz + 1)  # face-staggered in z
 
         # ── Prognostic fields ─────────────────────────────────────────────────
-        self.u     = np.zeros(shape)
-        self.v     = np.zeros(shape)
-        self.w     = np.zeros(shape_w)    # face-staggered in z
-        self.theta = np.zeros(shape)      # θ′  (perturbation)
-        self.qv    = np.zeros(shape)
-        self.qc    = np.zeros(shape)
-        self.qr    = np.zeros(shape)
+        # Arakawa C-grid staggering:
+        # u: on x-faces (i+1/2, j, k)
+        # v: on y-faces (i, j+1/2, k)
+        # w: on z-faces (i, j, k+1/2)
+        # scalars: at cell centers (i, j, k)
+        self.u     = np.zeros(shape_u)
+        self.v     = np.zeros(shape_v)
+        self.w     = np.zeros(shape_w)
+
+        # Phase 1.4: Moist conserved variables (prognostic)
+        self.theta_l = np.zeros(shape)    # Liquid water potential temperature
+        self.qt      = np.zeros(shape)    # Total water mixing ratio
+        self.qr      = np.zeros(shape)    # Rain water
+
+        # Diagnostic fields (derived from theta_l, qt)
+        self.theta = np.zeros(shape)      # θ′  (perturbation) - diagnostic
+        self.qv    = np.zeros(shape)      # Water vapor - diagnostic
+        self.qc    = np.zeros(shape)      # Cloud water - diagnostic
 
         # ── Reference profiles ────────────────────────────────────────────────
         self.theta0, self.qv0, self.rho0 = self._build_reference(g.z)
@@ -45,11 +62,18 @@ class State:
         # ── Apply initial conditions ──────────────────────────────────────────
         if restart_file is not None:
             self._load_from_snapshot(restart_file, g)
+            # Snapshot already has diagnostic variables, just update conserved ones
+            self._update_conserved_variables()
         else:
             self._init_random_bl(g)
             # Initialize background wind (uniform in space)
             self.u[:] = cfg.U_GEO
             self.v[:] = cfg.V_GEO
+            # Convert to θ_l/qt framework (Phase 1.4)
+            # After initialization, convert (θ, qv, qc, qr) → (θ_l, qt, qr)
+            self._update_conserved_variables()
+            # Then update diagnostics
+            self._update_diagnostic_variables()
 
     # ── Reference atmosphere ──────────────────────────────────────────────────
     def _build_reference(self, z: np.ndarray):
@@ -162,15 +186,33 @@ class State:
             raise ValueError(f"w shape {w_data.shape} incompatible with grid nz={g.nz}")
 
         # u, v: load if available, otherwise initialize to zero
+        # NOTE: Snapshots save cell-centered u,v but State needs face-staggered
         if 'u' in data:
-            self.u[:] = data['u'].astype(float)
+            u_data = data['u'].astype(float)
+            if u_data.shape[0] == g.nx:  # cell-centered (nx, ny, nz)
+                # Convert to face-staggered (nx+1, ny, nz) via simple replication
+                # Interior faces: average of adjacent cells
+                self.u[1:-1, :, :] = 0.5 * (u_data[:-1, :, :] + u_data[1:, :, :])
+                # Periodic BCs: wrap around
+                self.u[0, :, :] = 0.5 * (u_data[-1, :, :] + u_data[0, :, :])
+                self.u[-1, :, :] = self.u[0, :, :]
+            else:  # already face-staggered
+                self.u[:] = u_data
         else:
-            self.u[:] = 0.0
+            self.u[:] = cfg.U_GEO
 
         if 'v' in data:
-            self.v[:] = data['v'].astype(float)
+            v_data = data['v'].astype(float)
+            if v_data.shape[1] == g.ny:  # cell-centered (nx, ny, nz)
+                # Convert to face-staggered (nx, ny+1, nz)
+                self.v[:, 1:-1, :] = 0.5 * (v_data[:, :-1, :] + v_data[:, 1:, :])
+                # Periodic BCs
+                self.v[:, 0, :] = 0.5 * (v_data[:, -1, :] + v_data[:, 0, :])
+                self.v[:, -1, :] = self.v[:, 0, :]
+            else:  # already face-staggered
+                self.v[:] = v_data
         else:
-            self.v[:] = 0.0
+            self.v[:] = cfg.V_GEO
 
         # Apply terrain mask if terrain is present
         if g.terrain is not None:
@@ -186,6 +228,56 @@ class State:
         print(f"  Loaded: qc_max={self.qc.max()*1e3:.2f}g/kg, "
               f"qr_max={self.qr.max()*1e3:.2f}g/kg, "
               f"w_max={w_cc.max():.2f}m/s")
+
+    # ── C-grid interpolation utilities ────────────────────────────────────────
+    def u_at_cell(self) -> np.ndarray:
+        """
+        Interpolate u from x-faces to cell centers.
+        u is on x-faces (nx+1, ny, nz), return (nx, ny, nz).
+        """
+        return 0.5 * (self.u[:-1, :, :] + self.u[1:, :, :])
+
+    def v_at_cell(self) -> np.ndarray:
+        """
+        Interpolate v from y-faces to cell centers.
+        v is on y-faces (nx, ny+1, nz), return (nx, ny, nz).
+        """
+        return 0.5 * (self.v[:, :-1, :] + self.v[:, 1:, :])
+
+    def w_at_cell(self) -> np.ndarray:
+        """
+        Interpolate w from z-faces to cell centers.
+        w is on z-faces (nx, ny, nz+1), return (nx, ny, nz).
+        """
+        return 0.5 * (self.w[:, :, :-1] + self.w[:, :, 1:])
+
+    def u_at_v_faces(self) -> np.ndarray:
+        """
+        Interpolate u to v-face locations (nx, ny+1, nz).
+        Average in both x and y directions, with periodic BCs.
+        """
+        # First average u in x: (nx+1, ny, nz) -> (nx, ny, nz)
+        u_at_cell = 0.5 * (self.u[:-1, :, :] + self.u[1:, :, :])
+        # Then average in y with periodic wrapping: (nx, ny, nz) -> (nx, ny+1, nz)
+        u_at_v = np.zeros((self.grid.nx, self.grid.ny + 1, self.grid.nz))
+        u_at_v[:, 1:-1, :] = 0.5 * (u_at_cell[:, :-1, :] + u_at_cell[:, 1:, :])
+        u_at_v[:, 0, :] = 0.5 * (u_at_cell[:, -1, :] + u_at_cell[:, 0, :])  # periodic
+        u_at_v[:, -1, :] = u_at_v[:, 0, :]  # periodic
+        return u_at_v
+
+    def v_at_u_faces(self) -> np.ndarray:
+        """
+        Interpolate v to u-face locations (nx+1, ny, nz).
+        Average in both y and x directions, with periodic BCs.
+        """
+        # First average v in y: (nx, ny+1, nz) -> (nx, ny, nz)
+        v_at_cell = 0.5 * (self.v[:, :-1, :] + self.v[:, 1:, :])
+        # Then average in x with periodic wrapping: (nx, ny, nz) -> (nx+1, ny, nz)
+        v_at_u = np.zeros((self.grid.nx + 1, self.grid.ny, self.grid.nz))
+        v_at_u[1:-1, :, :] = 0.5 * (v_at_cell[:-1, :, :] + v_at_cell[1:, :, :])
+        v_at_u[0, :, :] = 0.5 * (v_at_cell[-1, :, :] + v_at_cell[0, :, :])  # periodic
+        v_at_u[-1, :, :] = v_at_u[0, :, :]  # periodic
+        return v_at_u
 
     # ── Derived quantities ────────────────────────────────────────────────────
     def buoyancy(self) -> np.ndarray:
@@ -220,3 +312,28 @@ class State:
             theta_mid = 0.5 * (theta0[k] + theta0[k - 1])
             pi0[k] = pi0[k - 1] - cfg.G * dz / (cfg.CP * theta_mid)
         return pi0[np.newaxis, np.newaxis, :]
+
+    # ── Phase 1.4: θ_l/qt conversion methods ──────────────────────────────────
+    def _update_conserved_variables(self) -> None:
+        """
+        Update θ_l and qt from current θ, qv, qc, qr.
+
+        Called after physics that modify θ, qv, qc (e.g., microphysics).
+        """
+        from thermodynamics import convert_to_theta_l_qt
+        pi0 = self._pi0()
+        self.theta_l, self.qt, self.qr = convert_to_theta_l_qt(
+            self.theta, self.qv, self.qc, self.qr, pi0
+        )
+
+    def _update_diagnostic_variables(self) -> None:
+        """
+        Update diagnostic θ, qv, qc from conserved θ_l, qt, qr.
+
+        Called after advection/timestepping of θ_l, qt.
+        """
+        from thermodynamics import convert_from_theta_l_qt
+        pi0 = self._pi0()
+        self.theta, self.qv, self.qc, self.qr = convert_from_theta_l_qt(
+            self.theta_l, self.qt, self.qr, self.theta0, pi0
+        )

@@ -164,7 +164,14 @@ def apply_cold_pool(s: State, g: Grid, dt: float) -> None:
 
 def apply_sponge(s: State, g: Grid, dt: float) -> None:
     """
-    Rayleigh damping of all fields toward the reference state above z_sponge.
+    Rayleigh damping toward REFERENCE PROFILES above z_sponge.
+
+    CRITICAL FIX: Relax toward (u_g, v_g, qv0), not toward zero!
+    The old code multiplied fields by exp(-α*dt), which drives them to zero.
+    This removed q_t from the sponge layer and caused spurious wind drift.
+
+    Correct relaxation: φ(t+dt) = φ + (φ_ref - φ) * (1 - exp(-α*dt))
+
     Damping coefficient α(z) = sin²(π/2 * (z - z_sp)/(z_top - z_sp)) / τ
     """
     z     = g.z                     # (nz,)
@@ -179,15 +186,16 @@ def apply_sponge(s: State, g: Grid, dt: float) -> None:
 
     a3 = alpha[np.newaxis, np.newaxis, :]   # broadcast to (1,1,nz)
 
-    # Damp perturbations toward zero / reference
-    fac = np.exp(-a3 * dt)           # smoother than 1-α*dt for large α*dt
+    # Relaxation factor: 1 - exp(-α*dt)
+    relax = 1.0 - np.exp(-a3 * dt)
 
-    s.u     *= fac
-    s.v     *= fac
-    s.theta *= fac                   # θ′ → 0
-    s.qv    *= fac                   # qv → 0 (in sponge, accuracy not critical)
-    s.qc    *= fac
-    s.qr    *= fac
+    # Relax toward reference profiles
+    s.u     += (cfg.U_GEO - s.u) * relax         # → u_g
+    s.v     += (cfg.V_GEO - s.v) * relax         # → v_g
+    s.theta += (0.0 - s.theta) * relax           # → θ′ = 0
+    s.qv    += (s.qv0 - s.qv) * relax            # → qv0 (reference moisture profile)
+    s.qc    += (0.0 - s.qc) * relax              # → 0 (no clouds in sponge)
+    s.qr    += (0.0 - s.qr) * relax              # → 0 (no rain in sponge)
 
     # w on faces: interpolate alpha to faces
     alpha_face = np.zeros(g.nz + 1)
@@ -195,8 +203,9 @@ def apply_sponge(s: State, g: Grid, dt: float) -> None:
     alpha_face[0]    = alpha[0]
     alpha_face[-1]   = alpha[-1]
 
-    fac_w = np.exp(-alpha_face[np.newaxis, np.newaxis, :] * dt)
-    s.w   *= fac_w
+    relax_w = 1.0 - np.exp(-alpha_face[np.newaxis, np.newaxis, :] * dt)
+    s.w += (0.0 - s.w) * relax_w  # → 0
+
     # Keep boundary w = 0
     s.w[:, :, 0]  = 0.0
     s.w[:, :, -1] = 0.0

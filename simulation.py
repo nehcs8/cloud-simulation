@@ -1,15 +1,21 @@
 """
 Main time loop.
 
-Steps per iteration:
-  1. Compute dynamics tendencies (advection + SGS diffusion)
-  2. Forward-Euler update
-  3. Apply surface fluxes
-  4. Apply microphysics (saturation adjustment, warm rain, sedimentation)
-  5. Pressure projection (enforce ∇·u = 0)
-  6. Apply sponge layer
-  7. Enforce boundary conditions
-  8. Advance time; output if due
+Steps per iteration (RK3 time integration):
+  1. RK3 Stage 1: Compute tendencies, update, apply physics
+  2. RK3 Stage 2: Compute tendencies, update, apply physics
+  3. RK3 Stage 3: Compute tendencies, update, apply physics
+  4. Advance time; output if due
+
+Physics applied at each RK3 stage:
+  - Surface fluxes
+  - Microphysics (saturation adjustment, warm rain, sedimentation)
+  - Pressure projection (enforce ∇·u = 0)
+  - Large-scale forcing (subsidence, nudging)
+  - Sponge layer
+  - Boundary conditions
+
+Time integration: Wicker-Skamarock RK3 (2002) - 3rd order, stable to CFL~1
 """
 
 import csv
@@ -20,10 +26,8 @@ import config as cfg
 from grid import Grid
 from state import State
 from terrain import Terrain
-from dynamics import compute_tendencies
-from pressure import project
-from microphysics import apply_microphysics
-from forcing import build_flux_map, apply_surface_fluxes, apply_subsidence, apply_profile_nudging, apply_cold_pool, apply_sponge
+from timestepping import rk3_step
+from forcing import build_flux_map
 from scripts.visualize.visualize import Visualizer
 
 SNAPSHOT_DIR = "snapshots"
@@ -123,81 +127,45 @@ class Simulation:
 
     # ── CFL-limited time step ─────────────────────────────────────────────────
     def _cfl_dt(self) -> float:
+        """
+        Compute CFL and diffusion-limited timestep.
+
+        With RK3, we can use CFL ~ 1.0 (vs 0.5 for forward Euler).
+        See LES_REBUILD_PLAN.md line 244: "Update CFL condition (can use larger dt with RK3)"
+
+        Also checks diffusive stability: K·Δt/Δz² < 0.5 for explicit diffusion.
+        """
         s, g = self.state, self.grid
+
+        # Advective CFL limit
         u_max = max(
             np.abs(s.u).max(),
             np.abs(s.v).max(),
             (np.abs(s.w).max() * g.dx / g.dz_face.min()),   # scaled to dx
         ) + 1e-6
-        dt_cfl = 0.8 * g.dx / u_max
-        return min(cfg.DT, dt_cfl)
+        # RK3 allows CFL ~ 1.0 (more stable than forward Euler's 0.5)
+        dt_cfl = 1.0 * g.dx / u_max
+
+        # Diffusive stability limit (explicit diffusion: K·dt/dx² < 0.5)
+        # Estimate max K from Smagorinsky: K_M ~ (C_s Δ)² |S|
+        # Conservative estimate: use domain max of resolved strain rate
+        from dynamics import _smag_K
+        K_M, K_H = _smag_K(s, g)
+        K_max = max(K_M.max(), K_H.max()) + 1e-10
+        dx_min = min(g.dx, g.dy, g.dz_face.min())
+        dt_diff = 0.25 * dx_min**2 / K_max  # Factor 0.25 for safety (3D diffusion)
+
+        return min(cfg.DT, dt_cfl, dt_diff)
 
     # ── Single timestep ───────────────────────────────────────────────────────
     def _advance(self, dt: float) -> None:
-        s, g = self.state, self.grid
+        """
+        Advance state by one timestep using RK3 time integration.
 
-        # 1. Tendencies
-        tend = compute_tendencies(s, g)
-
-        # 2. Forward-Euler update
-        s.u     += dt * tend["u"]
-        s.v     += dt * tend["v"]
-        s.w     += dt * tend["w"]
-        s.theta += dt * tend["theta"]
-        s.qv    += dt * tend["qv"]
-        s.qc    += dt * tend["qc"]
-        s.qr    += dt * tend["qr"]
-
-        # 2b. Clip hydrometeors — WENO-3 can undershoot near sharp gradients
-        s.qc = np.maximum(s.qc, 0.0)
-        s.qr = np.maximum(s.qr, 0.0)
-
-        # 3. Surface fluxes
-        apply_surface_fluxes(s, g, dt, self.shf_map, self.lhf_map)
-
-        # 4. Microphysics
-        apply_microphysics(s, g, dt)
-
-        # 4b. Cold pool: evaporate sub-cloud rain, cool surface layer
-        apply_cold_pool(s, g, dt)
-
-        # 5. Pressure projection
-        project(s.u, s.v, s.w, g, dt)
-
-        # 6. Large-scale subsidence + profile nudging
-        apply_subsidence(s, g, dt)
-        apply_profile_nudging(s, g, dt)
-
-        # 7. Sponge
-        apply_sponge(s, g, dt)
-
-        # 8. Boundary conditions (w already enforced in project)
-        s.u[:, :, 0]  = 0.0   # no-slip bottom for u (optional: free-slip = s.u[:,:,1])
-        s.v[:, :, 0]  = 0.0
-        s.qv = np.maximum(s.qv, 0.0)
-        s.qc = np.maximum(s.qc, 0.0)
-        s.qr = np.maximum(s.qr, 0.0)
-
-        # 9. Terrain masking (if terrain is present)
-        if g.terrain is not None:
-            mask = g.terrain.mask
-            # Zero out all fields inside terrain
-            s.u[mask] = 0.0
-            s.v[mask] = 0.0
-            s.theta[mask] = 0.0
-            # For qv, set to background profile value at each level
-            # Broadcast qv0 (nz,) to full grid (nx,ny,nz), then apply mask
-            qv0_full = np.broadcast_to(s.qv0, (g.nx, g.ny, g.nz))
-            s.qv[mask] = qv0_full[mask]
-            s.qc[mask] = 0.0
-            s.qr[mask] = 0.0
-
-            # w mask (face-staggered, nz+1 levels)
-            # A face is inside terrain if either cell below or above is masked
-            mask_w_lower = np.concatenate([mask[:, :, :1], mask], axis=2)  # (nx,ny,nz+1)
-            mask_w_upper = np.concatenate([mask, mask[:, :, -1:]], axis=2)  # (nx,ny,nz+1)
-            mask_w = mask_w_lower | mask_w_upper
-            s.w[mask_w] = 0.0
+        All physics (microphysics, forcing, projection, BCs) are applied
+        within the RK3 stages in timestepping.rk3_step().
+        """
+        rk3_step(self.state, self.grid, dt, self.shf_map, self.lhf_map)
 
     # ── Run ───────────────────────────────────────────────────────────────────
     def run(self) -> None:
@@ -271,16 +239,18 @@ class Simulation:
         qv_sfc   = float(s.qv[:, :, 0].mean())
         theta_bl = float(s.theta[:, :, bl].mean())
 
-        # Domain-mean TKE
-        tke = float(0.5 * (s.u**2 + s.v**2 + w_cc**2).mean())
+        # Domain-mean TKE (use cell-centered velocities)
+        u_cc = s.u_at_cell()
+        v_cc = s.v_at_cell()
+        tke = float(0.5 * (u_cc**2 + v_cc**2 + w_cc**2).mean())
 
-        # Domain-mean winds
-        u_mean = float(s.u.mean())
-        v_mean = float(s.v.mean())
+        # Domain-mean winds (use cell-centered velocities)
+        u_mean = float(u_cc.mean())
+        v_mean = float(v_cc.mean())
 
-        # Vertical vorticity: ζ = ∂v/∂x - ∂u/∂y
-        dvdx = np.gradient(s.v, g.dx, axis=0)
-        dudy = np.gradient(s.u, g.dy, axis=1)
+        # Vertical vorticity: ζ = ∂v/∂x - ∂u/∂y (at cell centers)
+        dvdx = np.gradient(v_cc, g.dx, axis=0)
+        dudy = np.gradient(u_cc, g.dy, axis=1)
         vort = dvdx - dudy
         vort_max = float(np.abs(vort).max())
 
@@ -346,17 +316,20 @@ class Simulation:
         path = os.path.join(SNAPSHOT_DIR, f"snap_{self.t:07.0f}.npz")
 
         # Compute 2D vorticity field at mid-cloud height (z ~ 1500m) for visualization
+        # Use cell-centered velocities for vorticity
+        u_cc = s.u_at_cell()
+        v_cc = s.v_at_cell()
         z_mid_idx = np.argmin(np.abs(g.z - 1500.0))
-        dvdx = np.gradient(s.v, g.dx, axis=0)
-        dudy = np.gradient(s.u, g.dy, axis=1)
+        dvdx = np.gradient(v_cc, g.dx, axis=0)
+        dudy = np.gradient(u_cc, g.dy, axis=1)
         vort = dvdx - dudy
         vort_2d_midcloud = vort[:, :, z_mid_idx].astype(np.float32)
 
         np.savez_compressed(
             path,
             t       = np.array(self.t),
-            u       = s.u.astype(np.float32),
-            v       = s.v.astype(np.float32),
+            u       = u_cc.astype(np.float32),   # Save cell-centered for compatibility
+            v       = v_cc.astype(np.float32),
             qc      = s.qc.astype(np.float32),
             qr      = s.qr.astype(np.float32),
             qv      = s.qv.astype(np.float32),
@@ -368,8 +341,8 @@ class Simulation:
             vort_2d = vort_2d_midcloud,
             vort_z_level = np.array(g.z[z_mid_idx]),
             # Mean vertical profiles (cheap summary of domain state)
-            prof_u     = s.u.mean(axis=(0, 1)).astype(np.float32),
-            prof_v     = s.v.mean(axis=(0, 1)).astype(np.float32),
+            prof_u     = u_cc.mean(axis=(0, 1)).astype(np.float32),
+            prof_v     = v_cc.mean(axis=(0, 1)).astype(np.float32),
             prof_qc    = s.qc.mean(axis=(0, 1)).astype(np.float32),
             prof_qr    = s.qr.mean(axis=(0, 1)).astype(np.float32),
             prof_qv    = s.qv.mean(axis=(0, 1)).astype(np.float32),
