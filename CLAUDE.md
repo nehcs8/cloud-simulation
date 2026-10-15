@@ -94,7 +94,7 @@ presets). Register it in `cases.CASES`; `Simulation`/`State` dispatch via `cases
   tropopause at 9.5 km (15 K/km above), RH 0.75 → 0.50 at 5 km; parcel CAPE ≈ 1250 J/kg, LCL 1175 m,
   LFC ~1.9 km, EL ~9.6 km, freezing level 3.9 km. 128²/100 m, 50 m levels to 7 km stretched to
   12 km (160 levels), sponge 9.5 km, U 1.5 m/s uniform, no subsidence/nudging/radiation, dt ≤ 3 s,
-  background SHF 50 / LHF 100 W/m². Variants: `hotspot` (default; +300 W/m² disc, 3 km, centre)
+  background SHF 50 / LHF 100 W/m². Variants: `hotspot` (default; +300 SHF +300 LHF W/m² disc, 3 km, centre)
   and `bubble` (+2 K, RH 0.85, centre 500 m, 3 km × 1 km, no hot spot).
 - `land_cu.py` — continental Cu sounding + `configure()` (64² at 100 m, fluxes, sheared u_g,
   forcing, 40 m grid to 3 km, sponge 3.2 km, dt cap 5 s).

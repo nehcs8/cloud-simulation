@@ -11,7 +11,8 @@ Parcel CAPE of the mixed-layer air ≈ 1200 J/kg (tests/test_single_cu.py prints
 freezing level ≈ 3.8 km. Warm rain only (Kessler): no ice, no anvil.
 
 Triggers (variants, see VARIANTS and run_case.py single_cu:<variant>):
-  hotspot  SHF + 300 W/m² in a disc 3 km across at the domain centre (forcing.spot_profile)
+  hotspot  SHF + 300 and LHF + 300 W/m² in a disc 3 km across at the domain centre
+           (forcing.spot_profile; the dry +300 SHF spot stayed shallow in 64² tests)
   bubble   +2 K, moist (RH 0.85) cos² bubble centred at 500 m, 3 km across, 1 km deep, t = 0
 Both have the same weak background fluxes (SHF 50, LHF 100 W/m²), which alone keep the
 boundary layer below the LCL, so only the trigger makes a cloud.
@@ -45,8 +46,8 @@ QV_NOISE    = 1.0e-4   # kg/kg (0.1 g/kg)
 
 # Trigger variants: config values applied after configure() by run_case.py (case:variant)
 VARIANTS = {
-    "hotspot": dict(SHF_SPOT_AMP=300.0, BUBBLE_DTHETA=0.0),
-    "bubble":  dict(SHF_SPOT_AMP=0.0, BUBBLE_DTHETA=2.0, BUBBLE_RH=0.85),
+    "hotspot": dict(SHF_SPOT_AMP=300.0, SHF_SPOT_LHF_AMP=300.0, BUBBLE_DTHETA=0.0),
+    "bubble":  dict(SHF_SPOT_AMP=0.0, SHF_SPOT_LHF_AMP=0.0, BUBBLE_DTHETA=2.0, BUBBLE_RH=0.85),
 }
 
 
