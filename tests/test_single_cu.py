@@ -5,7 +5,7 @@ Success criteria:
   - No grid point is saturated at t=0 (hot spot and bubble variants): qc = 0 everywhere
   - Mixed-layer parcel CAPE (pseudo-adiabatic, warm rain only) in 500–1500 J/kg
   - LCL above the initial mixed layer (the background stays clear until it deepens)
-  - Hot spot: SHF excess = SHF_SPOT_AMP at the centre, 0 outside SHF_SPOT_DIAM/2
+  - Hot spot: SHF/LHF excess = SHF_SPOT_AMP/SHF_SPOT_LHF_AMP at the centre, 0 outside SHF_SPOT_DIAM/2
   - Bubble: θ′ max ≈ BUBBLE_DTHETA, RH max < 1
 
 Parcel: θ_l and q_t of the mixed-layer air conserved while lifting, saturation adjusted
@@ -114,10 +114,11 @@ def test_hotspot_map():
     area = (excess / cfg.SHF_SPOT_AMP).sum() * g.dx * g.dy
     print(f"Hot spot: max excess {excess.max():.1f} W/m², outside-disc max "
           f"{np.abs(excess[r > 0.5 * cfg.SHF_SPOT_DIAM]).max():.1f}, equivalent diameter "
-          f"{2 * np.sqrt(area / np.pi):.0f} m, LHF uniform {np.ptp(lhf) == 0}")
+          f"{2 * np.sqrt(area / np.pi):.0f} m, LHF excess max {(lhf - cfg.LHF).max():.1f} W/m²")
     assert abs(excess.max() - cfg.SHF_SPOT_AMP) < 1.0
     assert np.abs(excess[r > 0.5 * cfg.SHF_SPOT_DIAM]).max() == 0.0
-    assert np.ptp(lhf) == 0.0
+    assert abs((lhf - cfg.LHF).max() - cfg.SHF_SPOT_LHF_AMP) < 1.0
+    assert np.allclose(lhf - cfg.LHF, cfg.SHF_SPOT_LHF_AMP / cfg.SHF_SPOT_AMP * excess)
 
 
 def test_bubble():
@@ -132,7 +133,7 @@ def test_bubble():
           f"qv excess max {(s.qv - s.qv0[None, None, :]).max()*1e3:.2f} g/kg, qc max {s.qc.max():.1e}")
     assert abs(s.theta.max() - cfg.BUBBLE_DTHETA) < 0.2
     assert rh.max() < 1.0 and s.qc.max() == 0.0
-    for key in ("SHF_SPOT_AMP", "BUBBLE_DTHETA", "BUBBLE_RH"):
+    for key in ("SHF_SPOT_AMP", "SHF_SPOT_LHF_AMP", "BUBBLE_DTHETA", "BUBBLE_RH"):
         setattr(cfg, key, 0.0)
 
 
