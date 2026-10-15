@@ -1,0 +1,56 @@
+================================================================================
+PER-PROCESS WATER BUDGET ANALYSIS
+================================================================================
+Grid: 32x32x80
+Test duration: 1800s (30 min)
+Surface fluxes: DISABLED (SHF=LHF=0)
+Subsidence/nudging: DISABLED (isolate processes)
+
+Initial domain water: 395114090.256193 kg
+
+Running 30-min simulation with per-process budget tracking...
+
+
+================================================================================
+PER-PROCESS WATER BUDGET (30 minutes)
+================================================================================
+Initial domain water:          395114090.256193 kg
+Final domain water:            387081428.144918 kg
+Total drift (in domain):        -8032662.111275 kg (-2.032998%)
+Surface precip (left domain):    -5179705.448830 kg (-1.310939%)
+
+Per-process contributions (kg):
+--------------------------------------------------------------------------------
+Process                      Water change (kg)    % of initial      % of drift
+--------------------------------------------------------------------------------
+sedimentation                    -5.179705e+06       -1.310939           +64.5
+surface_precip                   -5.179705e+06       -1.310939           +64.5
+advection                        -2.802017e+06       -0.709166           +34.9
+sponge                           -5.462040e+04       -0.013824            +0.7
+surface_fluxes                   +3.682304e+03       +0.000932            -0.0
+nudging                          -1.833060e+00       -0.000000            +0.0
+clipping_stage3                  +1.013279e-06       +0.000000            -0.0
+clipping_stage2                  +3.576279e-07       +0.000000            -0.0
+microphysics                     -1.788139e-07       -0.000000            +0.0
+clipping_stage1                  +1.192093e-07       +0.000000            -0.0
+boundary_conditions              +5.960464e-08       +0.000000            -0.0
+projection                       +0.000000e+00       +0.000000            -0.0
+subsidence                       +0.000000e+00       +0.000000            -0.0
+--------------------------------------------------------------------------------
+Sum of all processes             -1.321237e+07       -3.343937          +164.5
+Measured total drift             -8.032662e+06       -2.032998           100.0
+Residual (error)                 +5.179705e+06       +1.310939
+
+================================================================================
+INTERPRETATION
+================================================================================
+Positive values: processes that ADD water to domain
+Negative values: processes that REMOVE water from domain
+
+Expected:
+  - Surface precip (sedimentation): negative (rain leaves domain)
+  - Clipping: positive (removes negatives, adds water)
+  - Advection: should be near zero (conservative scheme)
+  - Projection: should be exactly zero (mass-conserving)
+  - Microphysics: should be zero (phase changes only)
+================================================================================

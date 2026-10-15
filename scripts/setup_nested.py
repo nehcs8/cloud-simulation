@@ -10,7 +10,7 @@ Usage:
         --cloud-center 45,76,44 \\
         --nest-size 2.0 \\
         --dx-fine 25.0 \\
-        --output nested_ic.npz
+        --output nested_runs/ics/nested_ic.npz
 """
 
 import sys
@@ -283,7 +283,7 @@ def main():
                        help='Nested domain size (km)')
     parser.add_argument('--dx-fine', type=float, default=25.0,
                        help='Nested resolution (m)')
-    parser.add_argument('--output', type=str, default='nested_ic.npz',
+    parser.add_argument('--output', type=str, default='nested_runs/ics/nested_ic.npz',
                        help='Output file')
 
     args = parser.parse_args()

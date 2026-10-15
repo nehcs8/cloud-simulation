@@ -1,0 +1,54 @@
+================================================================================
+ANELASTIC CONSISTENCY TEST
+================================================================================
+Grid: 32x32x80
+Test duration: 1800s (30 min)
+
+Hypothesis: advection conserves unweighted sum(qt*dV) but not rho0-weighted
+            sum(rho0*qt*dV), indicating Boussinesq/anelastic inconsistency
+
+Initial rho0-weighted water:  395114090.256193 kg
+Initial unweighted water:     3.865430e+08 kg*m³
+
+Running 30-min simulation...
+
+
+================================================================================
+RESULTS: WEIGHTED (rho0) vs UNWEIGHTED BUDGETS
+================================================================================
+
+RHO0-WEIGHTED BUDGET (physical, used by model):
+--------------------------------------------------------------------------------
+  Initial:            395114090.256193 kg
+  Final:              387081428.144918 kg
+  Total drift:         -8032662.111275 kg (-2.032998%)
+
+  Advection:           -2802016.730372 kg (-0.709166%)
+  Other processes:     -5230645.380902 kg (-1.323832%)
+
+UNWEIGHTED BUDGET (sum qt*dV, no rho0):
+--------------------------------------------------------------------------------
+  Initial:                3.865430e+08 kg*m³
+  Final:                  3.808057e+08 kg*m³
+  Total drift:           -5.737292e+06 kg*m³ (-1.484257%)
+
+  Advection:              1.132488e-06 kg*m³ (+0.000000%)
+  Other processes:       -5.737292e+06 kg*m³ (-1.484257%)
+
+================================================================================
+HYPOTHESIS TEST
+================================================================================
+Advection contribution (rho0-weighted):  0.709166%
+Advection contribution (unweighted):     0.000000%
+
+✓ HYPOTHESIS CONFIRMED:
+  - Unweighted advection is ~0 (numerically conservative)
+  - Weighted advection has significant drift (anelastic inconsistency)
+
+ROOT CAUSE: Model uses div(u)=0 but should use div(rho0*u)=0
+
+FIX REQUIRED:
+  1. Pressure projection: enforce div(rho0*u) = 0
+  2. Scalar advection: use anelastic form d(phi)/dt = -(1/rho0)*div(rho0*u*phi)
+  3. Momentum advection: use rho0-weighted vertical fluxes
+================================================================================

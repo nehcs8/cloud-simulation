@@ -1,0 +1,21 @@
+================================================================================
+ANELASTIC CONSISTENCY TEST
+================================================================================
+Grid: 32x32x80
+Test duration: 1800s (30 min)
+
+Hypothesis: advection conserves unweighted sum(qt*dV) but not rho0-weighted
+            sum(rho0*qt*dV), indicating Boussinesq/anelastic inconsistency
+
+Initial rho0-weighted water:  395114090.256193 kg
+Initial unweighted water:     3.865430e+08 kg*m³
+
+Running 30-min simulation...
+
+Traceback (most recent call last):
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/test_anelastic_hypothesis.py", line 154, in <module>
+    project(state.u, state.v, state.w, grid, dt)
+  File "/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/pressure.py", line 35, in project
+    rho0_c = State._compute_rho0_profile(g.z, g)  # (nz,)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'State' has no attribute '_compute_rho0_profile'

@@ -1,0 +1,47 @@
+================================================================================
+ANELASTIC CONSISTENCY TEST
+================================================================================
+Grid: 32x32x80
+Test duration: 1800s (30 min)
+
+Hypothesis: advection conserves unweighted sum(qt*dV) but not rho0-weighted
+            sum(rho0*qt*dV), indicating Boussinesq/anelastic inconsistency
+
+Initial rho0-weighted water:  395114090.256193 kg
+Initial unweighted water:     3.865430e+08 kg*m³
+
+Running 30-min simulation...
+
+
+================================================================================
+RESULTS: WEIGHTED (rho0) vs UNWEIGHTED BUDGETS
+================================================================================
+
+RHO0-WEIGHTED BUDGET (physical, used by model):
+--------------------------------------------------------------------------------
+  Initial:            395114090.256193 kg
+  Final:              358961220.885944 kg
+  Total drift:        -36152869.370249 kg (-9.149982%)
+
+  Advection:            -122858.288846 kg (-0.031094%)
+  Other processes:    -36030011.081403 kg (-9.118888%)
+
+UNWEIGHTED BUDGET (sum qt*dV, no rho0):
+--------------------------------------------------------------------------------
+  Initial:                3.865430e+08 kg*m³
+  Final:                  3.538655e+08 kg*m³
+  Total drift:           -3.267747e+07 kg*m³ (-8.453773%)
+
+  Advection:              1.510927e+07 kg*m³ (+3.908821%)
+  Other processes:       -4.778674e+07 kg*m³ (-12.362593%)
+
+================================================================================
+HYPOTHESIS TEST
+================================================================================
+Advection contribution (rho0-weighted):  0.031094%
+Advection contribution (unweighted):     3.908821%
+
+✗ HYPOTHESIS REJECTED:
+  - Both weighted and unweighted advection have drift
+  - This indicates a true numerical leak in the advection scheme
+================================================================================

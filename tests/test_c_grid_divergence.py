@@ -13,12 +13,12 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from grid import Grid
-from pressure import project
+from pressure import project, _constant_theta_rho0
 import config as cfg
 
 def compute_divergence_cgrid(u, v, w, g: Grid) -> np.ndarray:
     """
-    Compute divergence on C-grid.
+    Compute anelastic divergence (1/ρ₀)∇·(ρ₀u) on C-grid.
     u: (nx+1, ny, nz) on x-faces
     v: (nx, ny+1, nz) on y-faces
     w: (nx, ny, nz+1) on z-faces
@@ -33,8 +33,12 @@ def compute_divergence_cgrid(u, v, w, g: Grid) -> np.ndarray:
     # dv/dy: simple difference
     div_v = (v[:, 1:, :] - v[:, :-1, :]) / dy         # (nx, ny, nz)
 
-    # dw/dz: simple difference
-    div_w = (w[:, :, 1:] - w[:, :, :-1]) / dz_f[np.newaxis, np.newaxis, :]  # (nx, ny, nz)
+    # Anelastic: (1/ρ₀) ∂(ρ₀w)/∂z, with the same ρ₀ project() uses when none is passed
+    rho0_c = _constant_theta_rho0(g.z)
+    rho0_w = np.concatenate([[rho0_c[0]], 0.5 * (rho0_c[:-1] + rho0_c[1:]), [rho0_c[-1]]])
+    flux_w = w * rho0_w[np.newaxis, np.newaxis, :]
+    div_w = ((flux_w[:, :, 1:] - flux_w[:, :, :-1])
+             / (rho0_c * dz_f)[np.newaxis, np.newaxis, :])
 
     return div_u + div_v + div_w
 

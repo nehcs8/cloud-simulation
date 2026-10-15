@@ -75,7 +75,7 @@ def test_cgrid_timestep():
         apply_microphysics(s, g, dt)
 
         # Pressure projection
-        project(s.u, s.v, s.w, g, dt)
+        project(s.u, s.v, s.w, g, dt, rho0=s.rho0)
 
         # Check divergence
         div = compute_divergence_cgrid(s.u, s.v, s.w, g)

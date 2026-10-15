@@ -438,6 +438,47 @@
 
 ---
 
+## land_cu steady forcing and 50 m run (2026-10-12)
+
+Plan `docs/PLAN_20261012_land_cu.md`; full decision log `docs/LOG_20261012_autonomous.md`.
+All runs 6 h, snapshots every 20 s, metrics from `analyze_land_cu.py` over 1–6 h (main: 1–5.67 h).
+
+| run | grid | forcing change | cover | θ_ml K/h | qv_ml g/kg/h | qv(2 km) g/kg/h | base drift m/h | p95 top | w_max |
+|---|---|---|---|---|---|---|---|---|---|
+| 10-11 steady (ref) | 64², 100 m | SHF 110, RAD −2, τ 1.5 h | 12.6 % | +0.48 | −0.20 | +0.67 | +93 | 1.86 km | |
+| pilot_a | 64², 100 m | SHF 70, RAD −3.5, τ 1 h, nudge > 1.8 km | 11.3 % | +0.24 | −0.13 | +0.25 | +49 | 1.90 km | 6.8 |
+| pilot_b | 64², 100 m | a + cloud shading | 11.4 % | +0.21 | −0.11 | +0.21 | +44 | 1.82 km | 6.7 |
+| pilot_c | 64², 100 m | b + RAD −5.0 | 12.3 % | +0.15 | −0.11 | +0.24 | +36 | 1.86 km | 6.8 |
+| **main_50m** | 128², 50 m | = pilot_c | 15.1 % | +0.15 | −0.10 | +0.22 | +37 | 1.86 km | 7.2 |
+
+Recommended land_cu forcing: `SHF=70 RAD_COOLING=-5.0 TAU_NUDGE_T=TAU_NUDGE_Q=3600 NUDGE_Z_TOP=1800
+W_SUBS=0.005 ENABLE_CLOUD_SHADING=True`. Cloud base rises ~0.86 → ~1.05 km over 6 h (inside the
+0.9–1.3 km target). The remaining drift comes from mixed-layer drying (−0.1 g/kg/h), which cooling can't fix.
+
+Findings:
+- Cloud shading slightly reduces drift and keeps tops steadier; no change in cover.
+- 50 m vs 100 m: the same mean-state drift; +25 % cover, ~50 % more clouds per area, +0.5 m/s w_max;
+  same base and tops.
+- Cost at 50 m (128², 4 threads, 20-s output): dt 2.38 s, ~28 wall-min per simulated hour, snapshots 12–28 MB.
+- main_50m was killed at t = 5 h 41 min by a system OOM event (external node processes); profiles.npz
+  was rebuilt from the snapshots. Run long jobs with `systemd-run --user`.
+
+GIFs: `cloud_gifs/20261012_land_cu_360min_pilot_{a,b,c}.gif`, `cloud_gifs/20261012_land_cu_341min_50m.gif`.
+
+**hetero2_50m (corrected maps):** `SHF_SIGMA=0.25 SHF_CORR=500` (patches ~1–2 km), independent SHF/LHF. Mean state as in
+main_50m (θ_ml +0.15 K/h, base +38 m/h, cover 15.4 %), so the buggy run's low drift was its fluxes. Weak organisation:
+cloud frequency vs SHF r = +0.25 (16.5 % over the warmest quarter vs 14.3 % over the coldest). Larger/stronger patches
+needed, ideally with `LATERAL_BC="fringe"` (added 2026-10-12, see CLAUDE.md). GIF `cloud_gifs/20261012_land_cu_360min_50m_hetero2.gif`.
+
+**hetero_50m (evening, confounded):** `SHF_SIGMA=0.25 SHF_CORR=2000` on the main_50m setup. Clouds lock onto
+warm patches (cloud frequency 21 % over the warmest quarter vs 10 % over the coldest, r = +0.61; control r = 0.00).
+BUT `build_flux_map` doesn't remove the field mean: the actual SHF mean was 35 W/m² (not 70), LHF 334 (not 300),
+SHF/LHF anticorrelated (−0.56). Its near-zero drift (θ_ml +0.03 K/h, base +5 m/h, cover 15.4 %) reflects those
+fluxes. Rerun after fixing `forcing.build_flux_map`. GIF `cloud_gifs/20261012_land_cu_360min_50m_hetero.gif`.
+
+
+---
+
 ## Technical Notes
 
 ### Common Issues Encountered
@@ -547,3 +588,4 @@
   - Updated `run_phase2.sh` to use new restart naming
   - Documented in CLAUDE.md and EXPERIMENT_LOG.md
 - 2026-09-22 00:20: Updated EXPERIMENT_LOG.md with complete Phase 2 analysis and contamination findings
+- 2026-10-12: land_cu pilots a/b/c + main 50 m run; forcing settled (see "land_cu steady forcing and 50 m run")

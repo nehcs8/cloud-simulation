@@ -1,0 +1,57 @@
+======================================================================
+FULL MODEL WATER CONSERVATION TEST
+======================================================================
+Grid: 32x32x80
+Test duration: 1800s (30 min)
+Surface fluxes: DISABLED (SHF=LHF=0)
+Sedimentation: ENABLED (rain can leave domain)
+Dynamics/advection: ENABLED
+Initial condition: Warm moist bubble to trigger cloud
+
+Initial conditions:
+  Domain-mean qv: 9.851 g/kg
+  Domain-mean qc: 0.000 g/kg
+  Domain-mean qr: 0.000 g/kg
+  Total water (domain + precip): 395114090.256193 kg
+
+Time evolution:
+ t(min)   qv(g/kg)   qc(g/kg)   qr(g/kg)    total_water(kg)   error(%)  clip_loss(kg)
+----------------------------------------------------------------------------------------------------
+    0.0      9.846      0.004      0.000   395113898.047368   0.000049   1.922088e+02
+    2.0      9.822      0.019      0.000   394997172.781490   0.029591   1.169175e+05
+    4.0      9.750      0.058      0.001   394574436.138630   0.136582   5.396541e+05
+    6.0      9.670      0.090      0.012   393996766.162221   0.282785   1.117324e+06
+    8.0      9.619      0.086      0.040   393441021.861268   0.423439   1.673068e+06
+   10.0      9.606      0.052      0.080   393019296.457714   0.530174   2.094794e+06
+   12.0      9.598      0.032      0.098   392699583.808538   0.611091   2.414506e+06
+   14.0      9.586      0.021      0.064   392379492.233303   0.692103   2.734598e+06
+   16.0      9.589      0.011      0.044   392248077.012563   0.725363   2.866013e+06
+   18.0      9.598      0.004      0.041   392317974.074122   0.707673   2.796116e+06
+   20.0      9.600      0.004      0.044   392417227.033675   0.682553   2.696863e+06
+   22.0      9.602      0.001      0.036   392409144.623847   0.684599   2.704946e+06
+   24.0      9.598      0.000      0.019   392289811.396586   0.714801   2.824279e+06
+   26.0      9.594      0.000      0.008   392184708.291297   0.741402   2.929382e+06
+   28.0      9.595      0.000      0.004   392206205.652931   0.735961   2.907885e+06
+   30.0      9.596      0.000      0.002   392261133.593748   0.722059   2.852957e+06
+
+======================================================================
+MASS BALANCE CHECK
+======================================================================
+Initial total water (domain + precip): 395114090.256193 kg
+Final total water (domain + precip):   392261133.593748 kg
+Absolute error:                        2.852957e+06 kg
+Relative error:                        0.722059%
+
+Total water lost to clipping:          2.852957e+06 kg
+Clipping loss as % of initial:         0.722059%
+Average clipping loss per step:        3.169952e+03 kg/step
+
+Total precipitation:                   0.506 mm (domain mean)
+
+✗ FAIL: Water conservation error > 0.1% (error = 0.722059%)
+
+⚠  WARNING: Clipping loss is significant (> 0.05%)
+   Consider implementing conservative clipping:
+   - Subtract clipped water from neighboring cells
+   - Or use flux-limiter advection schemes
+======================================================================

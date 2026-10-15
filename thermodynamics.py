@@ -27,6 +27,11 @@ References:
 import numpy as np
 import config as cfg
 
+try:
+    import kernels as _kernels   # numba saturation adjustment (cfg.USE_NUMBA)
+except ImportError:
+    _kernels = None
+
 
 def theta_l_from_state(theta: np.ndarray, qc: np.ndarray, pi0: np.ndarray) -> np.ndarray:
     """
@@ -125,6 +130,15 @@ def diagnose_cloud_water(theta_l: np.ndarray, qt: np.ndarray,
         qv: Water vapor [kg/kg]
         qc: Cloud water [kg/kg]
     """
+    if (_kernels is not None and getattr(cfg, 'USE_NUMBA', True) and theta_l.ndim == 3
+            and np.size(pi0) == theta_l.shape[2] and np.size(theta0) == theta_l.shape[2]):
+        pi0_1d = np.ascontiguousarray(np.asarray(pi0, dtype=np.float64).reshape(-1))
+        p = cfg.P00 * pi0_1d ** (cfg.CP / cfg.RD)
+        qv, qc, any_sat = _kernels.diagnose_cloud_water(
+            np.ascontiguousarray(theta_l), np.ascontiguousarray(qt), np.asarray(theta0, dtype=np.float64),
+            pi0_1d, p, cfg.LV / cfg.CP, cfg.LV, cfg.RV, cfg.EPS, max_iterations)
+        return (qv, qc) if any_sat else (qt.copy(), qc)
+
     # Initial guess: all vapor, no condensate
     qc = np.zeros_like(theta_l)
     qv = qt.copy()

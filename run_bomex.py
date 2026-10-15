@@ -35,7 +35,7 @@ cfg.T_END = 7200.0    # s (2 hours)
 cfg.OUTPUT_EVERY = 60.0  # s (1 minute)
 
 # ── Reference atmosphere ──────────────────────────────────────────────────────
-# Will be overridden by bomex_case.initialize_bomex_state()
+# Will be overridden by cases.bomex.initialize_bomex_state()
 # But set reasonable values for grid initialization
 cfg.THETA_S = 298.7   # K (BOMEX surface θ_l)
 cfg.Z_BL = 520.0      # m (BOMEX well-mixed layer depth)
@@ -45,7 +45,7 @@ cfg.QV_SURF = 0.017   # BOMEX surface qt
 cfg.QV_SCALE = 1500.0 # m (approximate scale height)
 
 # ── Surface forcing ───────────────────────────────────────────────────────────
-# BOMEX uses constant fluxes (applied in bomex_case.py)
+# BOMEX uses constant fluxes (applied in cases/bomex.py)
 # Disable heterogeneous forcing
 cfg.SHF_SIGMA = 0.0   # No spatial variation
 cfg.SHF_CORR = 1e6    # Large correlation (effectively uniform)
@@ -107,7 +107,7 @@ print()
 from grid import Grid
 from state import State
 from simulation import Simulation
-from bomex_case import initialize_bomex_state, apply_bomex_forcings, apply_bomex_surface_fluxes
+from cases.bomex import initialize_bomex_state, apply_bomex_forcings, apply_bomex_surface_fluxes
 
 # Create grid
 print("Creating grid...")

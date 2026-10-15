@@ -199,7 +199,7 @@ class NestedSimulation(Simulation):
         forcing.apply_cold_pool_nested(s, g, dt)
 
         # 6. Pressure projection (same)
-        project(s.u, s.v, s.w, g, dt)
+        project(s.u, s.v, s.w, g, dt, rho0=s.rho0)
 
         # 7. NESTED FORCING (use parent profiles)
         forcing.apply_subsidence_nested(s, self.parent_profiles, g, dt)

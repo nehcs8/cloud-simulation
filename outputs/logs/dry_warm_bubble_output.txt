@@ -1,0 +1,71 @@
+================================================================================
+DRY WARM BUBBLE SANITY TEST (KE CONSERVATION)
+================================================================================
+Grid: 32x32x80
+Test duration: 1200s (20 min)
+Surface fluxes: DISABLED (SHF=LHF=0)
+Coriolis: DISABLED
+Initial condition: theta' = +1 K * cos²(pi*r/2R), R=500m, z_c=500m
+
+Initial conditions:
+  Base-state theta0 at surface: 300.00 K
+  Base-state theta0 at z=500m:  300.000117 K
+  Base-state theta0 at z=1km:   300.023195 K
+  Base-state theta0 at top:     324.54 K
+  Max theta' (perturbation):    0.949 K
+  Mean theta' (perturbation):   0.003475 K
+  qv' = 0 (dry bubble, background qv0 only)
+
+Initial KE: 0.000000e+00 J (should be 0.0)
+
+Time evolution (reporting every 1 min):
+ t(min)             KE (J)      dKE/dt (W)     w_max (m/s)    Z_top (m)
+--------------------------------------------------------------------------------
+    0.0       0.000000e+00   +0.000000e+00           0.000          0.0
+    1.0       6.233132e+07   +1.038855e+06           1.162       1156.3
+    2.0       2.471925e+08   +3.081019e+06           2.305       1306.3
+    3.0       5.446372e+08   +4.957412e+06           3.362       1411.1
+    4.0       9.273296e+08   +6.378207e+06           4.170       1465.0
+    5.0       1.338966e+09   +6.860610e+06           4.653       1519.9
+    6.0       1.682548e+09   +5.726364e+06           4.846       1632.9
+    7.0       1.815886e+09   +2.222303e+06           4.843       1691.0
+    8.0       1.662976e+09   -2.548502e+06           4.449       1575.9
+    9.0       1.370775e+09   -4.870017e+06           3.741       1575.9
+   10.0       1.114395e+09   -4.273006e+06           2.972       1632.9
+   11.0       8.961124e+08   -3.638040e+06           2.467       1575.9
+   12.0       7.095987e+08   -3.108562e+06           2.052       2265.8
+   13.0       5.870470e+08   -2.042528e+06           1.725       2335.9
+   14.0       5.198952e+08   -1.119196e+06           1.495       2197.0
+   15.0       4.706967e+08   -8.199761e+05           1.317       2129.5
+   16.0       4.316176e+08   -6.513174e+05           1.137       2129.5
+   17.0       4.045655e+08   -4.508679e+05           1.034       2129.5
+   18.0       3.773667e+08   -4.533145e+05           0.947       2063.3
+   19.0       3.470870e+08   -5.046604e+05           0.915       1934.5
+   20.0       3.205257e+08   -4.426885e+05           0.859       2554.1
+
+================================================================================
+KE CONSERVATION ANALYSIS
+================================================================================
+Initial KE:                 0.000000e+00 J
+Peak KE:                    1.815886e+09 J  at t=7.0 min
+Final KE (t=20 min):        3.205257e+08 J  (-82.349% from peak)
+
+Peak w_max (any time):      4.846 m/s
+w_max at t=8 min:           4.449 m/s
+Peak bubble-top height:     2554.1 m
+
+================================================================================
+SANITY CHECK
+================================================================================
+KE growth after peak+2min:  +0.000000% of peak KE
+
+✓ PASS: KE does not grow significantly after bubble stops rising
+        (anelastic energy conservation is working)
+
+Expected results:
+  - w_max peaks at 3–5 m/s (parcel theory upper bound ~8 m/s)
+  - Bubble stops near top of mixed layer (~800-1200 m)
+  - KE decays slowly after peak (dissipation from SGS + numerical)
+
+✓ w_max = 4.85 m/s is physically reasonable
+================================================================================

@@ -1,0 +1,30 @@
+Reduced 1081 snapshots → runs/20261014_1019_land_cu_360min_fringe_hetero_50m/reduced_2d.npz
+Run: runs/20261014_1019_land_cu_360min_fringe_hetero_50m
+901 snapshots in [3600, 21600] s; twin shift 4.8 km, patches 5.8–11.2 km
+mean wind in the ML: u 4.97, v 0.40 m/s
+
+Twin correlation of w(500 m) and patch effect along x (time mean):
+  x km   r_twin  Δcover %  Δw′²(500)  Δθ_sfc K  Δqv_sfc g/kg  ΔCWP g/m²  ΔSHF W/m²
+   5.20   1.000    +0.01     +0.000    +0.000       +0.000      +0.01      +0.0
+   6.00   1.000    +0.02     +0.000    -0.002       +0.022      +0.04      -2.3
+   6.80   0.999    +0.03     +0.000    -0.006       +0.111      +0.07      -1.2
+   7.60   0.998    +0.01     +0.004    -0.006       +0.086      +0.07      -0.5
+   8.40   0.993    +0.05     +0.020    -0.017       +0.006      +0.04      -7.8
+   9.20   0.976    +0.22     +0.033    -0.031       -0.078      +0.19     -10.2
+  10.00   0.941    +0.49     +0.017    -0.015       -0.093      +0.84      +5.4
+  10.80   0.882    +0.71     -0.032    +0.031       -0.042      +1.76     +18.9
+
+Paired region 4.8–11.2 km: cover 15.65 % vs twin 15.46 %; std of the Δ cloud-frequency map 1.32 %
+Δθ_sfc       vs SHF: r(no lag) +0.89; best r +0.98 at shift Δx +0.50 km, Δy +0.00 km
+Δw′²(500)    vs SHF: r(no lag) +0.13; best r +0.91 at shift Δx +2.50 km, Δy +0.25 km
+Δcloud freq  vs SHF: r(no lag) +0.04; best r +0.83 at shift Δx +3.50 km, Δy +0.25 km
+ΔCWP         vs SHF: r(no lag) +0.02; best r +0.80 at shift Δx +3.50 km, Δy +0.50 km
+Null (20 unrelated maps) for Δcloud freq: r(no lag) +0.00 ± 0.23; best-lag r +0.55 ± 0.18 (max +0.85)
+Difference maps → runs/20261014_1019_land_cu_360min_fringe_hetero_50m/paired_maps.npz
+
+Fixed physical lags (Δy from mean v/u × Δx), null from 60 unrelated maps:
+  Δw′²(500)    Δx 2.5 km: r +0.91; null -0.05 ± 0.46; 0 % of null ≥ r
+  Δcloud freq  Δx 3.5 km: r +0.83; null -0.05 ± 0.42; 0 % of null ≥ r
+  ΔCWP         Δx 3.5 km: r +0.80; null -0.04 ± 0.42; 0 % of null ≥ r
+  Δcloud freq  Δx 2.5 km: r +0.67; null -0.03 ± 0.39; 2 % of null ≥ r
+  Δθ_sfc       Δx 0.5 km: r +0.99; null -0.03 ± 0.37; 0 % of null ≥ r

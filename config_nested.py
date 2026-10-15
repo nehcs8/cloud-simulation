@@ -63,7 +63,7 @@ N_RELAX: int = 4          # cells in relaxation zone (~200m at dx=50m)
 TAU_RELAX_MIN: float = 5.0  # s - minimum relaxation timescale at boundary
 
 # ── Nested-specific settings ───────────────────────────────────────────────────
-RESTART_FROM: str | None = "nested_ic_50m_withwind.npz"  # Created by setup_nested.py
+RESTART_FROM: str | None = "nested_runs/ics/nested_ic_50m_withwind.npz"  # Created by setup_nested.py
 TERRAIN_TYPE: str = "flat"
 TERRAIN_H_MAX: float = 0.0
 TERRAIN_SIGMA: float = 0.0

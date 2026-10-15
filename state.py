@@ -56,18 +56,35 @@ class State:
         self.qv    = np.zeros(shape)      # Water vapor - diagnostic
         self.qc    = np.zeros(shape)      # Cloud water - diagnostic
 
+        # Surface fluxes (diagnostics updated by microphysics)
+        self.surface_precip_flux = np.zeros((g.nx, g.ny))  # mm/hr, updated by sedimentation
+
         # ── Reference profiles ────────────────────────────────────────────────
         self.theta0, self.qv0, self.rho0 = self._build_reference(g.z)
+
+        # Geostrophic wind u_g(z) (nz,): profile if configured, else uniform U_GEO
+        if cfg.U_GEO_PROFILE is not None:
+            self.u_g = np.asarray(cfg.U_GEO_PROFILE(g.z), dtype=float)
+        else:
+            self.u_g = np.full(g.nz, cfg.U_GEO)
 
         # ── Apply initial conditions ──────────────────────────────────────────
         if restart_file is not None:
             self._load_from_snapshot(restart_file, g)
             # Snapshot already has diagnostic variables, just update conserved ones
             self._update_conserved_variables()
+        elif cfg.CASE == "land_cu":
+            from cases import land_cu
+            land_cu.init_perturbations(self, g)
+            self.u[:] = self.u_g[np.newaxis, np.newaxis, :]
+            self.v[:] = cfg.V_GEO
+            self._update_conserved_variables()
+            self._update_diagnostic_variables()
+            land_cu.print_rh_profile(self, g)
         else:
             self._init_random_bl(g)
             # Initialize background wind (uniform in space)
-            self.u[:] = cfg.U_GEO
+            self.u[:] = self.u_g[np.newaxis, np.newaxis, :]
             self.v[:] = cfg.V_GEO
             # Convert to θ_l/qt framework (Phase 1.4)
             # After initialization, convert (θ, qv, qc, qr) → (θ_l, qt, qr)
@@ -78,21 +95,52 @@ class State:
     # ── Reference atmosphere ──────────────────────────────────────────────────
     def _build_reference(self, z: np.ndarray):
         """
-        Piecewise-linear θ₀(z): BL lapse rate below z_BL, FT lapse rate above.
-        qv₀: exponential decay from surface.
+        θ₀(z) with well-mixed BL and capping inversion:
+        - Well-mixed BL (constant θ) below Z_BL
+        - Smooth inversion transition around Z_INVERSION
+        - FT lapse rate above inversion
+
+        qv₀: well-mixed in BL, then exponential decay above.
         ρ₀: from hydrostatic + ideal gas (approximately constant for Boussinesq).
         """
+        if cfg.CASE == "land_cu":
+            from cases import land_cu
+            theta0, qv0 = land_cu.reference_profiles(z)
+            pi0 = land_cu.exner_profile(theta0, z)
+            rho0 = cfg.P00 * pi0 ** (cfg.CP / cfg.RD) / (cfg.RD * theta0 * pi0)
+            return theta0, qv0, rho0
+
         z_bl = cfg.Z_BL
-        gamma_bl = cfg.GAMMA_BL * 1e-3   # K/m
+        gamma_bl = cfg.GAMMA_BL * 1e-3   # K/m (should be 0.0 for well-mixed)
         gamma_ft = cfg.GAMMA_FT * 1e-3   # K/m
 
-        theta0 = np.where(
+        # Base profile without inversion
+        # Well-mixed BL: constant theta up to Z_BL
+        theta0_base = np.where(
             z <= z_bl,
-            cfg.THETA_S + gamma_bl * z,
+            cfg.THETA_S + gamma_bl * z,  # If gamma_bl=0, this is constant
             cfg.THETA_S + gamma_bl * z_bl + gamma_ft * (z - z_bl),
         )
 
-        qv0 = cfg.QV_SURF * np.exp(-z / cfg.QV_SCALE)
+        # Add smooth inversion jump using tanh
+        # This creates a ~3K jump over ~200m centered at Z_INVERSION
+        if hasattr(cfg, 'Z_INVERSION') and hasattr(cfg, 'INVERSION_STRENGTH'):
+            z_inv = cfg.Z_INVERSION
+            delta_theta = cfg.INVERSION_STRENGTH
+            width = cfg.INVERSION_WIDTH
+            # tanh goes from -1 to +1, so 0.5*(1+tanh) goes from 0 to 1
+            inversion_profile = 0.5 * delta_theta * (1.0 + np.tanh((z - z_inv) / width))
+            theta0 = theta0_base + inversion_profile
+        else:
+            theta0 = theta0_base
+
+        # Well-mixed BL moisture: constant below Z_BL, then exponential decay
+        # This creates ~14.5 g/kg in BL, then drops to ~40-50% RH above
+        qv0 = np.where(
+            z <= z_bl,
+            cfg.QV_SURF,  # Constant in well-mixed BL
+            cfg.QV_SURF * np.exp(-(z - z_bl) / cfg.QV_SCALE)  # Decay above BL
+        )
 
         # Exner function π₀ = (p₀/p₀₀)^(Rd/cp) via hydrostatic balance
         # dπ/dz = -g / (cp * θ₀)
@@ -199,7 +247,7 @@ class State:
             else:  # already face-staggered
                 self.u[:] = u_data
         else:
-            self.u[:] = cfg.U_GEO
+            self.u[:] = self.u_g[np.newaxis, np.newaxis, :]
 
         if 'v' in data:
             v_data = data['v'].astype(float)

@@ -23,14 +23,16 @@ from state import State
 from dynamics import compute_tendencies
 from pressure import project
 from microphysics import apply_microphysics
-from forcing import apply_subsidence, apply_profile_nudging, apply_cold_pool, apply_sponge
+from forcing import (apply_subsidence, apply_profile_nudging, apply_cold_pool, apply_sponge,
+                     apply_radiative_cooling)
 from surface_layer import apply_surface_layer  # Phase 1.5: M-O surface layer
+from lateral_bc import apply_fringe
 import config as cfg
 
 
 def rk3_step(s: State, g: Grid, dt: float,
              shf_map: np.ndarray, lhf_map: np.ndarray,
-             physics_callback=None) -> None:
+             physics_callback=None, t: float = 0.0) -> None:
     """
     Advance state by one timestep using RK3 (Wicker-Skamarock 2002).
 
@@ -47,6 +49,7 @@ def rk3_step(s: State, g: Grid, dt: float,
         lhf_map: Latent heat flux map (nx, ny)
         physics_callback: Optional callable (s, g, dt) -> None to replace default physics.
                          If provided, only this callback is called. If None, uses default physics.
+        t: Current simulation time (for ramp-up, etc.)
     """
     # Save initial state s^n
     s0 = _copy_state(s)
@@ -68,7 +71,7 @@ def rk3_step(s: State, g: Grid, dt: float,
         s.qv = np.maximum(s.qv, 0.0)
 
         # Pressure projection after each stage (maintains divergence-free)
-        project(s.u, s.v, s.w, g, dt)
+        project(s.u, s.v, s.w, g, dt, rho0=s.rho0)
 
         # Boundary conditions after projection
         s.w[:, :, 0] = 0.0   # rigid lid
@@ -86,7 +89,11 @@ def rk3_step(s: State, g: Grid, dt: float,
     else:
         # Default physics chain
         # Phase 1.5: Surface layer (M-O bulk fluxes + momentum stress)
-        apply_surface_layer(s, g, dt, shf_map, lhf_map)
+        # Apply ramp-up factor to avoid startup shock
+        ramp_factor = min(1.0, t / cfg.FLUX_RAMP_TIME) if cfg.FLUX_RAMP_TIME > 0 else 1.0
+        shf_ramped = shf_map * ramp_factor
+        lhf_ramped = lhf_map * ramp_factor
+        apply_surface_layer(s, g, dt, shf_ramped, lhf_ramped)
         s._update_conserved_variables()  # θ, qv → θ_l, qt
 
         # Microphysics (saturation adjustment, warm rain, sedimentation)
@@ -94,18 +101,25 @@ def rk3_step(s: State, g: Grid, dt: float,
         apply_microphysics(s, g, dt)
         s._update_conserved_variables()  # θ, qv, qc → θ_l, qt
 
-        # Cold pool (evaporative cooling)
-        apply_cold_pool(s, g, dt)
-        s._update_conserved_variables()
+        # Cold pool (evaporative cooling) - controlled by ENABLE_COLD_POOL_HACK
+        # Now redundant: rain sedimentation with evaporation handles this properly
+        if cfg.ENABLE_COLD_POOL_HACK:
+            apply_cold_pool(s, g, dt)
+            s._update_conserved_variables()
 
         # Large-scale forcing
         apply_subsidence(s, g, dt)
         apply_profile_nudging(s, g, dt)
+        apply_radiative_cooling(s, g, dt)
         s._update_conserved_variables()
 
         # Sponge layer (upper boundary relaxation)
         apply_sponge(s, g, dt)
         s._update_conserved_variables()
+
+    # Inflow/outflow in x: relax the fringe toward the recycled upstream strip
+    if cfg.LATERAL_BC == "fringe":
+        apply_fringe(s, g, dt)
 
     # Final boundary conditions
     _apply_boundary_conditions(s, g)

@@ -21,6 +21,16 @@ import config as cfg
 from grid import Grid
 from state import State
 
+try:
+    import kernels
+except ImportError:          # numba not installed → numpy path only
+    kernels = None
+
+
+def _numba() -> bool:
+    """Use the kernels.py path (checked per call, so tests can toggle cfg.USE_NUMBA)."""
+    return kernels is not None and getattr(cfg, 'USE_NUMBA', True)
+
 # WENO smoothness-indicator floor
 # NOTE: This will be scaled by local field magnitude to handle different variable scales
 # (e.g., θ ~300 K vs q_t ~1e-8 kg/kg)
@@ -107,12 +117,21 @@ def _weno3_y(phi: np.ndarray, v_face: np.ndarray, dy: float) -> np.ndarray:
 
 
 def _weno3_z(phi: np.ndarray, w_face: np.ndarray,
-             dz_face: np.ndarray) -> np.ndarray:
+             dz_face: np.ndarray, rho0_c: np.ndarray = None, rho0_w: np.ndarray = None) -> np.ndarray:
     """
-    Flux-form WENO-3 d(w·phi)/dz for a cell-centred scalar.
+    Anelastic flux-form WENO-3: -(1/ρ₀) ∂(ρ₀·w·phi)/∂z for a cell-centred scalar.
+
     w_face: (nx,ny,nz+1), face-staggered; rigid-lid enforces w=0 at k=0 and k=nz.
     Neumann BCs for phi (zero-gradient ghost cells at top/bottom).
+    rho0_c: (nz,) reference density at cell centers (optional, defaults to 1.0)
+    rho0_w: (nz+1,) reference density at w-faces (optional, defaults to 1.0)
+
+    Returns: -(1/ρ₀) * ∂(ρ₀*w*φ)/∂z
     """
+    if rho0_c is None:
+        rho0_c = np.ones(phi.shape[2])
+    if rho0_w is None:
+        rho0_w = np.ones(w_face.shape[2])
     nz = phi.shape[2]
     dz = dz_face[np.newaxis, np.newaxis, :]    # (1,1,nz)
 
@@ -130,6 +149,10 @@ def _weno3_z(phi: np.ndarray, w_face: np.ndarray,
     wp = np.maximum(wf, 0.0)
     wn = np.minimum(wf, 0.0)
 
+    # Anelastic: weight by ρ₀ at w-faces
+    # rho0_w has shape (nz+1), we need faces 1:nz (same as wf)
+    rho0_wf = rho0_w[np.newaxis, np.newaxis, 1:]  # (1,1,nz)
+
     # Adaptive epsilon scaled by local field magnitude
     phi_scale = np.maximum(np.abs(phi), 1e-12)
     eps = _EPS_REL * phi_scale**2
@@ -140,7 +163,7 @@ def _weno3_z(phi: np.ndarray, w_face: np.ndarray,
     # Standard WENO-3 weights: 1/3 upwind, 2/3 centered
     a0L = (1/3) / (eps + b0L)**2;  a1L = (2/3) / (eps + b1L)**2
     w0L = a0L / (a0L + a1L)
-    fL  = wp * (w0L*q0L + (1 - w0L)*q1L)
+    fL  = rho0_wf * wp * (w0L*q0L + (1 - w0L)*q1L)  # Anelastic: ρ₀*w*φ
 
     # right-biased (w < 0)
     q0R = 1.5*pp1 - 0.5*pp2;  q1R = 0.5*pk + 0.5*pp1
@@ -148,13 +171,17 @@ def _weno3_z(phi: np.ndarray, w_face: np.ndarray,
     # Standard WENO-3 weights: 1/3 upwind, 2/3 centered
     a0R = (1/3) / (eps + b0R)**2;  a1R = (2/3) / (eps + b1R)**2
     w0R = a0R / (a0R + a1R)
-    fR  = wn * (w0R*q0R + (1 - w0R)*q1R)
+    fR  = rho0_wf * wn * (w0R*q0R + (1 - w0R)*q1R)  # Anelastic: ρ₀*w*φ
 
-    # flux at face k+1/2; top face: wf[...,-1]=0 → F[...,-1]=0 automatically
+    # flux at face k+1/2: ρ₀*w*φ
+    # top face: wf[...,-1]=0 → F[...,-1]=0 automatically
     F     = fL + fR
     # bottom face rigid lid → flux = 0
     F_km1 = np.concatenate([np.zeros_like(F[:,:,:1]), F[:,:,:-1]], axis=2)
-    return (F - F_km1) / dz
+
+    # Anelastic form: -(1/ρ₀) * ∂(ρ₀*w*φ)/∂z
+    rho0_c_3d = rho0_c[np.newaxis, np.newaxis, :]  # (1,1,nz)
+    return (F - F_km1) / (rho0_c_3d * dz)
 
 
 # ══ Upwind helpers (for cell-centered scalars) ═══════════════════════════════
@@ -183,10 +210,14 @@ def _upwind_y(phi, v, dy):
 
 # ══ Momentum advection (C-grid face-staggered) ═══════════════════════════════
 
-def advect_momentum(u, v, w, g):
+def advect_momentum(u, v, w, g, rho0_c, rho0_w):
     """
-    2nd-order flux-form C-grid momentum advection (energy-conserving
-    for discretely divergence-free flow).
+    Anelastic flux-form C-grid momentum advection (energy-conserving
+    for anelastic flow with div(rho0*u) = 0).
+
+    Tendencies: -(1/rho0) * div(rho0 * u * phi)
+    - For u, v: rho0 at cell centers for vertical flux
+    - For w: rho0 at w-faces for vertical flux
 
     Returns tendencies (tu, tv, tw) with shapes:
       - tu: (nx+1, ny, nz) for u on x-faces
@@ -200,33 +231,67 @@ def advect_momentum(u, v, w, g):
     U, V, W = u[:-1], v[:, :-1], w                      # unique periodic faces
     xm = lambda a: np.roll(a, 1, 0); xp = lambda a: np.roll(a, -1, 0)
     ym = lambda a: np.roll(a, 1, 1); yp = lambda a: np.roll(a, -1, 1)
-    ddz = lambda F: (F[..., 1:] - F[..., :-1]) / dzf
 
-    # u-momentum
+    # Expand rho0 profiles for broadcasting
+    rho0_c_3d = rho0_c[np.newaxis, np.newaxis, :]  # (1, 1, nz)
+    rho0_w_3d = rho0_w[np.newaxis, np.newaxis, :]  # (1, 1, nz+1)
+
+    # u-momentum: -(1/rho0) * div(rho0 * u * u)
+    # Horizontal fluxes (no rho0 weighting - rho0 constant in x,y)
     uc = 0.5*(U + xp(U)); Fxx = uc*uc
     adv_u = (Fxx - xm(Fxx))/dx
     Fyx = 0.5*(xm(V)+V) * 0.5*(ym(U)+U)
     adv_u += (yp(Fyx) - Fyx)/dy
-    uz = np.zeros_like(W); uz[..., 1:-1] = 0.5*(U[..., :-1] + U[..., 1:])
-    adv_u += ddz(0.5*(xm(W)+W) * uz)
 
-    # v-momentum
+    # Vertical flux: -(1/rho0_c) * d(rho0_w * w * u)/dz
+    # u is at x-faces, we need u at w-faces for vertical flux
+    uz = np.zeros_like(W); uz[..., 1:-1] = 0.5*(U[..., :-1] + U[..., 1:])
+    # rho0 at w-faces (excluding boundaries)
+    rho0_wf = rho0_w_3d[..., 1:-1]  # (1, 1, nz-1) at interior w-faces
+    # Flux at w-faces: rho0_w * w * u (both at w-faces)
+    wf_for_u = 0.5*(xm(W)+W)  # w at u-location x-faces, then at w-faces
+    Fzw_u = np.zeros_like(W)
+    Fzw_u[..., 1:-1] = rho0_wf * wf_for_u[..., 1:-1] * uz[..., 1:-1]
+    # Tendency at cell centers: -(1/rho0_c) * dFlux/dz
+    dzf_3d = dzf[np.newaxis, np.newaxis, :]
+    adv_u += (Fzw_u[..., 1:] - Fzw_u[..., :-1]) / (rho0_c_3d * dzf_3d)
+
+    # v-momentum: -(1/rho0) * div(rho0 * u * v)
+    # Horizontal fluxes
     vc = 0.5*(V + yp(V)); Fyy = vc*vc
     adv_v = (Fyy - ym(Fyy))/dy
     Fxy = 0.5*(ym(U)+U) * 0.5*(xm(V)+V)
     adv_v += (xp(Fxy) - Fxy)/dx
-    vz = np.zeros_like(W); vz[..., 1:-1] = 0.5*(V[..., :-1] + V[..., 1:])
-    adv_v += ddz(0.5*(ym(W)+W) * vz)
 
-    # w-momentum (interior faces)
+    # Vertical flux: -(1/rho0_c) * d(rho0_w * w * v)/dz
+    vz = np.zeros_like(W); vz[..., 1:-1] = 0.5*(V[..., :-1] + V[..., 1:])
+    wf_for_v = 0.5*(ym(W)+W)
+    Fzw_v = np.zeros_like(W)
+    Fzw_v[..., 1:-1] = rho0_wf * wf_for_v[..., 1:-1] * vz[..., 1:-1]
+    adv_v += (Fzw_v[..., 1:] - Fzw_v[..., :-1]) / (rho0_c_3d * dzf_3d)
+
+    # w-momentum: -(1/rho0_w) * div(rho0 * u * w) at interior w-faces
+    # Horizontal fluxes (no rho0 weighting)
     a = dzf[:-1]/(dzf[:-1]+dzf[1:]); b = dzf[1:]/(dzf[:-1]+dzf[1:])
     Uw = a*U[..., :-1] + b*U[..., 1:]; Vw = a*V[..., :-1] + b*V[..., 1:]
     Wi = W[..., 1:-1]
     Fxw = Uw*0.5*(xm(Wi)+Wi); Fyw = Vw*0.5*(ym(Wi)+Wi)
-    wc = 0.5*(W[..., :-1] + W[..., 1:]); Fzz = wc*wc
+
+    # Vertical flux: -(1/rho0_w) * d(rho0_c * w * w)/dz at w-faces
+    # w at cell centers between w-faces
+    wc = 0.5*(W[..., :-1] + W[..., 1:])  # (nx, ny, nz) at cell centers
+    # rho0 at cell centers
+    rho0_c_for_w = rho0_c_3d[..., :]  # (1, 1, nz)
+    # Vertical flux of w*w weighted by rho0_c
+    Fzz = rho0_c_for_w * wc * wc  # (nx, ny, nz)
+    # Gradient at w-faces (interior): (Fzz[k] - Fzz[k-1]) / dz_c[k-1]
+    dzc_3d = dzc[np.newaxis, np.newaxis, :]  # (1, 1, nz-1)
+    # rho0 at interior w-faces
+    rho0_wf_int = rho0_w_3d[..., 1:-1]  # (1, 1, nz-1)
+
     adv_w = np.zeros_like(W)
     adv_w[..., 1:-1] = ((xp(Fxw)-Fxw)/dx + (yp(Fyw)-Fyw)/dy
-                        + (Fzz[..., 1:]-Fzz[..., :-1])/dzc)
+                        + (Fzz[..., 1:]-Fzz[..., :-1]) / (rho0_wf_int * dzc_3d))
 
     tu = np.concatenate([-adv_u, -adv_u[:1]], 0)        # restore duplicate face
     tv = np.concatenate([-adv_v, -adv_v[:, :1]], 1)
@@ -249,6 +314,10 @@ def _smag_K(s: State, g: Grid):
     u_cen = s.u_at_cell()  # (nx, ny, nz)
     v_cen = s.v_at_cell()  # (nx, ny, nz)
     w_cen = s.w_at_cell()  # (nx, ny, nz)
+
+    if _numba():
+        K_M = kernels.smag_KM(u_cen, v_cen, w_cen, s.w, g.z, dx, dy, g.dz_face, cfg.CS)
+        return K_M, K_M / cfg.PR_T
 
     # Horizontal gradients (centred, periodic in x and y)
     dudx = (np.roll(u_cen, -1, 0) - np.roll(u_cen,  1, 0)) / (2*dx)
@@ -294,14 +363,34 @@ def _kdiff_y(phi, K, dy):
     flux = Kf * (np.roll(phi, -1, 1) - phi) / dy
     return (flux - np.roll(flux, 1, 1)) / dy
 
-def _kdiff_z(phi, K, dz_face, dz_cen):
-    """Flux-form variable-K diffusion in z; Neumann BCs (zero flux at boundaries)."""
+def _kdiff_z(phi, K, dz_face, dz_cen, rho0_c=None, rho0_w=None):
+    """
+    Anelastic flux-form variable-K diffusion in z: (1/rho0) d/dz(rho0 * K * dphi/dz)
+    Neumann BCs (zero flux at boundaries).
+
+    rho0_c: (nz,) reference density at cell centers (optional, defaults to 1.0)
+    rho0_w: (nz+1,) reference density at w-faces (optional, defaults to 1.0)
+    """
+    if rho0_c is None:
+        rho0_c = np.ones(phi.shape[2])
+    if rho0_w is None:
+        rho0_w = np.ones(dz_face.shape[0] + 1)
+
     Kf       = 0.5*(K[:,:,:-1] + K[:,:,1:])        # (nx,ny,nz-1) at interior faces
     dz_c     = dz_cen[np.newaxis, np.newaxis, :]
-    flux_int = Kf * (phi[:,:,1:] - phi[:,:,:-1]) / dz_c
+
+    # Anelastic flux at interior w-faces: rho0_w * K * dphi/dz
+    # rho0 at interior w-faces (1:nz)
+    rho0_wf = rho0_w[np.newaxis, np.newaxis, 1:-1]  # (1, 1, nz-1)
+    flux_int = rho0_wf * Kf * (phi[:,:,1:] - phi[:,:,:-1]) / dz_c
+
     zeros    = np.zeros_like(phi[:,:,:1])
     flux     = np.concatenate([zeros, flux_int, zeros], axis=2)   # (nx,ny,nz+1)
-    return (flux[:,:,1:] - flux[:,:,:-1]) / dz_face[np.newaxis, np.newaxis, :]
+
+    # Anelastic tendency: (1/rho0_c) * d(flux)/dz
+    rho0_c_3d = rho0_c[np.newaxis, np.newaxis, :]
+    dz_f = dz_face[np.newaxis, np.newaxis, :]
+    return (flux[:,:,1:] - flux[:,:,:-1]) / (rho0_c_3d * dz_f)
 
 
 # ══ Full tendency computation (C-GRID) ═══════════════════════════════════════
@@ -347,11 +436,22 @@ def compute_tendencies(s: State, g: Grid) -> dict:
     # Cell-centered w only for background gradient transport
     w_cen = s.w_at_cell()  # (nx, ny, nz)
 
+    # Get reference density profiles for anelastic advection
+    rho0_c = s.rho0  # (nz,) at cell centers
+    # Interpolate to w-faces
+    rho0_w = np.zeros(g.nz + 1)
+    rho0_w[0] = rho0_c[0]  # Extrapolate to bottom
+    rho0_w[-1] = rho0_c[-1]  # Extrapolate to top
+    rho0_w[1:-1] = 0.5 * (rho0_c[:-1] + rho0_c[1:])  # Average to faces
+
     def adv_weno3(phi):
-        """WENO-3 in all directions using true divergence-free face velocities."""
+        """WENO-3 in all directions using true divergence-free face velocities.
+        Anelastic: vertical advection uses ρ₀-weighted fluxes."""
+        if _numba():
+            return kernels.weno3_div(phi, s.u, s.v, s.w, dx, dy, dz_f, rho0_c, rho0_w)
         return (_weno3_x(phi, u_face, dx)
                 + _weno3_y(phi, v_face, dy)
-                + _weno3_z(phi, s.w, dz_f))
+                + _weno3_z(phi, s.w, dz_f, rho0_c, rho0_w))
 
     # Transport conserved variables (Phase 1.4)
     tend_theta_l = -adv_weno3(s.theta_l)
@@ -359,18 +459,25 @@ def compute_tendencies(s: State, g: Grid) -> dict:
     tend_qr      = -adv_weno3(s.qr)
 
     # ── Momentum advection ────────────────────────────────────────────────────
-    # Flux-form energy-conserving scheme (prevents KE blow-up)
-    tend_u, tend_v, tend_w = advect_momentum(s.u, s.v, s.w, g)
+    # Anelastic flux-form energy-conserving scheme (prevents KE blow-up)
+    if _numba():
+        tend_u, tend_v, tend_w = kernels.momentum_adv(s.u, s.v, s.w, dx, dy, dz_f, dz_c,
+                                                      rho0_c, rho0_w)
+    else:
+        tend_u, tend_v, tend_w = advect_momentum(s.u, s.v, s.w, g, rho0_c, rho0_w)
 
     # ── Smagorinsky SGS diffusion ─────────────────────────────────────────────
     K_M, K_H = _smag_K(s, g)
 
     # Scalar diffusion (cell-centered fields)
     # Phase 1.4: Diffuse conserved variables θ_l, qt
+    # Anelastic: vertical diffusion uses (1/rho0) d/dz(rho0 * K * dphi/dz)
     def diff_s(phi):
+        if _numba():
+            return kernels.kdiff_xyz(phi, K_H, dx, dy, dz_f, dz_c, rho0_c, rho0_w)
         return (_kdiff_x(phi, K_H, dx)
                 + _kdiff_y(phi, K_H, dy)
-                + _kdiff_z(phi, K_H, dz_f, dz_c))
+                + _kdiff_z(phi, K_H, dz_f, dz_c, rho0_c, rho0_w))
 
     tend_theta_l += diff_s(s.theta_l)
     tend_qt      += diff_s(s.qt)
@@ -378,6 +485,7 @@ def compute_tendencies(s: State, g: Grid) -> dict:
 
     # Momentum diffusion - apply to cell-centered, then interpolate back
     # (Simplified - proper C-grid diffusion would be on faces)
+    # Anelastic: vertical diffusion uses rho0 weighting
     u_cen = s.u_at_cell()  # (nx, ny, nz)
     v_cen = s.v_at_cell()  # (nx, ny, nz)
     u_diff = diff_s(u_cen)
@@ -401,14 +509,17 @@ def compute_tendencies(s: State, g: Grid) -> dict:
     w_int = s.w[:,:,1:-1]
     K_M_wface = 0.5*(K_M[:,:,:-1] + K_M[:,:,1:])
     dz_mid = (dz_f[:-1] * dz_f[1:])[np.newaxis, np.newaxis, :]
-    dw_diff = (_kdiff_x(w_int, K_M_wface, dx)
-               + _kdiff_y(w_int, K_M_wface, dy)
+    if _numba():
+        dw_h = kernels.kdiff_xy(w_int, K_M_wface, dx, dy)
+    else:
+        dw_h = _kdiff_x(w_int, K_M_wface, dx) + _kdiff_y(w_int, K_M_wface, dy)
+    dw_diff = (dw_h
                + K_M_wface * (s.w[:,:,2:] - 2.0*w_int + s.w[:,:,:-2]) / dz_mid)
     tend_w[:,:,1:-1] += dw_diff
 
     # ── Coriolis force (f-plane) ──────────────────────────────────────────────
     # CRITICAL FIX: Include geostrophic wind terms!
-    # Correct form: du/dt = +f*(v - v_g),  dv/dt = -f*(u - u_g)
+    # Correct form: du/dt = +f*(v - v_g),  dv/dt = -f*(u - u_g(z))
     # Without this, wind rotates ~47° over 6h in BOMEX instead of staying steady
     if cfg.ENABLE_CORIOLIS:
         # v at u-faces: (nx+1, ny, nz)
@@ -417,7 +528,7 @@ def compute_tendencies(s: State, g: Grid) -> dict:
 
         # u at v-faces: (nx, ny+1, nz)
         u_at_v = s.u_at_v_faces()
-        tend_v -= cfg.CORIOLIS_F * (u_at_v - cfg.U_GEO)
+        tend_v -= cfg.CORIOLIS_F * (u_at_v - s.u_g[np.newaxis, np.newaxis, :])
 
     # ── Buoyancy on w-faces ───────────────────────────────────────────────────
     B      = s.buoyancy()  # (nx, ny, nz) at cell centers

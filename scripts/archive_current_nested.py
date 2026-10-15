@@ -71,7 +71,7 @@ def main():
         shutil.move(str(log_src), str(run_dir / "sim.log"))
 
     # Copy nested IC
-    ic_src = base_dir / "nested_ic.npz"
+    ic_src = base_dir / "nested_runs" / "ics" / "nested_ic.npz"
     if ic_src.exists():
         print("Copying nested_ic.npz...")
         shutil.copy(str(ic_src), str(run_dir / "nested_ic.npz"))

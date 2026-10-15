@@ -169,6 +169,13 @@ def apply_surface_layer(s, g, dt: float, shf_map: np.ndarray, lhf_map: np.ndarra
         - Heat flux: w'θ' = u* * θ*
         - Moisture flux: w'q' = u* * q*
     """
+    # Optional cloud shading: reduce fluxes under clouds (Beer's law on LWP)
+    if cfg.ENABLE_CLOUD_SHADING:
+        from forcing import cloud_transmittance
+        transmittance = cloud_transmittance(s, g)
+        shf_map = shf_map * transmittance
+        lhf_map = lhf_map * transmittance
+
     # Lowest model level (k=0 for flat terrain)
     k = 0
     z_lowest = g.z[k]  # Height above surface
