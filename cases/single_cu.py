@@ -5,7 +5,8 @@ localised trigger, instead of a field of shallow cumulus.
 Sounding (z = height above surface), no capping inversion:
   0–600 m       mixed layer:  θ = 300 K, qv constant with RH = 0.75 at 600 m (LCL ≈ 1.2 km)
   600–9500 m    troposphere:  dθ/dz = 3.5 K/km (T lapse ≈ 6 K/km), RH linear 0.75 → 0.50
-                at 5000 m, then 0.50
+                at 5000 m, then 0.50. With cfg.SCU_RH_CL set: RH = SCU_RH_CL from 600 m to
+                cfg.SCU_Z_RH_CL, then linear to 0.50 at 5000 m (moister cloud layer)
   > 9500 m      stratosphere: dθ/dz = 15 K/km, RH = 0.20
 Parcel CAPE of the mixed-layer air ≈ 1200 J/kg (tests/test_single_cu.py prints it);
 freezing level ≈ 3.8 km. Warm rain only (Kessler): no ice, no anvil.
@@ -80,6 +81,10 @@ def configure() -> None:
     for key, val in VARIANTS["hotspot"].items():
         setattr(cfg, key, val)
 
+    # Moister cloud layer (None = linear RH 0.75 → 0.50 from Z_ML to Z_RH_MID)
+    cfg.SCU_RH_CL = None
+    cfg.SCU_Z_RH_CL = 3000.0
+
     # Light uniform wind
     cfg.U_GEO_PROFILE = None
     cfg.U_GEO = 1.5
@@ -119,8 +124,13 @@ def theta_profile(z: np.ndarray) -> np.ndarray:
 
 def rh_profile(z: np.ndarray) -> np.ndarray:
     """Target RH above the mixed layer (the mixed layer has constant qv instead)."""
-    frac = np.clip((z - Z_ML) / (Z_RH_MID - Z_ML), 0.0, 1.0)
-    return np.where(z <= Z_TROP, RH_ML_TOP + (RH_MID - RH_ML_TOP) * frac, RH_ST)
+    rh_cl = getattr(cfg, 'SCU_RH_CL', None)
+    if rh_cl is None:
+        rh_lo, z_lo = RH_ML_TOP, Z_ML
+    else:
+        rh_lo, z_lo = rh_cl, cfg.SCU_Z_RH_CL
+    frac = np.clip((z - z_lo) / (Z_RH_MID - z_lo), 0.0, 1.0)
+    return np.where(z <= Z_TROP, rh_lo + (RH_MID - rh_lo) * frac, RH_ST)
 
 
 def qsat_profile(theta0: np.ndarray, z: np.ndarray) -> np.ndarray:

@@ -158,7 +158,12 @@ in the first hour (spot air just +0.3 K warmer: advected away in ~30 min, plus 3
 Hot spot never reached congestus on 64² (tops ≤ 2.6 km, no rain): +300 for 3 h (tops 1.6–2.3 km by
 2–3 h), +500 W/m² (2.6 km at 2 h), U 0.5 m/s (2.3 km), +300 SHF +300 LHF `SHF_SPOT_LHF_AMP` (2.1 km).
 Likely cause: narrow thermals (few cells at 100 m) entrain RH-0.7 air above the LCL and stall below
-the LFC (~1.9 km); the small domain's compensating subsidence adds to it. The wide bubble survives.
+the LFC (~1.9 km). The wide bubble survives.
+128² main runs 2026-10-15: bubble (2 threads, shared CPU, 62 wall-min/h) top 7.0 km at 20 min, w 18 m/s,
+gone by 30 min, clear 1–3 h, 8.0 GB; moist hot spot (4 threads, 43 wall-min/h) tops ≤ 2.7 km, no rain,
+7.7 GB, so domain size was not the cause. `SCU_RH_CL` 0.80/0.85 (RH held to 3 km, CAPE unchanged)
+did not help either on 64² (tops ≤ 2.3 km): the barrier is the stable layer between the LCL
+(1.2 km) and the LFC (~2 km), not the dryness aloft.
 
 ### land_cu run
 Reproduction of every past land_cu run (exact overrides): `docs/RUNNING_LAND_CU.md`.
