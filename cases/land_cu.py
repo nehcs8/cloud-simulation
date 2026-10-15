@@ -53,6 +53,10 @@ def configure() -> None:
         return
     cfg._LAND_CU_CONFIGURED = True
 
+    # Domain: 6.4 × 6.4 km at 100 m (was set by run_land_cu.py before run_case.py)
+    cfg.NX = 64
+    cfg.NY = 64
+
     # Surface fluxes: homogeneous, ramped over 45 min, no shading
     cfg.SHF = 150.0
     cfg.LHF = 300.0

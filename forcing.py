@@ -51,6 +51,8 @@ def build_flux_map(g: Grid) -> tuple[np.ndarray, np.ndarray]:
 
     if cfg.SHF_STRIPE_AMP != 0.0:
         shf_map = shf_map + cfg.SHF_STRIPE_AMP * stripe_profile(g)[:, None]
+    if cfg.SHF_SPOT_AMP != 0.0:
+        shf_map = shf_map + cfg.SHF_SPOT_AMP * spot_profile(g)
 
     return shf_map, lhf_map
 
@@ -61,6 +63,19 @@ def stripe_profile(g: Grid) -> np.ndarray:
     tp = max(min(cfg.SHF_STRIPE_TAPER, 0.5 * w), 1e-9)
     ramp = lambda d: np.sin(0.5 * np.pi * np.clip(d / tp, 0.0, 1.0)) ** 2
     return ramp(g.x - x0) * ramp(x0 + w - g.x)
+
+
+def spot_profile(g: Grid) -> np.ndarray:
+    """(nx, ny) weight in [0, 1] of the hot spot (cos² edge, periodic distance; see SHF_SPOT_*)."""
+    lx, ly = g.nx * g.dx, g.ny * g.dy
+    x0 = 0.5 * lx if cfg.SHF_SPOT_X0 is None else cfg.SHF_SPOT_X0
+    y0 = 0.5 * ly if cfg.SHF_SPOT_Y0 is None else cfg.SHF_SPOT_Y0
+    ddx = (g.x - x0 + 0.5 * lx) % lx - 0.5 * lx
+    ddy = (g.y - y0 + 0.5 * ly) % ly - 0.5 * ly
+    r = np.hypot(ddx[:, None], ddy[None, :])
+    rad = 0.5 * cfg.SHF_SPOT_DIAM
+    tp = max(min(cfg.SHF_SPOT_TAPER, rad), 1e-9)
+    return np.sin(0.5 * np.pi * np.clip((rad - r) / tp, 0.0, 1.0)) ** 2
 
 
 class FluxPattern:

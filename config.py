@@ -27,7 +27,19 @@ PROFILE_EVERY: float = 600.0   # s, profile output interval (10 min)
 # ── Case selection ─────────────────────────────────────────────────────────────
 # "default": sounding below (THETA_S, Z_BL, QV_SURF, ...) + correlated BL noise
 # "land_cu": cases/land_cu.py sounding + white noise in lowest 200 m
+# "single_cu": cases/single_cu.py, one congestus from a hot spot or a warm bubble
 CASE: str = "default"
+
+# Warm bubble at t = 0 (applied by cases/single_cu.py):
+# θ′ += BUBBLE_DTHETA·cos²(π/2·r), r = √((Δx² + Δy²)/BUBBLE_RX² + Δz²/BUBBLE_RZ²) < 1,
+# and qv raised toward BUBBLE_RH·q_sat with the same weight. 0 = off.
+BUBBLE_DTHETA: float = 0.0          # K
+BUBBLE_RH:     float = 0.0          # target RH at the bubble centre (0 = keep qv)
+BUBBLE_X0: float | None = None      # m, None = domain centre
+BUBBLE_Y0: float | None = None      # m
+BUBBLE_Z0:     float = 500.0        # m
+BUBBLE_RX:     float = 1500.0       # m, horizontal radius
+BUBBLE_RZ:     float = 500.0        # m, vertical radius
 
 # ── Reference atmosphere ───────────────────────────────────────────────────────
 THETA_S: float = 300.0   # K, surface potential temperature
@@ -56,6 +68,14 @@ SHF_STRIPE_AMP:   float = 0.0      # W/m²
 SHF_STRIPE_X0:    float = 0.0      # m, upstream edge
 SHF_STRIPE_WIDTH: float = 2000.0   # m
 SHF_STRIPE_TAPER: float = 250.0    # m
+# Hot spot: SHF + SHF_SPOT_AMP inside a disc of diameter SHF_SPOT_DIAM centred at
+# (SHF_SPOT_X0, SHF_SPOT_Y0) (None = domain centre), cos² edge of SHF_SPOT_TAPER inside
+# that diameter, distance measured periodically. Added on top of the map; LHF unchanged. 0 = off.
+SHF_SPOT_AMP:   float = 0.0         # W/m²
+SHF_SPOT_DIAM:  float = 3000.0      # m
+SHF_SPOT_TAPER: float = 500.0       # m
+SHF_SPOT_X0: float | None = None    # m
+SHF_SPOT_Y0: float | None = None    # m
 
 # ── Lateral boundaries in x ────────────────────────────────────────────────────
 # "periodic": doubly periodic domain (default).

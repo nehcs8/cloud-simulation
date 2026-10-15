@@ -1,7 +1,9 @@
 # Cloud Simulation — Reference
 
 Anelastic LES of shallow cumulus (C-grid, RK3, WENO-3, θ_l/q_t, M-O surface layer), plus
-nested high-resolution runs. Current focus: the `land_cu` continental cumulus case.
+nested high-resolution runs. Current focus: `single_cu`, one cumulus congestus (tops 4–7 km)
+from a hot spot or a warm bubble. The earlier `land_cu` shallow-Cu field runs and how to
+reproduce them: `docs/RUNNING_LAND_CU.md`.
 
 ---
 
@@ -14,7 +16,7 @@ has a home. Do not leave logs, text output, images, data or scratch scripts in t
 |----------------------------------------------------|---------------------------------------------|
 | Core model code (dynamics, physics, grid, …)       | root (`*.py` next to `simulation.py`)        |
 | A new case (sounding, forcing, settings)           | `cases/<name>.py` (see `cases/land_cu.py`)   |
-| A run entry point for a case                       | root `run_<case>.py` (see `run_land_cu.py`)  |
+| A run entry point for a case                       | `run_case.py <case>` (cases list in `cases/__init__.py`) |
 | A test or sanity/diagnostic check of the model     | `tests/test_<what>.py` (script-style, `__main__` block, `sys.path` header) |
 | Analysis / post-processing / one-off tool worth keeping | `scripts/` (visualisation: `scripts/visualize/`) |
 | Small generic helpers                              | `utils/`                                     |
@@ -57,12 +59,13 @@ Rules:
 
 ### Core (root)
 - `main.py`, `main_nested.py` — entry points (default case / nested runs)
-- `run_land_cu.py [T_END_s] [KEY=VALUE ...] [TAG=name]` — land_cu runner: config overrides,
-  process-by-process water budget, dt stats
+- `run_case.py CASE[:VARIANT] [T_END_s] [KEY=VALUE ...] [TAG=name]` — runner for any case in
+  `cases/`: variant presets, config overrides, process-by-process water budget, dt stats
+- `run_land_cu.py …` — wrapper, identical to `run_case.py land_cu …` (kept for old commands)
 - `run_smoke_test.py`, `run_bomex.py` — smoke test, BOMEX runner
 - `config.py` — all parameters (defaults = "default" case); `config_nested.py` — nested runs
 - `simulation.py` — time loop, adaptive dt (CFL), diagnostics, snapshots, run folders
-- `state.py` — fields, reference atmosphere, u_g(z), case dispatch on `cfg.CASE`
+- `state.py` — fields, reference atmosphere, u_g(z), case dispatch on `cfg.CASE` (`cases.get`)
 - `grid.py` — horizontal uniform; vertical `GRID_TYPE` = `"exp"` or `"uniform_stretched"`
 - `dynamics.py` — anelastic WENO-3 scalar advection, flux-form momentum, Smagorinsky, Coriolis, buoyancy
 - `pressure.py` — anelastic FFT projection ∇·(ρ₀u)=0 (pass `rho0=state.rho0`)
@@ -78,20 +81,32 @@ Rules:
   FRINGE_WIDTH is relaxed toward a copy of the strip upstream of RECYCLE_X ([0, RECYCLE_X) = homogeneous
   fetch acting as its own precursor); flux patterns are confined to the test region in between
   (`hetero_window`). Needs mean wind along +x. Default `"periodic"` is unchanged
-- `forcing.py` — flux maps / evolving flux pattern, subsidence, nudging, radiative cooling, sponge
+- `forcing.py` — flux maps (+ warm stripe `SHF_STRIPE_*`, hot spot `SHF_SPOT_*`) / evolving flux
+  pattern, subsidence, nudging, radiative cooling, sponge
 - `forcing_nested.py`, `boundary_conditions.py`, `terrain.py`
 
 ### Cases (`cases/`)
-- `land_cu.py` — continental Cu sounding + `configure()` (fluxes, sheared u_g, forcing,
-  40 m grid to 3 km, sponge 3.2 km, dt cap 5 s). `Simulation` calls it when `CASE == "land_cu"`;
-  a run script may call `land_cu.configure()` first and then override values.
+A case module defines `configure()`, `reference_profiles(z)`, `exner_profile(θ0, z)`,
+`init_perturbations(s, g)`, `print_rh_profile(s, g)` and optionally `VARIANTS` (dicts of config
+presets). Register it in `cases.CASES`; `Simulation`/`State` dispatch via `cases.get(cfg.CASE)`.
+`configure()` runs once (guard flag); the runner applies variant, then overrides.
+- `single_cu.py` — congestus: no inversion, θ 300 K mixed layer to 600 m, dθ/dz 3.5 K/km to the
+  tropopause at 9.5 km (15 K/km above), RH 0.75 → 0.50 at 5 km; parcel CAPE ≈ 1250 J/kg, LCL 1175 m,
+  LFC ~1.9 km, EL ~9.6 km, freezing level 3.9 km. 128²/100 m, 50 m levels to 7 km stretched to
+  12 km (160 levels), sponge 9.5 km, U 1.5 m/s uniform, no subsidence/nudging/radiation, dt ≤ 3 s,
+  background SHF 50 / LHF 100 W/m². Variants: `hotspot` (default; +300 W/m² disc, 3 km, centre)
+  and `bubble` (+2 K, RH 0.95, centre 500 m, 3 km × 1 km, no hot spot).
+- `land_cu.py` — continental Cu sounding + `configure()` (64² at 100 m, fluxes, sheared u_g,
+  forcing, 40 m grid to 3 km, sponge 3.2 km, dt cap 5 s).
 - `bomex.py` — BOMEX profiles and forcings (used by `run_bomex.py`)
 
 ### Tests (`tests/`)
-Unit tests (projection, advection, RK3, θ_l/q_t, surface layer, land_cu sounding) and
+Unit tests (projection, advection, RK3, θ_l/q_t, surface layer, land_cu / single_cu sounding) and
 physics sanity checks (dry warm bubble, water budget/conservation, sedimentation, stratification).
 Run as scripts: `./venv/bin/python3 tests/test_projection.py`.
 `tests/test_fringe.py` checks the fringe copy/weights and windowed flux maps.
+`tests/test_single_cu.py` checks the single_cu state and prints parcel LCL/LFC/EL/CAPE (target
+500–1500 J/kg); run it after any sounding change.
 `tests/test_kernels.py [snap.npz]` checks numba vs numpy (agreement to round-off) and times both.
 `test_advection.py` and `test_cgrid_end_to_end.py` are stale (they expect a `theta` tendency key
 from before the θ_l/qt switch).
@@ -111,7 +126,7 @@ from before the θ_l/qt switch).
 ### Data folders
 - `runs/<YYYYMMDD_HHMM>_<CASE_NAME>/` — one folder per run: `diag.csv`, `console.log`,
   `config.py` copy, `effective_config.txt` (values after overrides), `profiles.npz`,
-  `snapshots/snap_*.npz`, plus `water_budget.csv` / `runner.log` from `run_land_cu.py`
+  `snapshots/snap_*.npz`, plus `water_budget.csv` / `runner.log` from `run_case.py`
 - `experiments/` — older parent-run experiment series (Sept 2026)
 - `nested_runs/` — nested runs (YAML metadata); `nested_runs/ics/` — nested initial conditions
 - `restart_snapshots/` — protected restart files (copy, never modify)
@@ -123,7 +138,23 @@ from before the θ_l/qt switch).
 
 ## Common workflows
 
+### single_cu (congestus) run
+```bash
+./venv/bin/python3 tests/test_single_cu.py                       # sounding + CAPE check
+MPLBACKEND=Agg ./venv/bin/python3 run_case.py single_cu:hotspot 3600 NX=64 NY=64 TAG=tune  # quick test
+MPLBACKEND=Agg ./venv/bin/python3 run_case.py single_cu:bubble 10800      # main run, 128², 3 h
+```
+Folders: `runs/<ts>_single_cu_<variant>_<min>min[_<tag>]/`. Always name the variant (the bare case
+is the hot spot, but its folder name then lacks `_hotspot`). Tuning knobs: `SHF_SPOT_AMP/_DIAM`,
+`BUBBLE_DTHETA/_RH/_Z0/_RX/_RZ`, `SHF`, `LHF`, `U_GEO`; sounding constants at the top of
+`cases/single_cu.py`. Warm rain only, so no ice and no anvil above the ~3.9 km freezing level.
+Cost estimate (not yet measured): 160 levels ≈ 1.85× the land_cu column, so ~1.9 s/step at 128²
+on 4 threads; dt 1.5–3 s with 10–20 m/s updrafts → ~1–1.5 wall-h per simulated hour. Snapshots
+~25–50 MB each at 128² (60 s interval → ~5–9 GB per 3 h).
+Smoke test 2026-10-15 (32², bubble): cloud at 2 min, w_max 9.4 m/s and top 1.8 km at 5 min.
+
 ### land_cu run
+Reproduction of every past land_cu run (exact overrides): `docs/RUNNING_LAND_CU.md`.
 ```bash
 MPLBACKEND=Agg ./venv/bin/python3 run_land_cu.py 14400 > /dev/null 2>&1 &   # 4 h; output in runs/<ts>_land_cu_240min/
 ./venv/bin/python3 scripts/analyze_land_cu.py runs/<run_dir> 3600 7200       # metrics for a window

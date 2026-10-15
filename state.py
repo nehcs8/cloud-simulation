@@ -4,6 +4,7 @@ import numpy as np
 from scipy.ndimage import gaussian_filter
 import config as cfg
 from grid import Grid
+import cases
 
 
 class State:
@@ -73,14 +74,14 @@ class State:
             self._load_from_snapshot(restart_file, g)
             # Snapshot already has diagnostic variables, just update conserved ones
             self._update_conserved_variables()
-        elif cfg.CASE == "land_cu":
-            from cases import land_cu
-            land_cu.init_perturbations(self, g)
+        elif cases.get(cfg.CASE) is not None:
+            case = cases.get(cfg.CASE)
+            case.init_perturbations(self, g)
             self.u[:] = self.u_g[np.newaxis, np.newaxis, :]
             self.v[:] = cfg.V_GEO
             self._update_conserved_variables()
             self._update_diagnostic_variables()
-            land_cu.print_rh_profile(self, g)
+            case.print_rh_profile(self, g)
         else:
             self._init_random_bl(g)
             # Initialize background wind (uniform in space)
@@ -103,10 +104,10 @@ class State:
         qv₀: well-mixed in BL, then exponential decay above.
         ρ₀: from hydrostatic + ideal gas (approximately constant for Boussinesq).
         """
-        if cfg.CASE == "land_cu":
-            from cases import land_cu
-            theta0, qv0 = land_cu.reference_profiles(z)
-            pi0 = land_cu.exner_profile(theta0, z)
+        case = cases.get(cfg.CASE)
+        if case is not None:
+            theta0, qv0 = case.reference_profiles(z)
+            pi0 = case.exner_profile(theta0, z)
             rho0 = cfg.P00 * pi0 ** (cfg.CP / cfg.RD) / (cfg.RD * theta0 * pi0)
             return theta0, qv0, rho0
 

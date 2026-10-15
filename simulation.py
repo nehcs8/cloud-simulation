@@ -31,6 +31,7 @@ from state import State
 from terrain import Terrain
 from timestepping import rk3_step
 from forcing import build_flux_map, FluxPattern
+import cases
 from scripts.visualize.visualize import Visualizer
 
 # Create timestamped output directory with case name
@@ -64,9 +65,9 @@ _DIAG_FIELDS = [
 class Simulation:
     def __init__(self) -> None:
         # ── Case-specific configuration (must precede grid construction) ──────
-        if cfg.CASE == "land_cu":
-            from cases import land_cu
-            land_cu.configure()
+        case = cases.get(cfg.CASE)
+        if case is not None:
+            case.configure()
 
         # ── Terrain setup ─────────────────────────────────────────────────────
         terrain = self._create_terrain()
