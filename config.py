@@ -70,8 +70,10 @@ SHF_STRIPE_WIDTH: float = 2000.0   # m
 SHF_STRIPE_TAPER: float = 250.0    # m
 # Hot spot: SHF + SHF_SPOT_AMP inside a disc of diameter SHF_SPOT_DIAM centred at
 # (SHF_SPOT_X0, SHF_SPOT_Y0) (None = domain centre), cos² edge of SHF_SPOT_TAPER inside
-# that diameter, distance measured periodically. Added on top of the map; LHF unchanged. 0 = off.
+# that diameter, distance measured periodically. Added on top of the map. 0 = off.
+# SHF_SPOT_LHF_AMP adds a latent-heat excess with the same footprint (moist hot spot).
 SHF_SPOT_AMP:   float = 0.0         # W/m²
+SHF_SPOT_LHF_AMP: float = 0.0       # W/m²
 SHF_SPOT_DIAM:  float = 3000.0      # m
 SHF_SPOT_TAPER: float = 500.0       # m
 SHF_SPOT_X0: float | None = None    # m

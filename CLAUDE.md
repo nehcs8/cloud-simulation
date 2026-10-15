@@ -155,6 +155,10 @@ on 4 threads; dt 1.5–3 s with 10–20 m/s updrafts → ~1–1.5 wall-h per sim
 bubble RH 0.95 → w_max 24 m/s, tops 8.4 km (too deep); RH 0.85 → w_max 18 m/s, top 6.8 km at 21 min,
 rain ≤ 0.5 mm/h, cloud gone by 35 min. Hot spot (+300 W/m², U 1.5 m/s): only small Cu at 1.3–1.4 km
 in the first hour (spot air just +0.3 K warmer: advected away in ~30 min, plus 30 min ramp).
+Hot spot never reached congestus on 64² (tops ≤ 2.6 km, no rain): +300 for 3 h (tops 1.6–2.3 km by
+2–3 h), +500 W/m² (2.6 km at 2 h), U 0.5 m/s (2.3 km), +300 SHF +300 LHF `SHF_SPOT_LHF_AMP` (2.1 km).
+Likely cause: narrow thermals (few cells at 100 m) entrain RH-0.7 air above the LCL and stall below
+the LFC (~1.9 km); the small domain's compensating subsidence adds to it. The wide bubble survives.
 
 ### land_cu run
 Reproduction of every past land_cu run (exact overrides): `docs/RUNNING_LAND_CU.md`.

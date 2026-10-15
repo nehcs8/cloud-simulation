@@ -51,8 +51,10 @@ def build_flux_map(g: Grid) -> tuple[np.ndarray, np.ndarray]:
 
     if cfg.SHF_STRIPE_AMP != 0.0:
         shf_map = shf_map + cfg.SHF_STRIPE_AMP * stripe_profile(g)[:, None]
-    if cfg.SHF_SPOT_AMP != 0.0:
-        shf_map = shf_map + cfg.SHF_SPOT_AMP * spot_profile(g)
+    if cfg.SHF_SPOT_AMP != 0.0 or cfg.SHF_SPOT_LHF_AMP != 0.0:
+        spot = spot_profile(g)
+        shf_map = shf_map + cfg.SHF_SPOT_AMP * spot
+        lhf_map = lhf_map + cfg.SHF_SPOT_LHF_AMP * spot
 
     return shf_map, lhf_map
 
