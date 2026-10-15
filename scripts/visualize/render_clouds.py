@@ -18,6 +18,7 @@ Options:
     --smooth 0.8       gaussian sigma (grid cells) applied to qc before contouring;
                        0 = raw field (faceted, true to the grid), default 0.8
     --xrange X0 X1     show only x in [X0, X1] km (e.g. the test region of a fringe run)
+    --trange T0 T1     only snapshots with T0 <= t <= T1 (s)
 Grid spacing is read from the run's effective_config.txt (snapshots don't store it).
 
 Headless / no GPU: prefix with VTK_DEFAULT_OPENGL_WINDOW=vtkEGLRenderWindow.
@@ -198,11 +199,16 @@ def main() -> None:
     ap.add_argument("--xrange", type=float, nargs=2, metavar=("X0_KM", "X1_KM"),
                     help="show only this x range (km)")
     ap.add_argument("--single", type=float, metavar="T_SECONDS", help="render only the snapshot at this time")
+    ap.add_argument("--trange", type=float, nargs=2, metavar=("T0_S", "T1_S"),
+                    help="only snapshots with T0 <= t <= T1 (s)")
     a = ap.parse_args()
 
     paths = sorted(glob.glob(os.path.join(a.run_dir, "snapshots", "snap_*.npz")))
     if not paths:
         raise SystemExit(f"No snapshots in {a.run_dir}/snapshots")
+    if a.trange:
+        t_of = lambda p: float(os.path.basename(p)[5:-4])          # snap_<t>.npz
+        paths = [p for p in paths if a.trange[0] <= t_of(p) <= a.trange[1]]
     k_range = _cloud_levels(paths)
     dx = dy = 100.0
     eff = os.path.join(a.run_dir, "effective_config.txt")

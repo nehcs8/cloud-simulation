@@ -209,6 +209,8 @@ VTK_DEFAULT_OPENGL_WINDOW=vtkEGLRenderWindow ./venv/bin/python3 scripts/visualiz
 # --smooth 0 = raw qc field (no blur); 0.5 removes facets; 0.8 visibly bloats clouds
 # --zexp vertical exaggeration (1.5), --mode volume (soft, slower)
 # --xrange X0 X1 (km) crops x, e.g. to the test region of a fringe run (hides the twin fetch)
+# --trange T0 T1 (s) only those snapshots, e.g. the 0–45 min life of the single_cu bubble cloud
+# single_cu: use --zexp 1.0 — the camera is framed for shallow Cu, so 7 km tops at 1.5× leave the frame
 # dx/dy come from the run's effective_config.txt. Before 2026-10-14 the renderer assumed 100 m,
 # so earlier 50 m GIFs are stretched 2× horizontally (clouds look flatter/wider than they are).
 ```
