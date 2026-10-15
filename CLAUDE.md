@@ -95,7 +95,7 @@ presets). Register it in `cases.CASES`; `Simulation`/`State` dispatch via `cases
   LFC ~1.9 km, EL ~9.6 km, freezing level 3.9 km. 128²/100 m, 50 m levels to 7 km stretched to
   12 km (160 levels), sponge 9.5 km, U 1.5 m/s uniform, no subsidence/nudging/radiation, dt ≤ 3 s,
   background SHF 50 / LHF 100 W/m². Variants: `hotspot` (default; +300 W/m² disc, 3 km, centre)
-  and `bubble` (+2 K, RH 0.95, centre 500 m, 3 km × 1 km, no hot spot).
+  and `bubble` (+2 K, RH 0.85, centre 500 m, 3 km × 1 km, no hot spot).
 - `land_cu.py` — continental Cu sounding + `configure()` (64² at 100 m, fluxes, sheared u_g,
   forcing, 40 m grid to 3 km, sponge 3.2 km, dt cap 5 s).
 - `bomex.py` — BOMEX profiles and forcings (used by `run_bomex.py`)
@@ -151,7 +151,10 @@ is the hot spot, but its folder name then lacks `_hotspot`). Tuning knobs: `SHF_
 Cost estimate (not yet measured): 160 levels ≈ 1.85× the land_cu column, so ~1.9 s/step at 128²
 on 4 threads; dt 1.5–3 s with 10–20 m/s updrafts → ~1–1.5 wall-h per simulated hour. Snapshots
 ~25–50 MB each at 128² (60 s interval → ~5–9 GB per 3 h).
-Smoke test 2026-10-15 (32², bubble): cloud at 2 min, w_max 9.4 m/s and top 1.8 km at 5 min.
+64² tuning 2026-10-15 (2 threads each, ~18 wall-min per simulated hour, mean dt 2.7–3 s):
+bubble RH 0.95 → w_max 24 m/s, tops 8.4 km (too deep); RH 0.85 → w_max 18 m/s, top 6.8 km at 21 min,
+rain ≤ 0.5 mm/h, cloud gone by 35 min. Hot spot (+300 W/m², U 1.5 m/s): only small Cu at 1.3–1.4 km
+in the first hour (spot air just +0.3 K warmer: advected away in ~30 min, plus 30 min ramp).
 
 ### land_cu run
 Reproduction of every past land_cu run (exact overrides): `docs/RUNNING_LAND_CU.md`.
