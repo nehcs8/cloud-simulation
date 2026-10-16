@@ -4,12 +4,14 @@ localised trigger, instead of a field of shallow cumulus.
 
 Sounding (z = height above surface), no capping inversion:
   0–600 m       mixed layer:  θ = 300 K, qv constant with RH = 0.75 at 600 m (LCL ≈ 1.2 km)
-  600–9500 m    troposphere:  dθ/dz = 3.5 K/km (T lapse ≈ 6 K/km), RH linear 0.75 → 0.50
-                at 5000 m, then 0.50. With cfg.SCU_RH_CL set: RH = SCU_RH_CL from 600 m to
+  600–9500 m    troposphere:  dθ/dz from cfg.SCU_LAPSE: 3.5 K/km to 1200 m (keeps the background
+                BL under the LCL), 2.0 K/km to 3000 m (LFC close to the LCL), 4.5 K/km to 9500 m;
+                RH linear 0.75 → 0.50 at 5000 m, then 0.50. With cfg.SCU_RH_CL set: RH = SCU_RH_CL from 600 m to
                 cfg.SCU_Z_RH_CL, then linear to 0.50 at 5000 m (moister cloud layer)
   > 9500 m      stratosphere: dθ/dz = 15 K/km, RH = 0.20
-Parcel CAPE of the mixed-layer air ≈ 1200 J/kg (tests/test_single_cu.py prints it);
-freezing level ≈ 3.8 km. Warm rain only (Kessler): no ice, no anvil.
+Parcel (tests/test_single_cu.py): LCL 1175 m, LFC 1575 m, EL 9.3 km, CAPE ≈ 1220 J/kg;
+freezing level ≈ 3.55 km. The 2026-10-15 runs used uniform 3.5 K/km (SCU_LAPSE =
+((9500.0, 3.5e-3),): LFC 1.9 km), on which the hot spot never got past ~2.7 km. Warm rain only (Kessler): no ice, no anvil.
 
 Triggers (variants, see VARIANTS and run_case.py single_cu:<variant>):
   hotspot  SHF + 300 and LHF + 300 W/m² in a disc 3 km across at the domain centre
@@ -81,6 +83,12 @@ def configure() -> None:
     for key, val in VARIANTS["hotspot"].items():
         setattr(cfg, key, val)
 
+    # Stratification above Z_ML: ((z_top, dθ/dz [K/m]), ...), last layer ends at Z_TROP.
+    # Stable below cloud base (keeps the background BL under the LCL), weakly stable
+    # cloud layer (LFC just above the LCL), more stable above 3 km (CAPE, tops).
+    # ((Z_TROP, 3.5e-3),) = the sounding of the 2026-10-15 runs.
+    cfg.SCU_LAPSE = ((1200.0, 3.5e-3), (3000.0, 2.0e-3), (Z_TROP, 4.5e-3))
+
     # Moister cloud layer (None = linear RH 0.75 → 0.50 from Z_ML to Z_RH_MID)
     cfg.SCU_RH_CL = None
     cfg.SCU_Z_RH_CL = 3000.0
@@ -113,13 +121,18 @@ def configure() -> None:
 
 
 def theta_profile(z: np.ndarray) -> np.ndarray:
-    """Piecewise-linear θ₀(z) [K]."""
-    theta_trop = THETA_ML + GAMMA_TR * (Z_TROP - Z_ML)
-    return np.select(
-        [z <= Z_ML, z <= Z_TROP],
-        [np.full_like(z, THETA_ML), THETA_ML + GAMMA_TR * (z - Z_ML)],
-        theta_trop + GAMMA_ST * (z - Z_TROP),
-    )
+    """
+    Piecewise-linear θ₀(z) [K]: THETA_ML up to Z_ML, then the (z_top, dθ/dz) layers of
+    cfg.SCU_LAPSE (last one ends at Z_TROP), then GAMMA_ST. Without SCU_LAPSE (configure()
+    not called): GAMMA_TR from Z_ML to Z_TROP.
+    """
+    layers = getattr(cfg, 'SCU_LAPSE', None) or ((Z_TROP, GAMMA_TR),)
+    theta = np.full_like(z, THETA_ML, dtype=float)
+    z_bot = Z_ML
+    for z_top, gamma in list(layers[:-1]) + [(Z_TROP, layers[-1][1])]:
+        theta += gamma * np.clip(z - z_bot, 0.0, z_top - z_bot)
+        z_bot = z_top
+    return theta + GAMMA_ST * np.maximum(z - Z_TROP, 0.0)
 
 
 def rh_profile(z: np.ndarray) -> np.ndarray:

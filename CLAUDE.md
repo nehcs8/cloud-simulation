@@ -90,9 +90,10 @@ A case module defines `configure()`, `reference_profiles(z)`, `exner_profile(θ0
 `init_perturbations(s, g)`, `print_rh_profile(s, g)` and optionally `VARIANTS` (dicts of config
 presets). Register it in `cases.CASES`; `Simulation`/`State` dispatch via `cases.get(cfg.CASE)`.
 `configure()` runs once (guard flag); the runner applies variant, then overrides.
-- `single_cu.py` — congestus: no inversion, θ 300 K mixed layer to 600 m, dθ/dz 3.5 K/km to the
-  tropopause at 9.5 km (15 K/km above), RH 0.75 → 0.50 at 5 km; parcel CAPE ≈ 1250 J/kg, LCL 1175 m,
-  LFC ~1.9 km, EL ~9.6 km, freezing level 3.9 km. 128²/100 m, 50 m levels to 7 km stretched to
+- `single_cu.py` — congestus: no inversion, θ 300 K mixed layer to 600 m, then `SCU_LAPSE` dθ/dz
+  3.5 K/km to 1.2 km, 2.0 to 3 km, 4.5 to the tropopause at 9.5 km (15 K/km above), RH 0.75 → 0.50 at
+  5 km; parcel CAPE ≈ 1220 J/kg, LCL 1175 m, LFC 1575 m, EL 9.3 km, freezing level 3.55 km
+  (until 2026-10-15: uniform 3.5 K/km, LFC 1.9 km — `"SCU_LAPSE=((9500.0, 3.5e-3),)"`). 128²/100 m, 50 m levels to 7 km stretched to
   12 km (160 levels), sponge 9.5 km, U 1.5 m/s uniform, no subsidence/nudging/radiation, dt ≤ 3 s,
   background SHF 50 / LHF 100 W/m². Variants: `hotspot` (default; +300 SHF +300 LHF W/m² disc, 3 km, centre)
   and `bubble` (+2 K, RH 0.85, centre 500 m, 3 km × 1 km, no hot spot).
@@ -164,6 +165,9 @@ gone by 30 min, clear 1–3 h, 8.0 GB; moist hot spot (4 threads, 43 wall-min/h)
 7.7 GB, so domain size was not the cause. `SCU_RH_CL` 0.80/0.85 (RH held to 3 km, CAPE unchanged)
 did not help either on 64² (tops ≤ 2.3 km): the barrier is the stable layer between the LCL
 (1.2 km) and the LFC (~2 km), not the dryness aloft.
+New sounding 2026-10-16 (`SCU_LAPSE`, 2.0 K/km at 1.2–3 km): 64² hot spot reaches 4.3 km at 1 h 45 min,
+5.5 km by 2.5 h, w 16–20 m/s, light rain; clouds sit 1.5–2 km downwind of the spot centre, background
+clear for 3 h. Bubble: top 7.3 km at ~20 min, w 28 m/s, rain 1.7 mm/h, gone by 45 min.
 
 ### land_cu run
 Reproduction of every past land_cu run (exact overrides): `docs/RUNNING_LAND_CU.md`.
