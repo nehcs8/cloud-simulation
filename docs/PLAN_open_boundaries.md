@@ -36,7 +36,20 @@ inflow that is not the model's own outflow.
    from the boundary condition (periodic copy, wall, inflow, outflow); all stencils in `dynamics.py` and
    `kernels.py` read the halo. Largest change by lines, mostly mechanical; `tests/test_kernels.py` (numba vs
    numpy) and the existing physics tests guard it. Periodic halo must reproduce today's results to round-off.
-3. **Inflow / outflow conditions** (standard in CM1 / WRF): outflow normal velocity from an Orlanski /
+3. **[done 2026-10-18] Inflow / outflow conditions** — `open_bc.py`, `tests/test_open_bc.py`. Dry +3 K bubble,
+   no wind, 64² open vs central 6.4 km of a 192² periodic reference (rms w difference / rms w):
+   | variant | 10 min | 20 min | 30 min |
+   |---|---|---|---|
+   | c* 30 m/s, relax 4 | 0.062 | 0.164 | 0.221 |
+   | c* 10 m/s, relax 4 (default) | 0.045 | 0.133 | 0.204 |
+   | c* 20 m/s, relax 4 | 0.054 | 0.154 | 0.213 |
+   | c* 30 m/s, relax off | 0.077 | 0.181 | 0.261 |
+   | c* 10 m/s, relax off | 0.056 | 0.128 | 0.191 |
+   | periodic 64² | 0.151 | 0.438 | 0.800 |
+   Error concentrates in the outer 0.8 km (27 % vs 17.5 % inside at 30 min). Next improvements if needed:
+   Orlanski-type adaptive phase speed per level, or a wider lateral damping zone. (The 192² reference
+   itself starts to see its own wrapped fast waves after ~10 min, so part of the late difference is its.)
+   Original stage-3 plan: (standard in CM1 / WRF): outflow normal velocity from an Orlanski /
    Klemp–Wilhelmson radiation condition, scalars advected out (upwind); inflow from prescribed profiles
    (θ, qv, u, v); a few-cell relaxation zone (Davies) at the boundaries; `LATERAL_BC = "periodic" | "open"`
    per direction.

@@ -7,7 +7,8 @@ For BC_X / BC_Y in {open/periodic, periodic/open, open/open}:
   3. flux form: Σ ρ₀ (advective tendency) dV = −(net outward boundary flux of ρ₀ u φ),
      i.e. the scheme conserves the scalar up to what crosses the boundary faces
   4. a blob far from the boundaries in a flow that is uniform near them gives the same
-     tendencies with open and periodic boundaries (the halo only acts at the edges)
+     tendencies with open and periodic boundaries (the halo only acts at the edges; the
+     boundary-face normal velocities follow the radiation condition and are excluded)
 Also: halo.pad_* reproduce np.roll / np.pad('wrap') values for periodic directions.
 
 Usage: python tests/test_halo.py
@@ -154,8 +155,11 @@ def check_blob_interior(g, rng):
         set_bc(bx, by)
         s = random_state(g, rng, blob_only=True)
         res[bx] = dynamics.compute_tendencies(s, g)
-    worst = max(np.abs(res["open"][k] - res["periodic"][k]).max() for k in res["open"])
-    print(f"blob far from the edges: open vs periodic tendencies max |diff| {worst:.1e}")
+    # boundary-face normal velocities follow the radiation condition (open_bc.py) → compare interior faces
+    sl = {'u': np.s_[1:-1], 'v': np.s_[:, 1:-1]}
+    worst = max(np.abs(res["open"][k][sl.get(k, np.s_[:])] - res["periodic"][k][sl.get(k, np.s_[:])]).max()
+                for k in res["open"])
+    print(f"blob far from the edges: open vs periodic tendencies (interior faces) max |diff| {worst:.1e}")
     assert worst < 1e-10
 
 

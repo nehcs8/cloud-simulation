@@ -22,6 +22,7 @@ import config as cfg
 from grid import Grid
 from state import State
 import halo
+import open_bc
 from halo import H
 
 try:
@@ -376,6 +377,11 @@ def compute_tendencies(s: State, g: Grid) -> dict:
     # ── Halo-padded copies (horizontal neighbours for all stencils) ──────────
     UP, VP, WP = halo.pad_u(s.u), halo.pad_v(s.v), halo.pad_c(s.w)
     P_thl, P_qt, P_qr = halo.pad_c(s.theta_l), halo.pad_c(s.qt), halo.pad_c(s.qr)
+    if open_x or open_y:
+        # inflow faces see the environment (sounding) in the ghost cells; outflow keeps zero gradient
+        masks, ref = open_bc.inflow_masks(s), open_bc.references(s)
+        for P, key in ((P_thl, 'theta_l'), (P_qt, 'qt'), (P_qr, 'qr')):
+            open_bc.inflow_ghosts(P, ref[key], masks)
 
     # ── Scalar advection ──────────────────────────────────────────────────────
     # CONSISTENT WENO-3 for all scalars (Phase 1.3)
@@ -469,6 +475,13 @@ def compute_tendencies(s: State, g: Grid) -> dict:
     dw_diff = (dw_h
                + K_M_wface * (s.w[:,:,2:] - 2.0*w_int + s.w[:,:,:-2]) / dz_mid)
     tend_w[:,:,1:-1] += dw_diff
+
+    if open_x or open_y:
+        # boundary-face normal velocity: radiation condition instead of the interior tendency
+        open_bc.radiation_tendency(tend_u, tend_v, s, g)
+        # outward total-water flux through the open boundaries [kg/s] (for the water budget);
+        # q_t = q_v + q_c + q_r already includes rain
+        s.boundary_water_rate = open_bc.boundary_outflow(P_qt, P_KH, s, g)
 
     # ── Coriolis force (f-plane) ──────────────────────────────────────────────
     # CRITICAL FIX: Include geostrophic wind terms!

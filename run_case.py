@@ -9,7 +9,8 @@ The run folder is runs/<ts>_<case>[_<variant>]_<min>min[_<tag>]/.
 
 Total water W = Σ ρ₀ (qv + qc + qr) dV [kg]. Each physics call in rk3_step is
 wrapped to record its ΔW; the residual (ΔW minus all physics terms) is what
-the dynamics (advection + projection) and clipping did. Written every
+the dynamics (advection + projection) and clipping did; water crossing open lateral
+boundaries (open_bc.py) is its own column, boundary_outflow_pct. Written every
 OUTPUT_EVERY to <run dir>/water_budget.csv.
 """
 import ast
@@ -54,7 +55,7 @@ from simulation import Simulation
 
 PROCESSES = ['apply_surface_layer', 'apply_microphysics', 'apply_cold_pool',
              'apply_subsidence', 'apply_profile_nudging', 'apply_radiative_cooling',
-             'apply_sponge', 'apply_fringe']
+             'apply_sponge', 'apply_fringe', 'apply_open_relaxation']
 budget = {p: 0.0 for p in PROCESSES}
 
 
@@ -84,7 +85,7 @@ class BudgetSimulation(Simulation):
         self._bf = open(f"{simulation.OUTPUT_DIR}/water_budget.csv", 'w', newline='')
         self._bw = csv.writer(self._bf)
         self._bw.writerow(['t', 'W_kg', 'dW_pct'] + [f'{p}_pct' for p in PROCESSES]
-                          + ['residual_dynamics_pct'])
+                          + ['boundary_outflow_pct', 'residual_dynamics_pct'])
         self._next_budget = 0.0
         self.dts = []
         self.wall0 = time.time()
@@ -96,10 +97,11 @@ class BudgetSimulation(Simulation):
             W = total_water(self.state, self.grid)
             pct = lambda x: 100.0 * x / self.W0
             dW = W - self.W0
-            resid = dW - sum(budget.values())
+            out = -self.state.boundary_water_out           # water gained through open boundaries
+            resid = dW - sum(budget.values()) - out
             self._bw.writerow([f"{self.t + dt:.1f}", f"{W:.8e}", f"{pct(dW):+.5f}"]
                               + [f"{pct(budget[p]):+.5f}" for p in PROCESSES]
-                              + [f"{pct(resid):+.5f}"])
+                              + [f"{pct(out):+.5f}", f"{pct(resid):+.5f}"])
             self._bf.flush()
             self._next_budget += cfg.OUTPUT_EVERY
 

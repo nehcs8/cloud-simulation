@@ -32,6 +32,7 @@ from terrain import Terrain
 from timestepping import rk3_step
 from forcing import build_flux_map, FluxPattern
 import cases
+import open_bc
 from scripts.visualize.visualize import Visualizer
 
 # Create timestamped output directory with case name
@@ -68,6 +69,8 @@ class Simulation:
         case = cases.get(cfg.CASE)
         if case is not None:
             case.configure()
+        if cfg.LATERAL_BC == "fringe" and open_bc.open_x():
+            raise ValueError('LATERAL_BC = "fringe" needs BC_X = "periodic" (the fringe recycles a periodic x)')
 
         # ── Terrain setup ─────────────────────────────────────────────────────
         terrain = self._create_terrain()
@@ -134,6 +137,9 @@ class Simulation:
                   f"recycling at x = {cfg.RECYCLE_X:.0f} m, flux patterns in "
                   f"[{cfg.RECYCLE_X + cfg.HETERO_BUFFER:.0f}, "
                   f"{self.grid.nx * self.grid.dx - cfg.FRINGE_WIDTH:.0f}] m")
+        if open_bc.any_open():
+            print(f"  Lateral BCs: x {cfg.BC_X}, y {cfg.BC_Y} (c* = {cfg.OPEN_C_STAR:.0f} m/s, inflow "
+                  f"relaxation {cfg.OPEN_RELAX_WIDTH} cells / {cfg.OPEN_RELAX_TAU:.0f} s)")
         print(f"  NaN guard: {'enabled' if cfg.ENABLE_NAN_GUARD else 'disabled'}")
         print(f"  Output directory: {OUTPUT_DIR}")
 
@@ -236,6 +242,12 @@ class Simulation:
         K_max = max(K_M.max(), K_H.max()) + 1e-10
         dx_min = min(g.dx, g.dy, g.dz_face.min())
         dt_diff = 0.25 * dx_min**2 / K_max  # Factor 0.25 for safety (3D diffusion)
+
+        # Open lateral boundaries: radiation term (u_n ± c*) must satisfy the same Courant limit
+        if open_bc.any_open():
+            u_b = max([np.abs(s.u[0]).max(), np.abs(s.u[-1]).max()] if open_bc.open_x() else [0.0])
+            v_b = max([np.abs(s.v[:, 0]).max(), np.abs(s.v[:, -1]).max()] if open_bc.open_y() else [0.0])
+            dt_cfl = min(dt_cfl, cfg.CFL_MAX * min(g.dx, g.dy) / (cfg.OPEN_C_STAR + max(u_b, v_b)))
 
         return min(cfg.DT, dt_cfl, dt_diff)
 

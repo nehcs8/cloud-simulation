@@ -27,6 +27,7 @@ from forcing import (apply_subsidence, apply_profile_nudging, apply_cold_pool, a
                      apply_radiative_cooling)
 from surface_layer import apply_surface_layer  # Phase 1.5: M-O surface layer
 from lateral_bc import apply_fringe
+from open_bc import apply_relaxation as apply_open_relaxation, any_open
 import config as cfg
 
 
@@ -77,6 +78,9 @@ def rk3_step(s: State, g: Grid, dt: float,
         s.w[:, :, 0] = 0.0   # rigid lid
         s.w[:, :, -1] = 0.0
 
+    # Water through open lateral boundaries: s^{n+1} = s^n + dt·RHS(stage 3)
+    s.boundary_water_out += dt * s.boundary_water_rate
+
     # ── Apply physics ONCE at end ─────────────────────────────────────────────
     # This is more stable than applying at each substep
     #
@@ -116,6 +120,11 @@ def rk3_step(s: State, g: Grid, dt: float,
         # Sponge layer (upper boundary relaxation)
         apply_sponge(s, g, dt)
         s._update_conserved_variables()
+
+        # Inflow relaxation zone next to open lateral boundaries (no-op if periodic)
+        apply_open_relaxation(s, g, dt)
+        if any_open():
+            s._update_conserved_variables()
 
     # Inflow/outflow in x: relax the fringe toward the recycled upstream strip
     if cfg.LATERAL_BC == "fringe":

@@ -57,6 +57,10 @@ class State:
         self.qv    = np.zeros(shape)      # Water vapor - diagnostic
         self.qc    = np.zeros(shape)      # Cloud water - diagnostic
 
+        # Total water that left through open lateral boundaries [kg] (open_bc.py; 0 if periodic)
+        self.boundary_water_out = 0.0
+        self.boundary_water_rate = 0.0
+
         # Surface fluxes (diagnostics updated by microphysics)
         self.surface_precip_flux = np.zeros((g.nx, g.ny))  # mm/hr, updated by sedimentation
 

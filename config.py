@@ -92,10 +92,17 @@ LATERAL_BC: str = "periodic"
 # "open":     the normal velocity on the two boundary faces (u[0], u[nx] / v[:, 0], v[:, ny])
 #             is taken as given and kept by the projection (∂φ/∂n = 0, cosine transform);
 #             the net boundary mass flux is first balanced to zero by a uniform correction.
-#             Advection/diffusion are still periodic until the halo stage — for now "open"
-#             only changes the pressure solve. LATERAL_BC = "fringe" needs BC_X = "periodic".
+#             Ghost cells, radiation and inflow relaxation: open_bc.py.
+#             LATERAL_BC = "fringe" needs BC_X = "periodic".
 BC_X: str = "periodic"
 BC_Y: str = "periodic"
+# Open-boundary parameters (open_bc.py): radiation phase speed for the boundary-face normal
+# velocity (Klemp–Wilhelmson; also limits dt: c*·dt/Δ ≤ CFL_MAX), its weak relaxation toward
+# u_g / V_GEO, and the inflow relaxation zone (cells, e-folding time at the boundary cell).
+OPEN_C_STAR: float = 10.0        # m/s (10 reflected least in the dry-bubble test, 2026-10-18)
+OPEN_TAU_NORMAL: float = 1800.0  # s (0 = off)
+OPEN_RELAX_WIDTH: int = 4        # cells
+OPEN_RELAX_TAU: float = 60.0     # s
 FRINGE_WIDTH: float = 1600.0   # m, relaxation zone at the downstream end of x
 FRINGE_TAU: float = 20.0       # s, relaxation time where the fringe is at full strength
 RECYCLE_X: float = 4800.0      # m, recycling plane = length of the homogeneous fetch

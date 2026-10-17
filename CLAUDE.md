@@ -76,7 +76,13 @@ Rules:
   of `docs/PLAN_open_boundaries.md`). `dynamics.py` / `kernels.py` read neighbours only from padded
   copies — no `np.roll` / `% n` left in the stencils. Periodic results are bitwise identical to before
   (checked 2026-10-17 on tendencies and a 10-min congestus run). `"open"` runs (stable, 30-min test)
-  but has no inflow/outflow BC yet and the water budget's dynamics residual then includes boundary loss
+  with the conditions of `open_bc.py`
+- `open_bc.py` — open lateral BCs (stage 3): inflow faces put the sounding (θ_l′ = 0, q_t = qv0, q_r = 0) in the
+  scalar ghosts, outflow faces keep zero-gradient ghosts; boundary-face normal velocity by Klemp–Wilhelmson
+  radiation (u_n ± c*, `OPEN_C_STAR` = 10 m/s) + weak relaxation to u_g (`OPEN_TAU_NORMAL`); Davies inflow
+  relaxation zone (`OPEN_RELAX_WIDTH` 4 cells, `OPEN_RELAX_TAU` 60 s); dt also limited by c*; water crossing
+  the boundaries → `s.boundary_water_out` and the `boundary_outflow_pct` column of water_budget.csv
+  (budget residual exactly 0 in an open/open congestus run). Run with `"BC_X='open'" "BC_Y='open'"`
 - `kernels.py` — numba versions of WENO-3, momentum advection, SGS diffusion/K_M, saturation
   adjustment, Kessler microphysics, tridiagonal pressure solve. The numpy originals stay in
   `dynamics.py` / `thermodynamics.py` / `microphysics.py` / `pressure.py` as the reference
@@ -116,6 +122,7 @@ Run as scripts: `./venv/bin/python3 tests/test_projection.py`.
 `tests/test_fringe.py` checks the fringe copy/weights and windowed flux maps.
 `tests/test_halo.py` checks the halo stencils with open BCs (numba = numpy, uniform scalar unchanged,
 flux-form conservation = boundary flux, interior identical to periodic away from the edges).
+`tests/test_open_bc.py` checks inflow/outflow ghosts, radiation, relaxation and the boundary water flux.
 `tests/test_pressure_open.py` checks the open-boundary projection (residual, flux balance, boundary
 velocities kept, idempotence, uniform through-flow) on numba and numpy paths.
 `tests/test_single_cu.py` checks the single_cu state and prints parcel LCL/LFC/EL/CAPE (target
