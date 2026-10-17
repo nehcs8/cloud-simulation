@@ -27,7 +27,12 @@ inflow that is not the model's own outflow.
    tridiagonal in z and the same cost. Enforce zero net mass flux through the boundaries (solvability of the
    anelastic Poisson problem) by a uniform correction of the outflow normal velocity. Keep FFT as the periodic path.
    Test: divergence residual ~1e-15 with walls and with prescribed in/outflow; periodic path unchanged.
-2. **Ghost cells (halo of 2) instead of wrap-around.** One `fill_halo(s)` routine per step fills ghost cells
+2. **[done 2026-10-17] Ghost cells (halo of 2) instead of wrap-around.** `halo.py` (index-map gather,
+   numba), all stencils in `dynamics.py` / `kernels.py` read padded copies; periodic bitwise identical
+   (tendencies + 10-min congestus run), no speed cost; `tests/test_halo.py`. Open = zero-gradient ghosts
+   for now; a 30-min open/open congestus run is stable. Left periodic: `forcing.cloud_transmittance`
+   (shadow shift), `build_flux_map` (wrap filter), `spot_profile`/bubble (periodic distance),
+   `microphysics.apply_entrainment` (off by default). One `fill_halo(s)` routine per step fills ghost cells
    from the boundary condition (periodic copy, wall, inflow, outflow); all stencils in `dynamics.py` and
    `kernels.py` read the halo. Largest change by lines, mostly mechanical; `tests/test_kernels.py` (numba vs
    numpy) and the existing physics tests guard it. Periodic halo must reproduce today's results to round-off.

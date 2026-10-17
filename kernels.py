@@ -11,6 +11,10 @@ checks that both agree to round-off.
   kdiff_xyz        ↔ _kdiff_x + _kdiff_y + _kdiff_z
   smag_KM          ↔ K_M of _smag_K
   momentum_adv     ↔ advect_momentum (returns -adv, i.e. tendencies)
+  gather_xy        ↔ halo padding (halo.py)
+
+Horizontal neighbours come from halo-padded copies (halo.py, H = 2 ghost cells), so the
+same kernels serve periodic and open lateral boundaries.
 
 Threads: one per physical core by default (hyperthreads slow these kernels
 down); override with the NUMBA_NUM_THREADS environment variable.
@@ -25,6 +29,22 @@ if 'NUMBA_NUM_THREADS' not in os.environ:
     numba.set_num_threads(max(1, min(numba.config.NUMBA_NUM_THREADS, (os.cpu_count() or 2) // 2)))
 
 _EPS_REL = 1e-6   # must match dynamics._EPS_REL
+
+
+# ══ Halo padding ═════════════════════════════════════════════════════════════
+
+@njit(parallel=True, cache=True)
+def gather_xy(a, mx, my):
+    """out[I, J, :] = a[mx[I], my[J], :] — halo padding with index maps (see halo.py)."""
+    nxp = mx.shape[0]; nyp = my.shape[0]; nz = a.shape[2]
+    out = np.empty((nxp, nyp, nz))
+    for I in prange(nxp):
+        si = mx[I]
+        for J in range(nyp):
+            sj = my[J]
+            for k in range(nz):
+                out[I, J, k] = a[si, sj, k]
+    return out
 
 
 # ══ WENO-3 scalar advection ══════════════════════════════════════════════════
@@ -53,40 +73,39 @@ def _eps(phi):
 
 
 @njit(parallel=True, cache=True)
-def weno3_div(phi, u, v, w, dx, dy, dz_face, rho0_c, rho0_w):
+def weno3_div(P, u, v, w, dx, dy, dz_face, rho0_c, rho0_w):
     """
     ∂(uφ)/∂x + ∂(vφ)/∂y + (1/ρ₀) ∂(ρ₀wφ)/∂z, WENO-3 flux form.
 
-    phi (nx,ny,nz); u (nx+1,ny,nz), v (nx,ny+1,nz), w (nx,ny,nz+1) C-grid
-    velocities with u[nx]=u[0], v[:,ny]=v[:,0]. Periodic in x, y;
-    Neumann ghost cells and zero flux through the bottom face in z.
+    P: φ padded with H = 2 ghost cells (halo.pad_c), shape (nx+4, ny+4, nz);
+    u (nx+1,ny,nz), v (nx,ny+1,nz), w (nx,ny,nz+1) C-grid velocities (all faces,
+    including the two boundary faces). Neumann ghost cells and zero flux through
+    the bottom face in z.
     """
-    nx, ny, nz = phi.shape
-    out = np.empty_like(phi)
+    nx = P.shape[0] - 4; ny = P.shape[1] - 4; nz = P.shape[2]
+    out = np.empty((nx, ny, nz))
     for i in prange(nx):
-        im2 = (i - 2) % nx; im1 = (i - 1) % nx
-        ip1 = (i + 1) % nx; ip2 = (i + 2) % nx
+        I = i + 2
         for j in range(ny):
-            jm2 = (j - 2) % ny; jm1 = (j - 1) % ny
-            jp1 = (j + 1) % ny; jp2 = (j + 2) % ny
+            J = j + 2
             F_below = 0.0                       # flux through bottom face (rigid lid)
             for k in range(nz):
-                c = phi[i, j, k]
+                c = P[I, J, k]
                 # x: faces i+1/2 and i-1/2
-                Fx = _weno3_face(phi[im1, j, k], c, phi[ip1, j, k], phi[ip2, j, k],
+                Fx = _weno3_face(P[I - 1, J, k], c, P[I + 1, J, k], P[I + 2, J, k],
                                  u[i + 1, j, k], _eps(c))
-                cm = phi[im1, j, k]
-                Fxm = _weno3_face(phi[im2, j, k], cm, c, phi[ip1, j, k],
+                cm = P[I - 1, J, k]
+                Fxm = _weno3_face(P[I - 2, J, k], cm, c, P[I + 1, J, k],
                                   u[i, j, k], _eps(cm))
                 # y
-                Fy = _weno3_face(phi[i, jm1, k], c, phi[i, jp1, k], phi[i, jp2, k],
+                Fy = _weno3_face(P[I, J - 1, k], c, P[I, J + 1, k], P[I, J + 2, k],
                                  v[i, j + 1, k], _eps(c))
-                cm = phi[i, jm1, k]
-                Fym = _weno3_face(phi[i, jm2, k], cm, c, phi[i, jp1, k],
+                cm = P[I, J - 1, k]
+                Fym = _weno3_face(P[I, J - 2, k], cm, c, P[I, J + 1, k],
                                   v[i, j, k], _eps(cm))
                 # z: face k+1/2 with Neumann ghosts
                 km1 = max(k - 1, 0); kp1 = min(k + 1, nz - 1); kp2 = min(k + 2, nz - 1)
-                Fz = _weno3_face(phi[i, j, km1], c, phi[i, j, kp1], phi[i, j, kp2],
+                Fz = _weno3_face(P[I, J, km1], c, P[I, J, kp1], P[I, J, kp2],
                                  rho0_w[k + 1] * w[i, j, k + 1], _eps(c))
                 out[i, j, k] = ((Fx - Fxm) / dx + (Fy - Fym) / dy
                                 + (Fz - F_below) / (rho0_c[k] * dz_face[k]))
@@ -97,36 +116,38 @@ def weno3_div(phi, u, v, w, dx, dy, dz_face, rho0_c, rho0_w):
 # ══ Variable-K diffusion ═════════════════════════════════════════════════════
 
 @njit(parallel=True, cache=True)
-def kdiff_xy(phi, K, dx, dy):
-    """∂/∂x(K ∂φ/∂x) + ∂/∂y(K ∂φ/∂y), K at cell centres, periodic."""
-    nx, ny, nz = phi.shape
-    out = np.empty_like(phi)
+def kdiff_xy(P, KP, dx, dy):
+    """∂/∂x(K ∂φ/∂x) + ∂/∂y(K ∂φ/∂y), φ and K at cell centres, both halo-padded (H = 2)."""
+    nx = P.shape[0] - 4; ny = P.shape[1] - 4; nz = P.shape[2]
+    out = np.empty((nx, ny, nz))
     for i in prange(nx):
-        im1 = (i - 1) % nx; ip1 = (i + 1) % nx
+        I = i + 2
         for j in range(ny):
-            jm1 = (j - 1) % ny; jp1 = (j + 1) % ny
+            J = j + 2
             for k in range(nz):
-                c = phi[i, j, k]; Kc = K[i, j, k]
-                fxp = 0.5*(Kc + K[ip1, j, k]) * (phi[ip1, j, k] - c) / dx
-                fxm = 0.5*(K[im1, j, k] + Kc) * (c - phi[im1, j, k]) / dx
-                fyp = 0.5*(Kc + K[i, jp1, k]) * (phi[i, jp1, k] - c) / dy
-                fym = 0.5*(K[i, jm1, k] + Kc) * (c - phi[i, jm1, k]) / dy
+                c = P[I, J, k]; Kc = KP[I, J, k]
+                fxp = 0.5*(Kc + KP[I + 1, J, k]) * (P[I + 1, J, k] - c) / dx
+                fxm = 0.5*(KP[I - 1, J, k] + Kc) * (c - P[I - 1, J, k]) / dx
+                fyp = 0.5*(Kc + KP[I, J + 1, k]) * (P[I, J + 1, k] - c) / dy
+                fym = 0.5*(KP[I, J - 1, k] + Kc) * (c - P[I, J - 1, k]) / dy
                 out[i, j, k] = (fxp - fxm) / dx + (fyp - fym) / dy
     return out
 
 
 @njit(parallel=True, cache=True)
-def kdiff_xyz(phi, K, dx, dy, dz_face, dz_cen, rho0_c, rho0_w):
-    """kdiff_xy + (1/ρ₀) ∂/∂z(ρ₀ K ∂φ/∂z), zero flux at bottom and top."""
-    nx, ny, nz = phi.shape
-    out = kdiff_xy(phi, K, dx, dy)
+def kdiff_xyz(P, KP, dx, dy, dz_face, dz_cen, rho0_c, rho0_w):
+    """kdiff_xy + (1/ρ₀) ∂/∂z(ρ₀ K ∂φ/∂z), zero flux at bottom and top (padded inputs)."""
+    nx = P.shape[0] - 4; ny = P.shape[1] - 4; nz = P.shape[2]
+    out = kdiff_xy(P, KP, dx, dy)
     for i in prange(nx):
+        I = i + 2
         for j in range(ny):
+            J = j + 2
             f_below = 0.0
             for k in range(nz):
                 if k < nz - 1:
-                    f_above = (rho0_w[k + 1] * (0.5*(K[i, j, k] + K[i, j, k + 1]))
-                               * (phi[i, j, k + 1] - phi[i, j, k]) / dz_cen[k])
+                    f_above = (rho0_w[k + 1] * (0.5*(KP[I, J, k] + KP[I, J, k + 1]))
+                               * (P[I, J, k + 1] - P[I, J, k]) / dz_cen[k])
                 else:
                     f_above = 0.0
                 out[i, j, k] += (f_above - f_below) / (rho0_c[k] * dz_face[k])
@@ -137,41 +158,42 @@ def kdiff_xyz(phi, K, dx, dy, dz_face, dz_cen, rho0_c, rho0_w):
 # ══ Smagorinsky K_M ══════════════════════════════════════════════════════════
 
 @njit(parallel=True, cache=True)
-def smag_KM(u_cen, v_cen, w_cen, w, z, dx, dy, dz_face, cs):
+def smag_KM(UC, VC, WC, w, z, dx, dy, dz_face, cs):
     """
     K_M = (Cs·Δ)² |S| at cell centres; same stencils as dynamics._smag_K
     (centred horizontal differences, np.gradient-style du/dz, dv/dz).
+    UC, VC, WC: cell-centred u, v, w, halo-padded (H = 2); w: unpadded z-faces.
     """
-    nx, ny, nz = u_cen.shape
-    KM = np.empty_like(u_cen)
+    nx = UC.shape[0] - 4; ny = UC.shape[1] - 4; nz = UC.shape[2]
+    KM = np.empty((nx, ny, nz))
     for i in prange(nx):
-        im1 = (i - 1) % nx; ip1 = (i + 1) % nx
+        I = i + 2
         for j in range(ny):
-            jm1 = (j - 1) % ny; jp1 = (j + 1) % ny
+            J = j + 2
             for k in range(nz):
-                dudx = (u_cen[ip1, j, k] - u_cen[im1, j, k]) / (2*dx)
-                dvdy = (v_cen[i, jp1, k] - v_cen[i, jm1, k]) / (2*dy)
-                dudy = (u_cen[i, jp1, k] - u_cen[i, jm1, k]) / (2*dy)
-                dvdx = (v_cen[ip1, j, k] - v_cen[im1, j, k]) / (2*dx)
+                dudx = (UC[I + 1, J, k] - UC[I - 1, J, k]) / (2*dx)
+                dvdy = (VC[I, J + 1, k] - VC[I, J - 1, k]) / (2*dy)
+                dudy = (UC[I, J + 1, k] - UC[I, J - 1, k]) / (2*dy)
+                dvdx = (VC[I + 1, J, k] - VC[I - 1, J, k]) / (2*dx)
                 dwdz = (w[i, j, k + 1] - w[i, j, k]) / dz_face[k]
-                dwdx = (w_cen[ip1, j, k] - w_cen[im1, j, k]) / (2*dx)
-                dwdy = (w_cen[i, jp1, k] - w_cen[i, jm1, k]) / (2*dy)
+                dwdx = (WC[I + 1, J, k] - WC[I - 1, J, k]) / (2*dx)
+                dwdy = (WC[I, J + 1, k] - WC[I, J - 1, k]) / (2*dy)
                 # np.gradient(·, z): one-sided at the ends, 2nd-order non-uniform inside
                 if k == 0:
                     h = z[1] - z[0]
-                    dudz = (u_cen[i, j, 1] - u_cen[i, j, 0]) / h
-                    dvdz = (v_cen[i, j, 1] - v_cen[i, j, 0]) / h
+                    dudz = (UC[I, J, 1] - UC[I, J, 0]) / h
+                    dvdz = (VC[I, J, 1] - VC[I, J, 0]) / h
                 elif k == nz - 1:
                     h = z[nz - 1] - z[nz - 2]
-                    dudz = (u_cen[i, j, k] - u_cen[i, j, k - 1]) / h
-                    dvdz = (v_cen[i, j, k] - v_cen[i, j, k - 1]) / h
+                    dudz = (UC[I, J, k] - UC[I, J, k - 1]) / h
+                    dvdz = (VC[I, J, k] - VC[I, J, k - 1]) / h
                 else:
                     h1 = z[k] - z[k - 1]; h2 = z[k + 1] - z[k]
                     a = -h2 / (h1 * (h1 + h2))
                     b = (h2 - h1) / (h1 * h2)
                     c = h1 / (h2 * (h1 + h2))
-                    dudz = a*u_cen[i, j, k - 1] + b*u_cen[i, j, k] + c*u_cen[i, j, k + 1]
-                    dvdz = a*v_cen[i, j, k - 1] + b*v_cen[i, j, k] + c*v_cen[i, j, k + 1]
+                    dudz = a*UC[I, J, k - 1] + b*UC[I, J, k] + c*UC[I, J, k + 1]
+                    dvdz = a*VC[I, J, k - 1] + b*VC[I, J, k] + c*VC[I, J, k + 1]
                 S2 = (2*(dudx**2 + dvdy**2 + dwdz**2)
                       + (dudy + dvdx)**2
                       + (dudz + dwdx)**2
@@ -184,76 +206,81 @@ def smag_KM(u_cen, v_cen, w_cen, w, z, dx, dy, dz_face, cs):
 # ══ Momentum advection ═══════════════════════════════════════════════════════
 
 @njit(parallel=True, cache=True)
-def momentum_adv(u, v, w, dx, dy, dz_face, dz_cen, rho0_c, rho0_w):
+def momentum_adv(UP, VP, WP, dx, dy, dz_face, dz_cen, rho0_c, rho0_w):
     """
     Tendencies (tu, tv, tw) = −advection, same scheme as dynamics.advect_momentum.
-    u (nx+1,ny,nz), v (nx,ny+1,nz), w (nx,ny,nz+1); u[nx]=u[0], v[:,ny]=v[:,0].
+    Halo-padded inputs (H = 2): UP = halo.pad_u(u) (nx+1+4, ny+4, nz),
+    VP = halo.pad_v(v) (nx+4, ny+1+4, nz), WP = halo.pad_c(w) (nx+4, ny+4, nz+1).
+    tu is computed on all x-faces 0…nx (incl. both boundary faces), tv on all y-faces.
     """
-    nx = w.shape[0]; ny = w.shape[1]; nz = w.shape[2] - 1
-    tu = np.empty_like(u); tv = np.empty_like(v); tw = np.zeros_like(w)
-    for i in prange(nx):
-        im1 = (i - 1) % nx; ip1 = (i + 1) % nx
+    nx = WP.shape[0] - 4; ny = WP.shape[1] - 4; nz = WP.shape[2] - 1
+    tu = np.empty((nx + 1, ny, nz)); tv = np.empty((nx, ny + 1, nz)); tw = np.zeros((nx, ny, nz + 1))
+
+    # ── u at x-face i (i = 0…nx); in UP face i is index i+2, in VP/WP cell i is index i+2 ──
+    for i in prange(nx + 1):
+        I = i + 2
         for j in range(ny):
-            jm1 = (j - 1) % ny; jp1 = (j + 1) % ny
-            # vertical fluxes of u and v through face k (k=1..nz-1); zero at k=0, nz
-            Fzu_below = 0.0; Fzv_below = 0.0
+            J = j + 2
+            Fzu_below = 0.0
             for k in range(nz):
-                # ── u at x-face i ──
-                ucp = 0.5*(u[i, j, k] + u[ip1, j, k]);  ucm = 0.5*(u[im1, j, k] + u[i, j, k])
+                ucp = 0.5*(UP[I, J, k] + UP[I + 1, J, k]);  ucm = 0.5*(UP[I - 1, J, k] + UP[I, J, k])
                 adv = (ucp*ucp - ucm*ucm) / dx
-                Fyx_p = 0.5*(v[im1, jp1, k] + v[i, jp1, k]) * 0.5*(u[i, j, k] + u[i, jp1, k])
-                Fyx_c = 0.5*(v[im1, j, k] + v[i, j, k]) * 0.5*(u[i, jm1, k] + u[i, j, k])
+                Fyx_p = 0.5*(VP[I - 1, J + 1, k] + VP[I, J + 1, k]) * 0.5*(UP[I, J, k] + UP[I, J + 1, k])
+                Fyx_c = 0.5*(VP[I - 1, J, k] + VP[I, J, k]) * 0.5*(UP[I, J - 1, k] + UP[I, J, k])
                 adv += (Fyx_p - Fyx_c) / dy
                 if k < nz - 1:
-                    Fzu = (rho0_w[k + 1] * (0.5*(w[im1, j, k + 1] + w[i, j, k + 1]))
-                           * (0.5*(u[i, j, k] + u[i, j, k + 1])))
+                    Fzu = (rho0_w[k + 1] * (0.5*(WP[I - 1, J, k + 1] + WP[I, J, k + 1]))
+                           * (0.5*(UP[I, J, k] + UP[I, J, k + 1])))
                 else:
                     Fzu = 0.0
                 adv += (Fzu - Fzu_below) / (rho0_c[k] * dz_face[k])
                 Fzu_below = Fzu
                 tu[i, j, k] = -adv
 
-                # ── v at y-face j ──
-                vcp = 0.5*(v[i, j, k] + v[i, jp1, k]);  vcm = 0.5*(v[i, jm1, k] + v[i, j, k])
+    # ── v at y-face j (j = 0…ny) ──
+    for i in prange(nx):
+        I = i + 2
+        for j in range(ny + 1):
+            J = j + 2
+            Fzv_below = 0.0
+            for k in range(nz):
+                vcp = 0.5*(VP[I, J, k] + VP[I, J + 1, k]);  vcm = 0.5*(VP[I, J - 1, k] + VP[I, J, k])
                 adv = (vcp*vcp - vcm*vcm) / dy
-                Fxy_p = 0.5*(u[ip1, jm1, k] + u[ip1, j, k]) * 0.5*(v[i, j, k] + v[ip1, j, k])
-                Fxy_c = 0.5*(u[i, jm1, k] + u[i, j, k]) * 0.5*(v[im1, j, k] + v[i, j, k])
+                Fxy_p = 0.5*(UP[I + 1, J - 1, k] + UP[I + 1, J, k]) * 0.5*(VP[I, J, k] + VP[I + 1, J, k])
+                Fxy_c = 0.5*(UP[I, J - 1, k] + UP[I, J, k]) * 0.5*(VP[I - 1, J, k] + VP[I, J, k])
                 adv += (Fxy_p - Fxy_c) / dx
                 if k < nz - 1:
-                    Fzv = (rho0_w[k + 1] * (0.5*(w[i, jm1, k + 1] + w[i, j, k + 1]))
-                           * (0.5*(v[i, j, k] + v[i, j, k + 1])))
+                    Fzv = (rho0_w[k + 1] * (0.5*(WP[I, J - 1, k + 1] + WP[I, J, k + 1]))
+                           * (0.5*(VP[I, J, k] + VP[I, J, k + 1])))
                 else:
                     Fzv = 0.0
                 adv += (Fzv - Fzv_below) / (rho0_c[k] * dz_face[k])
                 Fzv_below = Fzv
                 tv[i, j, k] = -adv
 
-            # ── w at interior z-faces k = 1..nz-1 ──
+    # ── w at interior z-faces k = 1..nz-1 of cell (i, j) ──
+    for i in prange(nx):
+        I = i + 2
+        for j in range(ny):
+            J = j + 2
             for k in range(1, nz):
                 m = k - 1
                 a = dz_face[m] / (dz_face[m] + dz_face[m + 1])
                 b = dz_face[m + 1] / (dz_face[m] + dz_face[m + 1])
-                Uw_c = a*u[i, j, m] + b*u[i, j, m + 1]
-                Uw_p = a*u[ip1, j, m] + b*u[ip1, j, m + 1]
-                Vw_c = a*v[i, j, m] + b*v[i, j, m + 1]
-                Vw_p = a*v[i, jp1, m] + b*v[i, jp1, m + 1]
-                Fxw_c = Uw_c * 0.5*(w[im1, j, k] + w[i, j, k])
-                Fxw_p = Uw_p * 0.5*(w[i, j, k] + w[ip1, j, k])
-                Fyw_c = Vw_c * 0.5*(w[i, jm1, k] + w[i, j, k])
-                Fyw_p = Vw_p * 0.5*(w[i, j, k] + w[i, jp1, k])
-                wc_lo = 0.5*(w[i, j, k - 1] + w[i, j, k])
-                wc_hi = 0.5*(w[i, j, k] + w[i, j, k + 1])
+                Uw_c = a*UP[I, J, m] + b*UP[I, J, m + 1]
+                Uw_p = a*UP[I + 1, J, m] + b*UP[I + 1, J, m + 1]
+                Vw_c = a*VP[I, J, m] + b*VP[I, J, m + 1]
+                Vw_p = a*VP[I, J + 1, m] + b*VP[I, J + 1, m + 1]
+                Fxw_c = Uw_c * 0.5*(WP[I - 1, J, k] + WP[I, J, k])
+                Fxw_p = Uw_p * 0.5*(WP[I, J, k] + WP[I + 1, J, k])
+                Fyw_c = Vw_c * 0.5*(WP[I, J - 1, k] + WP[I, J, k])
+                Fyw_p = Vw_p * 0.5*(WP[I, J, k] + WP[I, J + 1, k])
+                wc_lo = 0.5*(WP[I, J, k - 1] + WP[I, J, k])
+                wc_hi = 0.5*(WP[I, J, k] + WP[I, J, k + 1])
                 Fzz_lo = rho0_c[m] * wc_lo * wc_lo
                 Fzz_hi = rho0_c[m + 1] * wc_hi * wc_hi
                 tw[i, j, k] = -((Fxw_p - Fxw_c) / dx + (Fyw_p - Fyw_c) / dy
                                 + (Fzz_hi - Fzz_lo) / (rho0_w[k] * dz_cen[m]))
-    # duplicate periodic faces
-    for j in range(ny):
-        for k in range(nz):
-            tu[nx, j, k] = tu[0, j, k]
-    for i in range(nx):
-        for k in range(nz):
-            tv[i, ny, k] = tv[i, 0, k]
     return tu, tv, tw
 
 

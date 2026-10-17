@@ -32,6 +32,7 @@ snap_path = sys.argv[1] if len(sys.argv) > 1 else None
 cfg.NX = cfg.NY = int(sys.argv[2]) if len(sys.argv) > 2 else 64
 
 import dynamics
+import halo
 import kernels
 import pressure
 import microphysics
@@ -91,14 +92,15 @@ def test_kernels():
     rho0_w = np.empty(g.nz + 1)
     rho0_w[0], rho0_w[-1] = rho0_c[0], rho0_c[-1]
     rho0_w[1:-1] = 0.5 * (rho0_c[:-1] + rho0_c[1:])
-    u_face, v_face = s.u[1:], s.v[:, 1:]
+    pc = halo.pad_c                                       # stencils read halo-padded copies
 
     print(f"Grid {g.nx}x{g.ny}x{g.nz}, {'snapshot ' + snap_path if snap_path else 'random fields'}")
     print("Kernels:")
     for name, phi in (("theta_l", s.theta_l), ("qt", s.qt), ("qr", s.qr)):
-        ref = (dynamics._weno3_x(phi, u_face, dx) + dynamics._weno3_y(phi, v_face, dy)
+        P = pc(phi)
+        ref = (dynamics._weno3_x(P, s.u, dx) + dynamics._weno3_y(P, s.v, dy)
                + dynamics._weno3_z(phi, s.w, dz_f, rho0_c, rho0_w))
-        check(f"WENO-3 {name}", kernels.weno3_div(phi, s.u, s.v, s.w, dx, dy,
+        check(f"WENO-3 {name}", kernels.weno3_div(P, s.u, s.v, s.w, dx, dy,
                                                   dz_f, rho0_c, rho0_w), ref, results)
 
     cfg.USE_NUMBA = False
@@ -107,13 +109,15 @@ def test_kernels():
     K_M_nb, _ = dynamics._smag_K(s, g)
     check("Smagorinsky K_M", K_M_nb, K_M_ref, results)
 
-    ref = (dynamics._kdiff_x(s.qt, K_H, dx) + dynamics._kdiff_y(s.qt, K_H, dy)
+    P, PK = pc(s.qt), pc(K_H)
+    ref = (dynamics._kdiff_x(P, PK, dx) + dynamics._kdiff_y(P, PK, dy)
            + dynamics._kdiff_z(s.qt, K_H, dz_f, dz_c, rho0_c, rho0_w))
-    check("K-diffusion qt", kernels.kdiff_xyz(s.qt, K_H, dx, dy, dz_f, dz_c, rho0_c, rho0_w),
+    check("K-diffusion qt", kernels.kdiff_xyz(P, PK, dx, dy, dz_f, dz_c, rho0_c, rho0_w),
           ref, results)
 
-    tu, tv, tw = dynamics.advect_momentum(s.u, s.v, s.w, g, rho0_c, rho0_w)
-    nu, nv, nw = kernels.momentum_adv(s.u, s.v, s.w, dx, dy, dz_f, dz_c, rho0_c, rho0_w)
+    UP, VP, WP = halo.pad_u(s.u), halo.pad_v(s.v), pc(s.w)
+    tu, tv, tw = dynamics.advect_momentum(UP, VP, WP, g, rho0_c, rho0_w)
+    nu, nv, nw = kernels.momentum_adv(UP, VP, WP, dx, dy, dz_f, dz_c, rho0_c, rho0_w)
     check("momentum adv u", nu, tu, results)
     check("momentum adv v", nv, tv, results)
     check("momentum adv w", nw, tw, results)

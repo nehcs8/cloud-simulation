@@ -310,8 +310,12 @@ class State:
         # Then average in y with periodic wrapping: (nx, ny, nz) -> (nx, ny+1, nz)
         u_at_v = np.zeros((self.grid.nx, self.grid.ny + 1, self.grid.nz))
         u_at_v[:, 1:-1, :] = 0.5 * (u_at_cell[:, :-1, :] + u_at_cell[:, 1:, :])
-        u_at_v[:, 0, :] = 0.5 * (u_at_cell[:, -1, :] + u_at_cell[:, 0, :])  # periodic
-        u_at_v[:, -1, :] = u_at_v[:, 0, :]  # periodic
+        if getattr(cfg, 'BC_Y', 'periodic') == 'open':
+            u_at_v[:, 0, :] = u_at_cell[:, 0, :]        # boundary faces: adjacent cell
+            u_at_v[:, -1, :] = u_at_cell[:, -1, :]
+        else:
+            u_at_v[:, 0, :] = 0.5 * (u_at_cell[:, -1, :] + u_at_cell[:, 0, :])  # periodic
+            u_at_v[:, -1, :] = u_at_v[:, 0, :]  # periodic
         return u_at_v
 
     def v_at_u_faces(self) -> np.ndarray:
@@ -324,8 +328,12 @@ class State:
         # Then average in x with periodic wrapping: (nx, ny, nz) -> (nx+1, ny, nz)
         v_at_u = np.zeros((self.grid.nx + 1, self.grid.ny, self.grid.nz))
         v_at_u[1:-1, :, :] = 0.5 * (v_at_cell[:-1, :, :] + v_at_cell[1:, :, :])
-        v_at_u[0, :, :] = 0.5 * (v_at_cell[-1, :, :] + v_at_cell[0, :, :])  # periodic
-        v_at_u[-1, :, :] = v_at_u[0, :, :]  # periodic
+        if getattr(cfg, 'BC_X', 'periodic') == 'open':
+            v_at_u[0, :, :] = v_at_cell[0, :, :]        # boundary faces: adjacent cell
+            v_at_u[-1, :, :] = v_at_cell[-1, :, :]
+        else:
+            v_at_u[0, :, :] = 0.5 * (v_at_cell[-1, :, :] + v_at_cell[0, :, :])  # periodic
+            v_at_u[-1, :, :] = v_at_u[0, :, :]  # periodic
         return v_at_u
 
     # ── Derived quantities ────────────────────────────────────────────────────

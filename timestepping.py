@@ -190,8 +190,11 @@ def _apply_boundary_conditions(s: State, g: Grid) -> None:
     # CRITICAL: Enforce after all physics/forcing steps to eliminate seam errors!
     # u is on x-faces (nx+1): u[0] and u[nx] are the SAME face
     # v is on y-faces (ny+1): v[0] and v[ny] are the SAME face
-    s.u[-1, :, :] = s.u[0, :, :]
-    s.v[:, -1, :] = s.v[:, 0, :]
+    # (only in periodic directions; open boundary faces are set by the lateral BC)
+    if getattr(cfg, 'BC_X', 'periodic') != 'open':
+        s.u[-1, :, :] = s.u[0, :, :]
+    if getattr(cfg, 'BC_Y', 'periodic') != 'open':
+        s.v[:, -1, :] = s.v[:, 0, :]
 
     # w boundary: rigid lid (already set in RK3 loop and projection)
     s.w[:, :, 0] = 0.0

@@ -70,8 +70,13 @@ Rules:
 - `dynamics.py` — anelastic WENO-3 scalar advection, flux-form momentum, Smagorinsky, Coriolis, buoyancy
 - `pressure.py` — anelastic spectral projection ∇·(ρ₀u)=0 (pass `rho0=state.rho0`); per direction
   `BC_X`/`BC_Y` = `"periodic"` (FFT) or `"open"` (DCT-II, boundary-face normal velocity kept, net boundary
-  mass flux balanced to zero first). Open is stage 1 of `docs/PLAN_open_boundaries.md`: advection and
-  diffusion are still periodic until the halo stage, so don't run the model with `"open"` yet
+  mass flux balanced to zero first)
+- `halo.py` — halo (ghost-cell, H = 2) padding for all horizontal stencils: `pad_c`, `pad_u`, `pad_v`
+  gather with one index map per direction (periodic: wrap; open: zero-gradient placeholder until stage 3
+  of `docs/PLAN_open_boundaries.md`). `dynamics.py` / `kernels.py` read neighbours only from padded
+  copies — no `np.roll` / `% n` left in the stencils. Periodic results are bitwise identical to before
+  (checked 2026-10-17 on tendencies and a 10-min congestus run). `"open"` runs (stable, 30-min test)
+  but has no inflow/outflow BC yet and the water budget's dynamics residual then includes boundary loss
 - `kernels.py` — numba versions of WENO-3, momentum advection, SGS diffusion/K_M, saturation
   adjustment, Kessler microphysics, tridiagonal pressure solve. The numpy originals stay in
   `dynamics.py` / `thermodynamics.py` / `microphysics.py` / `pressure.py` as the reference
@@ -109,6 +114,8 @@ Unit tests (projection, advection, RK3, θ_l/q_t, surface layer, land_cu / singl
 physics sanity checks (dry warm bubble, water budget/conservation, sedimentation, stratification).
 Run as scripts: `./venv/bin/python3 tests/test_projection.py`.
 `tests/test_fringe.py` checks the fringe copy/weights and windowed flux maps.
+`tests/test_halo.py` checks the halo stencils with open BCs (numba = numpy, uniform scalar unchanged,
+flux-form conservation = boundary flux, interior identical to periodic away from the edges).
 `tests/test_pressure_open.py` checks the open-boundary projection (residual, flux balance, boundary
 velocities kept, idempotence, uniform through-flow) on numba and numpy paths.
 `tests/test_single_cu.py` checks the single_cu state and prints parcel LCL/LFC/EL/CAPE (target
