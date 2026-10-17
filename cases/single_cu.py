@@ -59,12 +59,14 @@ def shear_profile(z: np.ndarray) -> np.ndarray:
 
 
 # Tropical-congestus sounding (2026-10-17): θ 303 K mixed layer to 900 m, qv 15.2 g/kg,
-# LCL 1225 m, LFC 1475 m, CAPE ≈ 1790 J/kg; RH 0.85 to 3 km, 0.70 at 5 km; +1.5 K stable
-# layer at 5.3–5.8 km near 0 °C … −10 °C as a soft cap for the tops.
+# LCL 1225 m, LFC 1475 m; RH 0.85 to 3 km, 0.70 at 5 km. 2 K/km at 1.3–3 km (strong low-level
+# buoyancy), 6.5 K/km above 3 km plus a +2 K layer at 5.3–5.8 km: parcel buoyancy fades by
+# 6.5 km, EL 6.8 km, CAPE ≈ 630 J/kg. (First try, 4.5 K/km and +1.5 K: CAPE 1790, EL 9.6 km →
+# 96² test tops 8.4–9.3 km, w 35 m/s, cloud spreading over the domain after 1 h.)
 CONGESTUS = dict(
     SCU_THETA_ML=303.0, SCU_Z_ML=900.0, SCU_RH_ML_TOP=0.85, Z_BL=900.0,
-    SCU_LAPSE=((1300.0, 3.5e-3), (3000.0, 2.0e-3), (5300.0, 4.5e-3), (5800.0, 7.5e-3),
-               (Z_TROP, 4.5e-3)),
+    SCU_LAPSE=((1300.0, 3.5e-3), (3000.0, 2.0e-3), (5300.0, 6.5e-3), (5800.0, 10.5e-3),
+               (Z_TROP, 6.5e-3)),
     SCU_RH=((900.0, 0.85), (3000.0, 0.85), (5000.0, 0.70), (Z_TROP, 0.50)),
     U_GEO_PROFILE=shear_profile,
     NX=160, NY=160,

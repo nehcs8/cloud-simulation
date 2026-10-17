@@ -138,7 +138,7 @@ def test_bubble():
 
 
 def test_congestus_variant():
-    """Tropical-congestus variant: unsaturated start, CAPE 1000–2500 J/kg, bubble inside the spot."""
+    """Tropical-congestus variant: unsaturated start, CAPE 400–1500 J/kg, EL 5.5–8 km."""
     saved = {k: getattr(cfg, k) for k in single_cu.CONGESTUS}
     for key, val in single_cu.CONGESTUS.items():
         setattr(cfg, key, val)
@@ -150,7 +150,8 @@ def test_congestus_variant():
           f"EL {p['EL']:.0f} m  CAPE {p['CAPE']:.0f} J/kg  CIN {p['CIN']:.0f} J/kg  "
           f"u(0, 5 km) = {s.u_g[0]:.2f}, {np.interp(5000, g.z, s.u_g):.2f} m/s  qc max {s.qc.max():.1e}")
     assert s.qc.max() == 0.0
-    assert 1000.0 <= p['CAPE'] <= 2500.0
+    assert 400.0 <= p['CAPE'] <= 1500.0
+    assert 5500.0 <= p['EL'] <= 8000.0, "parcel EL outside congestus range"
     for key, val in saved.items():
         setattr(cfg, key, val)
     cfg.NX = cfg.NY = 64
