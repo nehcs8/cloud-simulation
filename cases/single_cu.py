@@ -47,10 +47,36 @@ Z_NOISE     = 200.0    # m, perturbations only below this height
 THETA_NOISE = 0.1      # K
 QV_NOISE    = 1.0e-4   # kg/kg (0.1 g/kg)
 
-# Trigger variants: config values applied after configure() by run_case.py (case:variant)
+def _par(name: str, default):
+    """Sounding parameter cfg.SCU_<name> (set by configure(), overridable), else the module default."""
+    return getattr(cfg, f"SCU_{name}", default)
+
+
+def shear_profile(z: np.ndarray) -> np.ndarray:
+    """u_g(z) = 4·min(z/5000, 1) m/s: calm at the surface (low-level air stays over the trigger),
+    weak shear separates updraft and rain shaft."""
+    return 4.0 * np.minimum(z / 5000.0, 1.0)
+
+
+# Tropical-congestus sounding (2026-10-17): θ 303 K mixed layer to 900 m, qv 15.2 g/kg,
+# LCL 1225 m, LFC 1475 m, CAPE ≈ 1790 J/kg; RH 0.85 to 3 km, 0.70 at 5 km; +1.5 K stable
+# layer at 5.3–5.8 km near 0 °C … −10 °C as a soft cap for the tops.
+CONGESTUS = dict(
+    SCU_THETA_ML=303.0, SCU_Z_ML=900.0, SCU_RH_ML_TOP=0.85, Z_BL=900.0,
+    SCU_LAPSE=((1300.0, 3.5e-3), (3000.0, 2.0e-3), (5300.0, 4.5e-3), (5800.0, 7.5e-3),
+               (Z_TROP, 4.5e-3)),
+    SCU_RH=((900.0, 0.85), (3000.0, 0.85), (5000.0, 0.70), (Z_TROP, 0.50)),
+    U_GEO_PROFILE=shear_profile,
+    NX=160, NY=160,
+    SHF_SPOT_AMP=300.0, SHF_SPOT_LHF_AMP=300.0, SHF_SPOT_DIAM=5000.0,
+    BUBBLE_DTHETA=1.5, BUBBLE_RH=0.85,
+)
+
+# Variants: config values applied after configure() by run_case.py (case:variant)
 VARIANTS = {
     "hotspot": dict(SHF_SPOT_AMP=300.0, SHF_SPOT_LHF_AMP=300.0, BUBBLE_DTHETA=0.0),
     "bubble":  dict(SHF_SPOT_AMP=0.0, SHF_SPOT_LHF_AMP=0.0, BUBBLE_DTHETA=2.0, BUBBLE_RH=0.85),
+    "congestus": CONGESTUS,      # tropical sounding + 5 km moist hot spot + bubble + shear, 160²
 }
 
 
@@ -88,6 +114,14 @@ def configure() -> None:
     # cloud layer (LFC just above the LCL), more stable above 3 km (CAPE, tops).
     # ((Z_TROP, 3.5e-3),) = the sounding of the 2026-10-15 runs.
     cfg.SCU_LAPSE = ((1200.0, 3.5e-3), (3000.0, 2.0e-3), (Z_TROP, 4.5e-3))
+
+    # Mixed layer and humidity above it. SCU_RH: ((z, RH), ...) points above SCU_Z_ML,
+    # linearly interpolated (constant beyond the last point, RH_ST above the tropopause);
+    # None = the SCU_RH_CL / linear 0.75 → 0.50 profile below.
+    cfg.SCU_THETA_ML = THETA_ML
+    cfg.SCU_Z_ML = Z_ML
+    cfg.SCU_RH_ML_TOP = RH_ML_TOP
+    cfg.SCU_RH = None
 
     # Moister cloud layer (None = linear RH 0.75 → 0.50 from Z_ML to Z_RH_MID)
     cfg.SCU_RH_CL = None
@@ -127,8 +161,8 @@ def theta_profile(z: np.ndarray) -> np.ndarray:
     not called): GAMMA_TR from Z_ML to Z_TROP.
     """
     layers = getattr(cfg, 'SCU_LAPSE', None) or ((Z_TROP, GAMMA_TR),)
-    theta = np.full_like(z, THETA_ML, dtype=float)
-    z_bot = Z_ML
+    theta = np.full_like(z, _par("THETA_ML", THETA_ML), dtype=float)
+    z_bot = _par("Z_ML", Z_ML)
     for z_top, gamma in list(layers[:-1]) + [(Z_TROP, layers[-1][1])]:
         theta += gamma * np.clip(z - z_bot, 0.0, z_top - z_bot)
         z_bot = z_top
@@ -137,6 +171,10 @@ def theta_profile(z: np.ndarray) -> np.ndarray:
 
 def rh_profile(z: np.ndarray) -> np.ndarray:
     """Target RH above the mixed layer (the mixed layer has constant qv instead)."""
+    points = _par("RH", None)
+    if points is not None:
+        zs, rhs = np.array(points, dtype=float).T
+        return np.where(z <= Z_TROP, np.interp(z, zs, rhs), RH_ST)
     rh_cl = getattr(cfg, 'SCU_RH_CL', None)
     if rh_cl is None:
         rh_lo, z_lo = RH_ML_TOP, Z_ML
@@ -160,10 +198,12 @@ def reference_profiles(z: np.ndarray):
     theta0 = theta_profile(z)
     qsat = qsat_profile(theta0, z)
 
-    z_fine = np.arange(z[0], Z_ML + 2.0, 1.0)
-    qv_ml = RH_ML_TOP * np.interp(Z_ML, z_fine, qsat_profile(theta_profile(z_fine), z_fine))
+    z_ml = _par("Z_ML", Z_ML)
+    z_fine = np.arange(z[0], z_ml + 2.0, 1.0)
+    qv_ml = _par("RH_ML_TOP", RH_ML_TOP) * np.interp(z_ml, z_fine,
+                                                     qsat_profile(theta_profile(z_fine), z_fine))
 
-    qv0 = np.where(z <= Z_ML, qv_ml, rh_profile(z) * qsat)
+    qv0 = np.where(z <= z_ml, qv_ml, rh_profile(z) * qsat)
     return theta0, qv0
 
 

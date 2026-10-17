@@ -137,8 +137,28 @@ def test_bubble():
         setattr(cfg, key, 0.0)
 
 
+def test_congestus_variant():
+    """Tropical-congestus variant: unsaturated start, CAPE 1000–2500 J/kg, bubble inside the spot."""
+    saved = {k: getattr(cfg, k) for k in single_cu.CONGESTUS}
+    for key, val in single_cu.CONGESTUS.items():
+        setattr(cfg, key, val)
+    cfg.NX = cfg.NY = 64
+    g = Grid(terrain=None)
+    s = State(g)
+    p = parcel_stats(g, s, loading=False)
+    print(f"congestus: qv_ml {s.qv0[0]*1e3:.1f} g/kg  LCL {p['LCL']:.0f} m  LFC {p['LFC']:.0f} m  "
+          f"EL {p['EL']:.0f} m  CAPE {p['CAPE']:.0f} J/kg  CIN {p['CIN']:.0f} J/kg  "
+          f"u(0, 5 km) = {s.u_g[0]:.2f}, {np.interp(5000, g.z, s.u_g):.2f} m/s  qc max {s.qc.max():.1e}")
+    assert s.qc.max() == 0.0
+    assert 1000.0 <= p['CAPE'] <= 2500.0
+    for key, val in saved.items():
+        setattr(cfg, key, val)
+    cfg.NX = cfg.NY = 64
+
+
 if __name__ == "__main__":
     test_sounding_and_cape()
     test_hotspot_map()
     test_bubble()
+    test_congestus_variant()
     print("All single_cu tests passed.")
