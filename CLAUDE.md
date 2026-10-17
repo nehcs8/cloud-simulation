@@ -173,6 +173,16 @@ GIFs `cloud_gifs/20261016_single_cu_*_lapse_*.gif`): hot spot — first Cu at ~2
 4.5–4.8 km at 2–2.5 h, 5.6–6.2 km from 3 h, w up to 24 m/s, rain ≤ 0.03 mm/h (domain mean), cover ≤ 1.6 %;
 all cloud within 3 km of the spot (centroid ~2 km downwind), background clear for 4 h. Bubble — top 7.5 km
 at ≤ 20 min, w 29 m/s, rain ≤ 0.5 mm/h, gone by 40 min, clear 40 min–4 h.
+**`congestus` variant (2026-10-17) — the first proper congestus.** Tropical sounding (θ 303 K ML to 900 m,
+qv 15.2 g/kg, RH 0.85 to 3 km / 0.70 at 5 km, 2 K/km at 1.3–3 km, 6.5 K/km above + 2 K cap at 5.3–5.8 km,
+CAPE 630, EL 6.8 km), 5 km moist hot spot + 1.5 K bubble, u 0 → 4 m/s over 0–5 km, 160². First try (4.5 K/km
+above 3 km, +1.5 K cap, CAPE 1790) went to 8.4–9.3 km: the cap must sit where parcel buoyancy is already small.
+Main run `runs/20261017_1511_single_cu_congestus_180min_main/` (4 threads, mean dt 1.8 s, 109 wall-min per
+simulated hour, 13 GB; GIF `cloud_gifs/20261017_single_cu_congestus_0-180min.gif`): one broad tower (3–4 km)
+over the spot for 3 h, tops 6–7.4 km, w 18–32 m/s, surface rain to ~2 mm/h (domain max), new surges every
+30–40 min; from ~75 min a detrainment shelf at 4.4–5.7 km spreads under the cap across the domain (that is the
+cloud "beyond 6 km", not background convection — background BL stays clear). Weak cold pools (rain-shaft air
+only ~0.2 K cooler): rain falls on the still-heated spot; `ENABLE_CLOUD_SHADING=True` is the obvious next test.
 
 ### land_cu run
 Reproduction of every past land_cu run (exact overrides): `docs/RUNNING_LAND_CU.md`.
