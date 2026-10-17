@@ -87,6 +87,15 @@ SHF_SPOT_Y0: float | None = None    # m
 #             air. [0, RECYCLE_X) is a homogeneous fetch (its own precursor); flux patterns
 #             (SHF_SIGMA > 0) are confined to [RECYCLE_X + HETERO_BUFFER, Lx − FRINGE_WIDTH].
 LATERAL_BC: str = "periodic"
+# Pressure-solver boundary type per direction (stage 1 of docs/PLAN_open_boundaries.md):
+# "periodic": FFT, wrap-around (default).
+# "open":     the normal velocity on the two boundary faces (u[0], u[nx] / v[:, 0], v[:, ny])
+#             is taken as given and kept by the projection (∂φ/∂n = 0, cosine transform);
+#             the net boundary mass flux is first balanced to zero by a uniform correction.
+#             Advection/diffusion are still periodic until the halo stage — for now "open"
+#             only changes the pressure solve. LATERAL_BC = "fringe" needs BC_X = "periodic".
+BC_X: str = "periodic"
+BC_Y: str = "periodic"
 FRINGE_WIDTH: float = 1600.0   # m, relaxation zone at the downstream end of x
 FRINGE_TAU: float = 20.0       # s, relaxation time where the fringe is at full strength
 RECYCLE_X: float = 4800.0      # m, recycling plane = length of the homogeneous fetch

@@ -68,7 +68,10 @@ Rules:
 - `state.py` — fields, reference atmosphere, u_g(z), case dispatch on `cfg.CASE` (`cases.get`)
 - `grid.py` — horizontal uniform; vertical `GRID_TYPE` = `"exp"` or `"uniform_stretched"`
 - `dynamics.py` — anelastic WENO-3 scalar advection, flux-form momentum, Smagorinsky, Coriolis, buoyancy
-- `pressure.py` — anelastic FFT projection ∇·(ρ₀u)=0 (pass `rho0=state.rho0`)
+- `pressure.py` — anelastic spectral projection ∇·(ρ₀u)=0 (pass `rho0=state.rho0`); per direction
+  `BC_X`/`BC_Y` = `"periodic"` (FFT) or `"open"` (DCT-II, boundary-face normal velocity kept, net boundary
+  mass flux balanced to zero first). Open is stage 1 of `docs/PLAN_open_boundaries.md`: advection and
+  diffusion are still periodic until the halo stage, so don't run the model with `"open"` yet
 - `kernels.py` — numba versions of WENO-3, momentum advection, SGS diffusion/K_M, saturation
   adjustment, Kessler microphysics, tridiagonal pressure solve. The numpy originals stay in
   `dynamics.py` / `thermodynamics.py` / `microphysics.py` / `pressure.py` as the reference
@@ -106,6 +109,8 @@ Unit tests (projection, advection, RK3, θ_l/q_t, surface layer, land_cu / singl
 physics sanity checks (dry warm bubble, water budget/conservation, sedimentation, stratification).
 Run as scripts: `./venv/bin/python3 tests/test_projection.py`.
 `tests/test_fringe.py` checks the fringe copy/weights and windowed flux maps.
+`tests/test_pressure_open.py` checks the open-boundary projection (residual, flux balance, boundary
+velocities kept, idempotence, uniform through-flow) on numba and numpy paths.
 `tests/test_single_cu.py` checks the single_cu state and prints parcel LCL/LFC/EL/CAPE (target
 500–1500 J/kg); run it after any sounding change.
 `tests/test_kernels.py [snap.npz]` checks numba vs numpy (agreement to round-off) and times both.
@@ -277,5 +282,8 @@ MPLBACKEND=Agg nohup ./venv/bin/python3 main_nested.py > outputs/logs/nested_sim
 - Old `ENABLE_CLOUD_SHADING` code was never called; shading now lives in `surface_layer.py`.
 - Moisture budget (2026-09-21): QV_SCALE / nudging tuning — see `docs/EXPERIMENT_LOG.md`.
 - Restart corruption (2026-09-21): never reuse a shared snapshot dir; copy from `restart_snapshots/`.
+- **Singular pressure mode (fixed 2026-10-17):** the periodic solve swept the (0,0) mode before discarding
+  it; with ρ₀ from `_constant_theta_rho0` its last pivot is exactly 0 and numba raised ZeroDivisionError
+  (real runs only survived on round-off). A dummy λ for that mode fixes it; results are unchanged.
 - Nested performance (2026-09-22): 10 m (250×250) is 25× slower than real time; use 25 m.
   WENO-3 advection was ~half of the numpy cost per step; now numba (`kernels.py`, 2026-10-12).

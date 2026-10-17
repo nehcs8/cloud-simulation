@@ -21,7 +21,8 @@ inflow that is not the model's own outflow.
   the periodic grid), diagnostics that use periodic neighbours
 
 ## Stages
-1. **Pressure solve with Neumann lateral BCs.** With the normal velocity prescribed on the boundary faces,
+1. **[done 2026-10-17] Pressure solve with Neumann lateral BCs.** `pressure._project_open`, `BC_X`/`BC_Y`,
+   `tests/test_pressure_open.py`; residual ~1e-16, 176 ms vs 216 ms (FFT) at 160²×160. With the normal velocity prescribed on the boundary faces,
    replace the FFT by a cosine transform (`scipy.fft.dctn`, type II on cell centres) in x and/or y; same
    tridiagonal in z and the same cost. Enforce zero net mass flux through the boundaries (solvability of the
    anelastic Poisson problem) by a uniform correction of the outflow normal velocity. Keep FFT as the periodic path.

@@ -1,5 +1,5 @@
 """
-FFT-based pressure projection (anelastic incompressibility enforcement).
+Spectral pressure projection (anelastic incompressibility enforcement).
 
 Anelastic constraint: ∇·(ρ₀u) = 0
 
@@ -8,13 +8,18 @@ then corrects:  u ← u* − dt ∂φ/∂x
                 v ← v* − dt ∂φ/∂y
                 w ← w* − dt ∂φ/∂z
 
-Periodic BCs in x and y; Neumann (∂φ/∂z = 0) at top and bottom.
-w is face-staggered in z.
+Lateral BCs per direction (cfg.BC_X, cfg.BC_Y):
+  "periodic": real FFT, modified wavenumbers of the periodic 2nd-order Laplacian.
+  "open":     the normal velocity on the boundary faces is given and kept (∂φ/∂n = 0);
+              orthonormal DCT-II, eigenvalues 2(cos(πk/n) − 1)/Δ². Before the solve the net
+              mass flux through the open boundaries is set to zero by a uniform correction of
+              the boundary normal velocity (solvability with a rigid lid).
+Neumann (∂φ/∂z = 0) at top and bottom. w is face-staggered in z.
 """
 
 import os
 import numpy as np
-from scipy.fft import rfft2, irfft2
+from scipy.fft import rfft2, irfft2, rfft, irfft, dct, idct, dctn, idctn
 import config as cfg
 from grid import Grid
 
@@ -53,6 +58,11 @@ def project(u: np.ndarray, v: np.ndarray, w: np.ndarray,
     rho0_w[0] = rho0_c[0]  # Extrapolate to bottom
     rho0_w[-1] = rho0_c[-1]  # Extrapolate to top
     rho0_w[1:-1] = 0.5 * (rho0_c[:-1] + rho0_c[1:])  # Average to faces
+
+    open_x = getattr(cfg, 'BC_X', 'periodic') == 'open'
+    open_y = getattr(cfg, 'BC_Y', 'periodic') == 'open'
+    if open_x or open_y:
+        return _project_open(u, v, w, g, dt, rho0_c, rho0_w, open_x, open_y)
 
     # ── Enforce periodic boundary conditions on face-staggered velocities ────────
     # For C-grid with periodic BCs, the "extra" face is the same as the first face
@@ -95,6 +105,9 @@ def project(u: np.ndarray, v: np.ndarray, w: np.ndarray,
     lam_x = (2.0 * (np.cos(2.0 * np.pi * kx_idx / nx) - 1.0) / dx**2)[:, np.newaxis]  # (nx,1)
     lam_y = (2.0 * (np.cos(2.0 * np.pi * ky_idx / ny) - 1.0) / dy**2)[np.newaxis, :]  # (1,ny//2+1)
     lam_xy = (lam_x + lam_y)[:, :, np.newaxis]            # (nx, ny//2+1, 1)
+    # The (0,0) mode is singular (λ = 0 with Neumann top/bottom) and is discarded below;
+    # a dummy λ keeps its Thomas sweep from dividing by an exact zero pivot.
+    lam_xy[0, 0, 0] = -1.0 / dx**2
 
     # ── Tridiagonal solve in z for each (kx,ky) mode ──────────────────────────
     # Anelastic operator: (1/ρ₀) ∂/∂z (1/ρ₀ ∂φ/∂z) + (1/ρ₀)(∂²φ/∂x² + ∂²φ/∂y²) = RHS
@@ -196,6 +209,140 @@ def project(u: np.ndarray, v: np.ndarray, w: np.ndarray,
     u[-1, :, :] = u[0, :, :]
     v[:, -1, :] = v[:, 0, :]
 
+    return phi
+
+
+def _vertical_coefficients(g: Grid, rho0_c: np.ndarray, rho0_w: np.ndarray):
+    """Sub-, main- and super-diagonal (nz,) of the ρ₀-weighted vertical operator (Neumann top/bottom)."""
+    nz, dz_f, dz_c = g.nz, g.dz_face, g.dz_cen
+    a = np.zeros(nz)
+    c = np.zeros(nz)
+    a[1:] = rho0_w[1:-1] / (dz_c * dz_f[1:] * rho0_c[1:])
+    c[:-1] = rho0_w[1:-1] / (dz_c * dz_f[:-1] * rho0_c[:-1])
+    return a, -(a + c), c
+
+
+def balance_boundary_flux(u: np.ndarray, v: np.ndarray, g: Grid, rho0_c: np.ndarray,
+                          open_x: bool, open_y: bool) -> float:
+    """
+    Make the net mass flux through the open lateral boundaries zero (needed with a rigid
+    lid: ∫∇·(ρ₀u) dV = boundary flux). Subtracts one uniform outward velocity from every
+    open boundary face; returns that correction [m/s].
+    """
+    dz = g.dz_face
+    flux, area = 0.0, 0.0                      # outward ρ₀·u_n·dA summed, Σ ρ₀ dA
+    w_x = rho0_c * dz * g.dy                   # (nz,) ρ₀ dA of one x-face column
+    w_y = rho0_c * dz * g.dx
+    if open_x:
+        flux += float(((u[-1] - u[0]) * w_x).sum())
+        area += 2.0 * g.ny * float(w_x.sum())
+    if open_y:
+        flux += float(((v[:, -1] - v[:, 0]) * w_y).sum())
+        area += 2.0 * g.nx * float(w_y.sum())
+    corr = flux / area
+    if open_x:
+        u[0] += corr                           # outward normal is −x at the west face
+        u[-1] -= corr
+    if open_y:
+        v[:, 0] += corr
+        v[:, -1] -= corr
+    return corr
+
+
+def _forward(f: np.ndarray, open_x: bool, open_y: bool) -> np.ndarray:
+    """Horizontal transform: DCT-II on open axes, real FFT on the periodic one."""
+    if open_x and open_y:
+        return dctn(f, type=2, axes=(0, 1), norm='ortho', workers=_FFT_WORKERS)
+    if open_x:
+        return rfft(dct(f, type=2, axis=0, norm='ortho', workers=_FFT_WORKERS),
+                    axis=1, workers=_FFT_WORKERS)
+    return rfft(dct(f, type=2, axis=1, norm='ortho', workers=_FFT_WORKERS),
+                axis=0, workers=_FFT_WORKERS)
+
+
+def _inverse(fh: np.ndarray, nx: int, ny: int, open_x: bool, open_y: bool) -> np.ndarray:
+    if open_x and open_y:
+        return idctn(fh, type=2, axes=(0, 1), norm='ortho', workers=_FFT_WORKERS)
+    if open_x:
+        return idct(irfft(fh, n=ny, axis=1, workers=_FFT_WORKERS),
+                    type=2, axis=0, norm='ortho', workers=_FFT_WORKERS)
+    return idct(irfft(fh, n=nx, axis=0, workers=_FFT_WORKERS),
+                type=2, axis=1, norm='ortho', workers=_FFT_WORKERS)
+
+
+def _eigenvalues(n: int, d: float, open_axis: bool, half: bool) -> np.ndarray:
+    """1-D eigenvalues of the 2nd-order Laplacian: Neumann (DCT-II) or periodic (FFT / rFFT)."""
+    if open_axis:
+        k = np.arange(n)
+        return 2.0 * (np.cos(np.pi * k / n) - 1.0) / d**2
+    k = np.arange(n // 2 + 1) if half else np.fft.fftfreq(n, d=1.0 / n)
+    return 2.0 * (np.cos(2.0 * np.pi * k / n) - 1.0) / d**2
+
+
+def _project_open(u, v, w, g: Grid, dt: float, rho0_c, rho0_w, open_x: bool, open_y: bool):
+    """project() with at least one open lateral direction (see module docstring)."""
+    nx, ny, nz = g.nx, g.ny, g.nz
+    dx, dy, dz_f, dz_c = g.dx, g.dy, g.dz_face, g.dz_cen
+
+    if not open_x:
+        u[-1, :, :] = u[0, :, :]
+    if not open_y:
+        v[:, -1, :] = v[:, 0, :]
+    balance_boundary_flux(u, v, g, rho0_c, open_x, open_y)
+
+    # RHS = ∇·(ρ₀u*) / (ρ₀ dt), as in the periodic path
+    div_h = (u[1:] - u[:-1]) / dx + (v[:, 1:] - v[:, :-1]) / dy
+    rflux = w * rho0_w[np.newaxis, np.newaxis, :]
+    div_rho0w = (rflux[:, :, 1:] - rflux[:, :, :-1]) / dz_f[np.newaxis, np.newaxis, :]
+    r3 = rho0_c[np.newaxis, np.newaxis, :]
+    rhs = (r3 * div_h + div_rho0w) / (r3 * dt)
+
+    rhs_hat = _forward(rhs, open_x, open_y)
+    lam = (_eigenvalues(nx, dx, open_x, half=(open_y and not open_x))[:, None]
+           + _eigenvalues(ny, dy, open_y, half=(open_x and not open_y))[None, :])
+    lam[0, 0] = -1.0 / dx**2          # singular (0,0) mode: dummy here, solved separately below
+
+    a, b, c = _vertical_coefficients(g, rho0_c, rho0_w)
+    if kernels is not None and getattr(cfg, 'USE_NUMBA', True):
+        phi_hat = kernels.solve_tridiag_modes(a, b, c, np.ascontiguousarray(lam),
+                                              np.ascontiguousarray(rhs_hat))
+    else:
+        ones = np.ones(rhs_hat.shape)
+        phi_hat = _solve_tridiagonal(a * ones, (b + lam[:, :, None]) * ones, c * ones,
+                                     rhs_hat, nz)
+
+    # (0,0) mode: singular (constant φ). The boundary fluxes are balanced, so the system is
+    # consistent; pin φ̂ at the lowest level and solve the remaining rows exactly.
+    a0, b0, c0 = a.copy(), b.copy(), c.copy()
+    b0[0], c0[0] = 1.0, 0.0
+    d0 = rhs_hat[0, 0, :].copy()
+    d0[0] = 0.0
+    phi_hat[0, 0, :] = _solve_tridiagonal(a0, b0, c0, d0, nz)
+
+    phi = _inverse(phi_hat, nx, ny, open_x, open_y)
+
+    # Velocity correction; on open boundary faces ∂φ/∂n = 0, so u_n stays as given
+    dpx = np.zeros_like(u)
+    dpx[1:-1] = (phi[1:] - phi[:-1]) / dx
+    if not open_x:
+        dpx[0] = (phi[0] - phi[-1]) / dx
+        dpx[-1] = dpx[0]
+    u -= dt * dpx
+    dpy = np.zeros_like(v)
+    dpy[:, 1:-1] = (phi[:, 1:] - phi[:, :-1]) / dy
+    if not open_y:
+        dpy[:, 0] = (phi[:, 0] - phi[:, -1]) / dy
+        dpy[:, -1] = dpy[:, 0]
+    v -= dt * dpy
+    dpz = np.zeros_like(w)
+    dpz[:, :, 1:-1] = (phi[:, :, 1:] - phi[:, :, :-1]) / dz_c[np.newaxis, np.newaxis, :]
+    w -= dt * dpz
+    w[:, :, 0] = 0.0
+    w[:, :, -1] = 0.0
+    if not open_x:
+        u[-1] = u[0]
+    if not open_y:
+        v[:, -1] = v[:, 0]
     return phi
 
 
