@@ -143,15 +143,15 @@ from before the θ_l/qt switch).
 ```bash
 ./venv/bin/python3 tests/test_single_cu.py                       # sounding + CAPE check
 MPLBACKEND=Agg ./venv/bin/python3 run_case.py single_cu:hotspot 3600 NX=64 NY=64 TAG=tune  # quick test
-MPLBACKEND=Agg ./venv/bin/python3 run_case.py single_cu:bubble 10800      # main run, 128², 3 h
+MPLBACKEND=Agg ./venv/bin/python3 run_case.py single_cu:bubble 14400 TAG=main   # main run, 128², 4 h
 ```
 Folders: `runs/<ts>_single_cu_<variant>_<min>min[_<tag>]/`. Always name the variant (the bare case
 is the hot spot, but its folder name then lacks `_hotspot`). Tuning knobs: `SHF_SPOT_AMP/_DIAM`,
 `BUBBLE_DTHETA/_RH/_Z0/_RX/_RZ`, `SHF`, `LHF`, `U_GEO`; sounding constants at the top of
-`cases/single_cu.py`. Warm rain only, so no ice and no anvil above the ~3.9 km freezing level.
-Cost estimate (not yet measured): 160 levels ≈ 1.85× the land_cu column, so ~1.9 s/step at 128²
-on 4 threads; dt 1.5–3 s with 10–20 m/s updrafts → ~1–1.5 wall-h per simulated hour. Snapshots
-~25–50 MB each at 128² (60 s interval → ~5–9 GB per 3 h).
+`cases/single_cu.py` (`SCU_LAPSE`, `SCU_RH_CL`). Warm rain only, so no ice and no anvil above the
+~3.55 km freezing level. Measured cost at 128² (160 levels): 4 threads alone 2.2 s/step, 43 wall-min
+per simulated hour; two runs side by side on 2 threads each 3.1–3.2 s/step, 66–69 wall-min/h. Mean dt
+2.7–2.9 s. Snapshots ~45 MB each (60 s) → ~11 GB per 4 h run.
 64² tuning 2026-10-15 (2 threads each, ~18 wall-min per simulated hour, mean dt 2.7–3 s):
 bubble RH 0.95 → w_max 24 m/s, tops 8.4 km (too deep); RH 0.85 → w_max 18 m/s, top 6.8 km at 21 min,
 rain ≤ 0.5 mm/h, cloud gone by 35 min. Hot spot (+300 W/m², U 1.5 m/s): only small Cu at 1.3–1.4 km
@@ -168,6 +168,11 @@ did not help either on 64² (tops ≤ 2.3 km): the barrier is the stable layer b
 New sounding 2026-10-16 (`SCU_LAPSE`, 2.0 K/km at 1.2–3 km): 64² hot spot reaches 4.3 km at 1 h 45 min,
 5.5 km by 2.5 h, w 16–20 m/s, light rain; clouds sit 1.5–2 km downwind of the spot centre, background
 clear for 3 h. Bubble: top 7.3 km at ~20 min, w 28 m/s, rain 1.7 mm/h, gone by 45 min.
+128² × 4 h main runs 2026-10-16 (`runs/20261016_1319_single_cu_{hotspot,bubble}_240min_main/`, 11 GB each,
+GIFs `cloud_gifs/20261016_single_cu_*_lapse_*.gif`): hot spot — first Cu at ~20 min, tops 3.2 km at 1 h,
+4.5–4.8 km at 2–2.5 h, 5.6–6.2 km from 3 h, w up to 24 m/s, rain ≤ 0.03 mm/h (domain mean), cover ≤ 1.6 %;
+all cloud within 3 km of the spot (centroid ~2 km downwind), background clear for 4 h. Bubble — top 7.5 km
+at ≤ 20 min, w 29 m/s, rain ≤ 0.5 mm/h, gone by 40 min, clear 40 min–4 h.
 
 ### land_cu run
 Reproduction of every past land_cu run (exact overrides): `docs/RUNNING_LAND_CU.md`.
