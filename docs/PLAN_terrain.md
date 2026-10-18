@@ -25,7 +25,15 @@ terrain-following coordinates remain an option for that later.
   the solid; the water budget counts solid cells.
 
 ## Stages
-1. **Pressure solve with solid cells.** Matrix-free anelastic operator ∇·(ρ₀∇φ) on fluid cells with zero
+1. **[done 2026-10-18] Pressure solve with solid cells.** `pressure._project_terrain` (+ `kernels.poisson_masked`),
+   `tests/test_pressure_terrain.py`: zero flow through solid faces, divergence ~5e-8 of its pre-projection value
+   at `TERRAIN_PCG_TOL` = 1e-8; flat-domain fallback identical to the direct solver (1 iteration, 1e-15).
+   Warm start = previous φ scaled by the least-squares factor (RK3 stages differ by 1/3, 1/2, 1).
+   Cost on 160² with a 500 m / σ 2 km hill (0.6 % solid): median 8 iterations, 1.2 s per projection
+   (direct 0.23 s) → 6.65 s per model step, ~2.2× flat. The first RK stage of each step needs ~11 iterations
+   (physics between steps changes the field). Faster options if needed: looser tolerance (1e-6 → ~5 it),
+   or a cheaper/ better preconditioner near the terrain.
+   Original stage-1 plan: Matrix-free anelastic operator ∇·(ρ₀∇φ) on fluid cells with zero
    normal gradient on solid faces (numba, 7-point, face masks); preconditioned conjugate gradient with the
    existing spectral solve (FFT/DCT of the terrain-free operator) as preconditioner. Expect ~5–20
    iterations → 1.5–3× the cost of a projection. Solid faces get zero normal velocity exactly.

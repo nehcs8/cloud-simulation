@@ -284,6 +284,38 @@ def momentum_adv(UP, VP, WP, dx, dy, dz_face, dz_cen, rho0_c, rho0_w):
     return tu, tv, tw
 
 
+# ══ Pressure with terrain: masked anelastic Poisson operator ══════════════════
+
+@njit(parallel=True, cache=True)
+def poisson_masked(phi, mx, my, mz, Tx, Ty, Tz, fluid):
+    """
+    (L φ)_c = Σ_faces m_f T_f (φ_nb − φ_c) on fluid cells, 0 on solid cells.
+    mx (nx+1,ny,nz), my (nx,ny+1,nz), mz (nx,ny,nz+1): 1 where the face connects two fluid
+    cells (0 on solid faces, open boundary faces, top and bottom); x/y neighbours wrap
+    (periodic faces 0 and n carry the same mask). Tx, Ty (nz,), Tz (nz+1,) conductances.
+    """
+    nx, ny, nz = phi.shape
+    out = np.zeros_like(phi)
+    for i in prange(nx):
+        im = (i - 1) % nx; ip = (i + 1) % nx
+        for j in range(ny):
+            jm = (j - 1) % ny; jp = (j + 1) % ny
+            for k in range(nz):
+                if not fluid[i, j, k]:
+                    continue
+                c = phi[i, j, k]
+                acc = (mx[i + 1, j, k] * Tx[k] * (phi[ip, j, k] - c)
+                       + mx[i, j, k] * Tx[k] * (phi[im, j, k] - c)
+                       + my[i, j + 1, k] * Ty[k] * (phi[i, jp, k] - c)
+                       + my[i, j, k] * Ty[k] * (phi[i, jm, k] - c))
+                if k < nz - 1:
+                    acc += mz[i, j, k + 1] * Tz[k + 1] * (phi[i, j, k + 1] - c)
+                if k > 0:
+                    acc += mz[i, j, k] * Tz[k] * (phi[i, j, k - 1] - c)
+                out[i, j, k] = acc
+    return out
+
+
 # ══ Pressure: tridiagonal solve per horizontal Fourier mode ══════════════════
 
 @njit(parallel=True, cache=True)

@@ -71,6 +71,9 @@ Rules:
 - `pressure.py` — anelastic spectral projection ∇·(ρ₀u)=0 (pass `rho0=state.rho0`); per direction
   `BC_X`/`BC_Y` = `"periodic"` (FFT) or `"open"` (DCT-II, boundary-face normal velocity kept, net boundary
   mass flux balanced to zero first)
+- Terrain in `pressure.py` (`_project_terrain`, stage 1 of `docs/PLAN_terrain.md`): when `g.terrain` is set,
+  preconditioned CG on the fluid cells (`TERRAIN_PCG_TOL` 1e-8), zero flow through solid faces; ~2.2× the
+  step cost on 160². Stencils, surface layer and rain are not terrain-aware yet (stages 2–3)
 - `halo.py` — halo (ghost-cell, H = 2) padding for all horizontal stencils: `pad_c`, `pad_u`, `pad_v`
   gather with one index map per direction (periodic: wrap; open: zero-gradient placeholder until stage 3
   of `docs/PLAN_open_boundaries.md`). `dynamics.py` / `kernels.py` read neighbours only from padded
@@ -123,6 +126,7 @@ Run as scripts: `./venv/bin/python3 tests/test_projection.py`.
 `tests/test_halo.py` checks the halo stencils with open BCs (numba = numpy, uniform scalar unchanged,
 flux-form conservation = boundary flux, interior identical to periodic away from the edges).
 `tests/test_open_bc.py` checks inflow/outflow ghosts, radiation, relaxation and the boundary water flux.
+`tests/test_pressure_terrain.py` checks the terrain projection (divergence, no flow through solids, CG count).
 `tests/test_pressure_open.py` checks the open-boundary projection (residual, flux balance, boundary
 velocities kept, idempotence, uniform through-flow) on numba and numpy paths.
 `tests/test_single_cu.py` checks the single_cu state and prints parcel LCL/LFC/EL/CAPE (target

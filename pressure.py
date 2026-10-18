@@ -61,6 +61,8 @@ def project(u: np.ndarray, v: np.ndarray, w: np.ndarray,
 
     open_x = getattr(cfg, 'BC_X', 'periodic') == 'open'
     open_y = getattr(cfg, 'BC_Y', 'periodic') == 'open'
+    if getattr(g, 'terrain', None) is not None:
+        return _project_terrain(u, v, w, g, dt, rho0_c, rho0_w, open_x, open_y)
     if open_x or open_y:
         return _project_open(u, v, w, g, dt, rho0_c, rho0_w, open_x, open_y)
 
@@ -223,29 +225,41 @@ def _vertical_coefficients(g: Grid, rho0_c: np.ndarray, rho0_w: np.ndarray):
 
 
 def balance_boundary_flux(u: np.ndarray, v: np.ndarray, g: Grid, rho0_c: np.ndarray,
-                          open_x: bool, open_y: bool) -> float:
+                          open_x: bool, open_y: bool, ux=None, vy=None) -> float:
     """
     Make the net mass flux through the open lateral boundaries zero (needed with a rigid
     lid: ∫∇·(ρ₀u) dV = boundary flux). Subtracts one uniform outward velocity from every
-    open boundary face; returns that correction [m/s].
+    open boundary face; returns that correction [m/s]. With terrain, ux / vy (face masks,
+    True = face carries flow) restrict the correction to boundary faces next to fluid cells.
     """
     dz = g.dz_face
     flux, area = 0.0, 0.0                      # outward ρ₀·u_n·dA summed, Σ ρ₀ dA
     w_x = rho0_c * dz * g.dy                   # (nz,) ρ₀ dA of one x-face column
     w_y = rho0_c * dz * g.dx
-    if open_x:
-        flux += float(((u[-1] - u[0]) * w_x).sum())
-        area += 2.0 * g.ny * float(w_x.sum())
-    if open_y:
-        flux += float(((v[:, -1] - v[:, 0]) * w_y).sum())
-        area += 2.0 * g.nx * float(w_y.sum())
+    if ux is None and vy is None:                       # no terrain: every boundary face open
+        if open_x:
+            flux += float(((u[-1] - u[0]) * w_x).sum())
+            area += 2.0 * g.ny * float(w_x.sum())
+        if open_y:
+            flux += float(((v[:, -1] - v[:, 0]) * w_y).sum())
+            area += 2.0 * g.nx * float(w_y.sum())
+        mw = me = ms = mn = 1.0
+    else:
+        mw, me = ux[0].astype(float), ux[-1].astype(float)
+        ms, mn = vy[:, 0].astype(float), vy[:, -1].astype(float)
+        if open_x:
+            flux += float(((u[-1] * me - u[0] * mw) * w_x).sum())
+            area += float(((mw + me) * w_x).sum())
+        if open_y:
+            flux += float(((v[:, -1] * mn - v[:, 0] * ms) * w_y).sum())
+            area += float(((ms + mn) * w_y).sum())
     corr = flux / area
     if open_x:
-        u[0] += corr                           # outward normal is −x at the west face
-        u[-1] -= corr
+        u[0] += corr * mw                      # outward normal is −x at the west face
+        u[-1] -= corr * me
     if open_y:
-        v[:, 0] += corr
-        v[:, -1] -= corr
+        v[:, 0] += corr * ms
+        v[:, -1] -= corr * mn
     return corr
 
 
@@ -344,6 +358,193 @@ def _project_open(u, v, w, g: Grid, dt: float, rho0_c, rho0_w, open_x: bool, ope
     if not open_y:
         v[:, -1] = v[:, 0]
     return phi
+
+
+# ── Terrain: masked Poisson problem solved by preconditioned CG ──────────────
+
+def _spectral_inverse(rhs: np.ndarray, g: Grid, rho0_c, rho0_w, open_x: bool, open_y: bool):
+    """
+    φ with (1/ρ₀)∇·(ρ₀∇φ) = rhs on the terrain-free domain (any BC combination); the
+    (0,0) mode is solved with φ pinned at the lowest level (rhs must be compatible).
+    Used as the CG preconditioner of _project_terrain.
+    """
+    nx, ny, nz = g.nx, g.ny, g.nz
+    if open_x or open_y:
+        rhs_hat = _forward(rhs, open_x, open_y)
+    else:
+        rhs_hat = rfft2(rhs, axes=(0, 1), workers=_FFT_WORKERS)
+    # periodic axes: rFFT along y unless y is open (then rFFT along x)
+    lam = (_eigenvalues(nx, g.dx, open_x, half=(open_y and not open_x))[:, None]
+           + _eigenvalues(ny, g.dy, open_y, half=not open_y)[None, :])
+    lam[0, 0] = -1.0 / g.dx**2                       # dummy, (0,0) solved below
+    a, b, c = _vertical_coefficients(g, rho0_c, rho0_w)
+    if kernels is not None and getattr(cfg, 'USE_NUMBA', True):
+        phi_hat = kernels.solve_tridiag_modes(a, b, c, np.ascontiguousarray(lam),
+                                              np.ascontiguousarray(rhs_hat))
+    else:
+        ones = np.ones(rhs_hat.shape)
+        phi_hat = _solve_tridiagonal(a * ones, (b + lam[:, :, None]) * ones, c * ones, rhs_hat, nz)
+    b0, c0 = b.copy(), c.copy()
+    b0[0], c0[0] = 1.0, 0.0
+    d0 = rhs_hat[0, 0, :].copy()
+    d0[0] = 0.0
+    phi_hat[0, 0, :] = _solve_tridiagonal(a, b0, c0, d0, nz)
+    if open_x or open_y:
+        return _inverse(phi_hat, nx, ny, open_x, open_y)
+    return irfft2(phi_hat, s=(nx, ny), axes=(0, 1), workers=_FFT_WORKERS)
+
+
+_terrain_cache = {}
+_terrain_phi = {}             # warm start for _project_terrain, per terrain setup
+
+
+def _terrain_setup(g: Grid, rho0_c, rho0_w, open_x: bool, open_y: bool):
+    """Fluid mask, face masks (float, 1 = fluid–fluid connection) and conductances; cached."""
+    key = (id(g.terrain), open_x, open_y, g.nx, g.ny, g.nz, float(rho0_c[0]), float(rho0_c[-1]))
+    if key in _terrain_cache:
+        return _terrain_cache[key]
+    fluid = ~g.terrain.mask
+    nx, ny, nz = fluid.shape
+    mx = np.zeros((nx + 1, ny, nz))
+    mx[1:-1] = fluid[:-1] & fluid[1:]
+    if not open_x:
+        mx[0] = mx[-1] = fluid[-1] & fluid[0]
+    my = np.zeros((nx, ny + 1, nz))
+    my[:, 1:-1] = fluid[:, :-1] & fluid[:, 1:]
+    if not open_y:
+        my[:, 0] = my[:, -1] = fluid[:, -1] & fluid[:, 0]
+    mz = np.zeros((nx, ny, nz + 1))
+    mz[:, :, 1:-1] = fluid[:, :, :-1] & fluid[:, :, 1:]
+    # faces that carry a velocity at all: fluid on at least the inner side (open boundary
+    # faces next to a fluid cell keep their prescribed u_n); everything touching solid → 0
+    ux = np.zeros((nx + 1, ny, nz), dtype=bool)
+    ux[1:-1] = fluid[:-1] & fluid[1:]
+    ux[0] = fluid[0] if open_x else (fluid[-1] & fluid[0])
+    ux[-1] = fluid[-1] if open_x else ux[0]
+    vy = np.zeros((nx, ny + 1, nz), dtype=bool)
+    vy[:, 1:-1] = fluid[:, :-1] & fluid[:, 1:]
+    vy[:, 0] = fluid[:, 0] if open_y else (fluid[:, -1] & fluid[:, 0])
+    vy[:, -1] = fluid[:, -1] if open_y else vy[:, 0]
+    wz = mz.astype(bool)
+    dzf = g.dz_face
+    Tx = rho0_c * g.dy * dzf / g.dx
+    Ty = rho0_c * g.dx * dzf / g.dy
+    Tz = np.zeros(nz + 1)
+    Tz[1:-1] = rho0_w[1:-1] * g.dx * g.dy / g.dz_cen
+    out = dict(fluid=fluid, mx=mx, my=my, mz=mz, ux=ux, vy=vy, wz=wz, Tx=Tx, Ty=Ty, Tz=Tz,
+               vol=(g.dx * g.dy * dzf * rho0_c)[None, None, :])
+    _terrain_cache[key] = out
+    return out
+
+
+def _apply_L(phi, t):
+    if kernels is not None and getattr(cfg, 'USE_NUMBA', True):
+        return kernels.poisson_masked(phi, t['mx'], t['my'], t['mz'], t['Tx'], t['Ty'], t['Tz'],
+                                      t['fluid'])
+    f, mx, my, mz = t['fluid'], t['mx'], t['my'], t['mz']
+    Tx, Ty, Tz = t['Tx'], t['Ty'], t['Tz']
+    out = (mx[1:] * Tx * (np.roll(phi, -1, 0) - phi) + mx[:-1] * Tx * (np.roll(phi, 1, 0) - phi)
+           + my[:, 1:] * Ty * (np.roll(phi, -1, 1) - phi) + my[:, :-1] * Ty * (np.roll(phi, 1, 1) - phi))
+    up = np.zeros_like(phi); dn = np.zeros_like(phi)
+    up[:, :, :-1] = mz[:, :, 1:-1] * Tz[1:-1] * (phi[:, :, 1:] - phi[:, :, :-1])
+    dn[:, :, 1:] = mz[:, :, 1:-1] * Tz[1:-1] * (phi[:, :, :-1] - phi[:, :, 1:])
+    return np.where(f, out + up + dn, 0.0)
+
+
+def _project_terrain(u, v, w, g: Grid, dt: float, rho0_c, rho0_w, open_x: bool, open_y: bool):
+    """
+    project() with solid terrain cells (g.terrain.mask). Solves L φ = b on the fluid cells,
+        L φ = Σ_faces m_f T_f (φ_nb − φ_c)   (= ρ₀ V ∇·(ρ₀∇φ)/ρ₀ with solid faces closed),
+        b   = ρ₀ V ∇·(ρ₀u*)/(ρ₀ dt),
+    by conjugate gradients preconditioned with the terrain-free spectral solve; then
+    u ← u* − dt ∇φ on fluid faces and u_n = 0 on every face touching a solid cell.
+    Tolerance cfg.TERRAIN_PCG_TOL (relative residual), at most cfg.TERRAIN_PCG_MAXIT iterations.
+    Stores the iteration count in pressure.last_terrain_iterations.
+    """
+    global last_terrain_iterations
+    nx, ny, nz = g.nx, g.ny, g.nz
+    dx, dy, dz_f, dz_c = g.dx, g.dy, g.dz_face, g.dz_cen
+    t = _terrain_setup(g, rho0_c, rho0_w, open_x, open_y)
+    fluid = t['fluid']
+
+    if not open_x:
+        u[-1] = u[0]
+    if not open_y:
+        v[:, -1] = v[:, 0]
+    u *= t['ux']; v *= t['vy']; w *= t['wz']                  # no flow through solid faces
+    if open_x or open_y:
+        balance_boundary_flux(u, v, g, rho0_c, open_x, open_y, t['ux'], t['vy'])
+
+    rflux = w * rho0_w[np.newaxis, np.newaxis, :]
+    div = ((u[1:] - u[:-1]) / dx + (v[:, 1:] - v[:, :-1]) / dy
+           + (rflux[:, :, 1:] - rflux[:, :, :-1]) / (dz_f * rho0_c)[None, None, :])
+    b = np.where(fluid, div * t['vol'] / dt, 0.0)
+    b[fluid] -= b[fluid].mean()                                 # compatibility (round-off)
+
+    def precond(r):
+        z = _spectral_inverse(r / t['vol'], g, rho0_c, rho0_w, open_x, open_y)
+        return np.where(fluid, z, 0.0)
+
+    tol = getattr(cfg, 'TERRAIN_PCG_TOL', 1e-10)
+    maxit = int(getattr(cfg, 'TERRAIN_PCG_MAXIT', 200))
+    bnorm = np.sqrt((b * b).sum()) + 1e-300
+    # warm start: the previous solution scaled by the least-squares factor s = (b·Lφ')/(Lφ'·Lφ')
+    # (successive solves have similar shape, but the RK3 stage weight 1/3, 1/2, 1 changes their size)
+    phi = np.zeros_like(b)
+    r = b.copy()
+    prev = _terrain_phi.get(id(t))
+    if prev is not None and prev.shape == b.shape:
+        Lp = _apply_L(prev, t)
+        LL = (Lp * Lp).sum()
+        if LL > 0.0:
+            sc = (b * Lp).sum() / LL
+            r_w = b - sc * Lp
+            if (r_w * r_w).sum() < (b * b).sum():       # use it only if it beats φ = 0
+                phi, r = sc * prev, r_w
+    z = precond(r); p = z.copy(); rz = (r * z).sum()
+    it = 0
+    while np.sqrt((r * r).sum()) > tol * bnorm and it < maxit:
+        Ap = _apply_L(p, t)
+        pAp = (p * Ap).sum()
+        if pAp == 0.0 or not np.isfinite(pAp):
+            break
+        alpha = rz / pAp
+        phi += alpha * p
+        r -= alpha * Ap
+        z = precond(r)
+        rz_new = (r * z).sum()
+        p = z + (rz_new / rz) * p
+        rz = rz_new
+        it += 1
+    last_terrain_iterations = it
+    _terrain_phi[id(t)] = phi
+
+    # velocity correction on fluid–fluid faces only
+    dpx = np.zeros_like(u)
+    dpx[1:-1] = (phi[1:] - phi[:-1]) / dx
+    if not open_x:
+        dpx[0] = (phi[0] - phi[-1]) / dx
+        dpx[-1] = dpx[0]
+    u -= dt * dpx * t['mx']
+    dpy = np.zeros_like(v)
+    dpy[:, 1:-1] = (phi[:, 1:] - phi[:, :-1]) / dy
+    if not open_y:
+        dpy[:, 0] = (phi[:, 0] - phi[:, -1]) / dy
+        dpy[:, -1] = dpy[:, 0]
+    v -= dt * dpy * t['my']
+    dpz = np.zeros_like(w)
+    dpz[:, :, 1:-1] = (phi[:, :, 1:] - phi[:, :, :-1]) / dz_c[np.newaxis, np.newaxis, :]
+    w -= dt * dpz * t['mz']
+    w[:, :, 0] = 0.0
+    w[:, :, -1] = 0.0
+    if not open_x:
+        u[-1] = u[0]
+    if not open_y:
+        v[:, -1] = v[:, 0]
+    return phi
+
+
+last_terrain_iterations = 0
 
 
 def _constant_theta_rho0(z: np.ndarray) -> np.ndarray:
