@@ -63,7 +63,17 @@ terrain-following coordinates remain an option for that later.
    faces (optional, small for gentle slopes). Sedimentation ends at `k_sfc` (surface precipitation at
    the ground). Initial noise/bubble relative to the ground. Diagnostics and the water budget exclude
    solid cells. Open boundaries: terrain tapered to flat over the relaxation zone so `open_bc.py` is unchanged.
-4. **Validation.**
+4. **[partly done 2026-10-18] Validation.**
+   - `tests/test_terrain_rest.py`: resting stratified atmosphere over a 500 m hill stays exactly at rest
+     (0.0 after 30 min — no sloping-coordinate pressure error with masked cells).
+   - `tests/test_mountain_waves.py` (Witch-of-Agnesi ridge, linear hydrostatic theory): with 25 m levels
+     near the ground the wave drag is 1.05–1.21× theory at 1–6 km, w pattern correlation 0.89, amplitude
+     1.00 (passes). **The staircase acts ~0.6 Δz higher than the terrain:** 50 m levels give 1.24–1.47×
+     (200 m ridge) and 1.66–1.92× (100 m ridge); a deeper sponge does not change it. Fixes: finer levels
+     near the ground for terrain runs, or partial ("shaved") bottom cells that let a cell be partly solid
+     (aperture/volume fractions in the pressure operator and fluxes, Adcroft et al. 1997).
+   - Heated hill as congestus trigger: not run yet.
+   Original stage-4 plan:
    - Resting, stably stratified atmosphere over a Gaussian hill, no fluxes: stays at rest (≤ 1e-6 m/s).
    - Linear mountain waves: uniform U, constant N, small ridge (Nh/U ≈ 0.1), open x / periodic y, compared
      with the analytic linear solution (vertical velocity pattern and wave drag).

@@ -141,6 +141,19 @@ class Terrain:
         return cls(h, grid)
 
     @classmethod
+    def from_agnesi_ridge(cls, grid: Grid, h_max: float, half_width: float,
+                          x_center: Optional[float] = None) -> "Terrain":
+        """
+        2-D Witch-of-Agnesi ridge along y: h(x) = h_max a² / ((x − x_c)² + a²), a = half_width.
+        Classic mountain-wave test shape (analytic linear solution, e.g. Durran 1986).
+        """
+        if x_center is None:
+            x_center = grid.x.mean()
+        X, _ = np.meshgrid(grid.x, grid.y, indexing='ij')
+        h = h_max * half_width**2 / ((X - x_center)**2 + half_width**2)
+        return cls(h, grid)
+
+    @classmethod
     def from_random_field(
         cls,
         grid: Grid,

@@ -1,0 +1,2 @@
+resting atmosphere over a 500 m hill, 30 min: max |u| 0.0e+00, |v| 0.0e+00, |w| 0.0e+00 m/s, |θ′| 0.0e+00 K
+PASS

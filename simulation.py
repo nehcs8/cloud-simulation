@@ -184,6 +184,11 @@ class Simulation:
             )
             print(f"Created sine ridge: h_max={cfg.TERRAIN_H_MAX}m along x-axis")
 
+        elif cfg.TERRAIN_TYPE == "agnesi_ridge":
+            terrain = Terrain.from_agnesi_ridge(temp_grid, h_max=cfg.TERRAIN_H_MAX,
+                                                half_width=cfg.TERRAIN_SIGMA)
+            print(f"Created Witch-of-Agnesi ridge: h_max={cfg.TERRAIN_H_MAX}m, a={cfg.TERRAIN_SIGMA}m")
+
         elif cfg.TERRAIN_TYPE == "random":
             terrain = Terrain.from_random_field(
                 temp_grid,
