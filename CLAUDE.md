@@ -202,6 +202,13 @@ over the spot for 3 h, tops 6–7.4 km, w 18–32 m/s, surface rain to ~2 mm/h (
 30–40 min; from ~75 min a detrainment shelf at 4.4–5.7 km spreads under the cap across the domain (that is the
 cloud "beyond 6 km", not background convection — background BL stays clear). Weak cold pools (rain-shaft air
 only ~0.2 K cooler): rain falls on the still-heated spot; `ENABLE_CLOUD_SHADING=True` is the obvious next test.
+**Same run with open lateral BCs (2026-10-18)** `runs/20261018_0143_single_cu_congestus_180min_open/` (13 GB,
+GIF `cloud_gifs/20261018_single_cu_congestus_open_0-180min.gif`; 4 threads, mean dt 1.5 s, 130 wall-min/h):
+far-field low-level warming +0.16 K at 3 h vs +0.65 K periodic (recirculated subsidence gone); the tower
+stays stronger (tops 7.2–8.0 km, cover to 39 %, rain to 3.8 mm/h vs 6.3–7.4 km / 28 % / 1.1 mm/h) because
+the environment keeps the sounding instead of warming; net water import through the boundaries +13 % of the
+domain water in 3 h, budget residual 0. The shelf leaves through the east (outflow) edge — cloud along it,
+west edge clear; no boundary-forced updrafts (rms w within 1 km of the edge ≤ interior).
 
 ### land_cu run
 Reproduction of every past land_cu run (exact overrides): `docs/RUNNING_LAND_CU.md`.

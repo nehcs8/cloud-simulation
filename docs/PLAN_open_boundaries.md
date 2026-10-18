@@ -53,7 +53,10 @@ inflow that is not the model's own outflow.
    Klemp–Wilhelmson radiation condition, scalars advected out (upwind); inflow from prescribed profiles
    (θ, qv, u, v); a few-cell relaxation zone (Davies) at the boundaries; `LATERAL_BC = "periodic" | "open"`
    per direction.
-4. **Validation.** Dry warm bubble / gravity-wave packet crossing the boundary with little reflection;
+4. **[done 2026-10-18] Validation.** Reflection test (table above), water budget closes (residual 0), and
+   the 160² × 3 h congestus with open BCs (results in CLAUDE.md, "single_cu"): far-field warming 4× smaller,
+   shelf exits through the outflow edge, no boundary-forced updrafts.
+   Original stage-4 plan: Dry warm bubble / gravity-wave packet crossing the boundary with little reflection;
    water and mass budgets close (boundary fluxes as their own budget terms); the congestus rerun with open
    boundaries — same tower, shelf leaves the domain, no far-field warming from recirculation.
 5. **Turbulent inflow from a precursor.** A cheap periodic background run writes inflow planes every few
