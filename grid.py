@@ -53,8 +53,12 @@ class Grid:
         (nx, ny, nz) with terrain (ground = bottom face of each column's first fluid cell)."""
         if self.terrain is None:
             return self.Z3
-        ground = self.z_face[self.terrain.k_sfc]
-        return self.z[np.newaxis, np.newaxis, :] - ground[:, :, np.newaxis]
+        ter = self.terrain
+        ground = ter.ground[:, :, np.newaxis]
+        # centre of the fluid part of each cell (the cell centre for full cells)
+        zc = np.maximum(self.z[np.newaxis, np.newaxis, :],
+                        0.5 * (ground + self.z_face[np.newaxis, np.newaxis, 1:]))
+        return zc - ground
 
     # ── Convenience ───────────────────────────────────────────────────────────
     def __repr__(self) -> str:

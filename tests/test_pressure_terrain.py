@@ -3,7 +3,8 @@ Test the pressure projection with terrain (pressure._project_terrain, stage 1 of
 
 Gaussian hill on a small stretched grid; BC periodic/periodic, open/periodic, open/open; numba and numpy:
   - ∇·(ρ₀u) in fluid cells removed to ≤ 1e-7 of its initial value (TERRAIN_PCG_TOL = 1e-8)
-  - zero normal velocity on every face that touches a solid cell
+  - zero normal velocity on every closed face (no opening; staircase: every face touching a solid cell)
+  - run for the staircase and for partial bottom cells (TERRAIN_PARTIAL_CELLS)
   - open boundary faces next to fluid cells keep their u_n up to the uniform flux balance
   - re-projecting changes nothing (≤ 1e-6 of the first correction)
   - a terrain without solid cells reproduces the direct spectral projection (≤ 1e-9)
@@ -32,10 +33,14 @@ CASES = (("periodic", "periodic"), ("open", "periodic"), ("open", "open"))
 
 
 def divergence(u, v, w, g, rho0_c):
+    """Flux divergence (per full cell volume); with terrain the side-face fluxes use the open fractions."""
     rho0_w = np.empty(g.nz + 1)
     rho0_w[0], rho0_w[-1] = rho0_c[0], rho0_c[-1]
     rho0_w[1:-1] = 0.5 * (rho0_c[:-1] + rho0_c[1:])
     f = w * rho0_w
+    if getattr(g, 'terrain', None) is not None:
+        t = pressure._terrain_setup(g, rho0_c, rho0_w, cfg.BC_X == "open", cfg.BC_Y == "open")
+        u, v = t['ax'] * u, t['ay'] * v
     return ((u[1:] - u[:-1]) / g.dx + (v[:, 1:] - v[:, :-1]) / g.dy
             + (f[:, :, 1:] - f[:, :, :-1]) / (g.dz_face * rho0_c))
 
@@ -74,6 +79,9 @@ def check_case(g_hill, bx, by, numba, rng, rho0):
     fluid = ~g.terrain.mask
     u, v, w = random_velocity(g, rng, bx, by)
     sx, sy, sz = solid_faces(fluid, bx, by)
+    rho0_w = np.empty(g.nz + 1); rho0_w[0], rho0_w[-1] = rho0[0], rho0[-1]; rho0_w[1:-1] = 0.5 * (rho0[:-1] + rho0[1:])
+    t = pressure._terrain_setup(g, rho0, rho0_w, bx == "open", by == "open")
+    sx, sy = t['ax'] == 0.0, t['ay'] == 0.0          # closed side faces (partial cells: aperture 0)
     u0, v0 = u.copy(), v.copy()
     d0 = np.abs(divergence(u, v, w, g, rho0)[fluid]).max()
     pressure.project(u, v, w, g, 2.0, rho0=rho0)
@@ -119,14 +127,18 @@ def check_no_solid(rng, rho0, g_flat):
 def main():
     g_flat = Grid(terrain=None)
     rho0 = pressure._constant_theta_rho0(g_flat.z)
-    g_hill = Grid(terrain=None)
-    g_hill.terrain = Terrain.from_gaussian_hill(g_hill, h_max=400.0, sigma=600.0)
-    print(g_hill, f"— hill 400 m, σ 600 m, solid cells {g_hill.terrain.mask.sum()} "
-          f"({100 * g_hill.terrain.mask.mean():.1f} %)")
     rng = np.random.default_rng(7)
-    for numba in (True, False):
-        for bx, by in CASES:
-            check_case(g_hill, bx, by, numba, rng, rho0)
+    for partial in (False, True):
+        cfg.TERRAIN_PARTIAL_CELLS = partial
+        g_hill = Grid(terrain=None)
+        g_hill.terrain = Terrain.from_gaussian_hill(g_hill, h_max=400.0, sigma=600.0)
+        hc = g_hill.terrain.hc
+        print(f"{'partial cells' if partial else 'staircase'}: hill 400 m, σ 600 m, solid {100 * (hc == 0).mean():.1f} %, "
+              f"partial {((hc > 0) & (hc < 1)).sum()} cells")
+        for numba in (True, False):
+            for bx, by in CASES:
+                check_case(g_hill, bx, by, numba, rng, rho0)
+    cfg.TERRAIN_PARTIAL_CELLS = False
     check_no_solid(rng, rho0, g_flat)
     cfg.BC_X = cfg.BC_Y = "periodic"
     cfg.USE_NUMBA = True

@@ -255,12 +255,16 @@ def sedimentation(s: State, g: Grid, dt: float) -> None:
           F_out[k] = V_t[k] * rho0[k] * qr[k]  (mass flux leaving this cell)
     """
     kb = None if g.terrain is None else g.terrain.k_sfc    # terrain: rain reaches the ground at k_sfc
+    if kb is not None:                                      # fluid thickness of the ground cell
+        hcg = np.take_along_axis(g.terrain.hc, kb[:, :, None], axis=2)[:, :, 0]
+        dzb = hcg * g.dz_face[kb]
     if _numba():
         s.qr = np.array(s.qr, dtype=np.float64)
         args = (s.qr, np.asarray(s.rho0, dtype=np.float64), np.asarray(g.dz_face, dtype=np.float64),
                 dt, _A_VT, _B_VT)
         sfc = (kernels.sedimentation(*args) if kb is None
-               else kernels.sedimentation_kb(*args, np.ascontiguousarray(kb, dtype=np.int64)))
+               else kernels.sedimentation_kb(*args, np.ascontiguousarray(kb, dtype=np.int64),
+                                             np.ascontiguousarray(dzb, dtype=np.float64)))
         s.surface_precip_flux = sfc * 3600.0
         return
 
@@ -304,7 +308,9 @@ def sedimentation(s: State, g: Grid, dt: float) -> None:
         rho0_k = rho0[0, 0, k]
         V_t_k = V_t[:, :, k]
 
-        # Update qr (implicit)
+        # Update qr (implicit); terrain: the ground cell's fluid thickness (partial cells)
+        if active is not None:
+            dz_k = np.where(kb == k, dzb, dz_k)
         denominator = 1.0 + V_t_k * dt / dz_k
         q_new = np.maximum((s.qr[:, :, k] + (dt / dz_k) * (F_in_k / rho0_k)) / denominator, 0.0)
         if active is None:

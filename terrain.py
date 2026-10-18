@@ -9,6 +9,7 @@ Supports:
 
 import numpy as np
 from typing import Optional
+import config as cfg
 from grid import Grid
 
 
@@ -40,16 +41,32 @@ class Terrain:
         # Store terrain height
         self.h = h_2d.copy()
 
-        # Create 3D mask: True where z < h(x,y)
-        # Broadcasting: z is (nz,), h is (nx,ny) → need (nx,ny,nz) comparison
-        Z_3d = grid.z[np.newaxis, np.newaxis, :]  # shape (1, 1, nz)
+        # Fluid volume fraction hc (nx, ny, nz) of each cell.
+        # TERRAIN_PARTIAL_CELLS = False: staircase — a cell is fluid if its centre is above h (hc 0 or 1).
+        # True: partial bottom cells — the cell containing the ground keeps the fraction above h,
+        #       hc = (z_top − h)/Δz; fractions below TERRAIN_HFAC_MIN are rounded to 0 or HFAC_MIN.
         H_3d = h_2d[:, :, np.newaxis]              # shape (nx, ny, 1)
-        self.mask = Z_3d < H_3d                     # shape (nx, ny, nz)
+        if getattr(cfg, 'TERRAIN_PARTIAL_CELLS', False):
+            zb = grid.z_face[np.newaxis, np.newaxis, :-1]
+            zt = grid.z_face[np.newaxis, np.newaxis, 1:]
+            hc = np.clip((zt - np.maximum(H_3d, zb)) / (zt - zb), 0.0, 1.0)
+            hmin = float(getattr(cfg, 'TERRAIN_HFAC_MIN', 0.3))
+            thin = (hc > 0.0) & (hc < hmin)
+            hc = np.where(thin, np.where(hc < 0.5 * hmin, 0.0, hmin), hc)
+        else:
+            hc = (grid.z[np.newaxis, np.newaxis, :] >= H_3d).astype(float)
+        self.hc = hc
 
-        # Surface level index: first k where z[k] >= h[i,j]
+        # Solid cells: no fluid at all
+        self.mask = hc == 0.0                       # shape (nx, ny, nz)
+
+        # Surface level index: first cell with fluid
         # If terrain is above all grid levels, k_sfc = nz-1 (top level)
-        above = grid.z[np.newaxis, np.newaxis, :] >= h_2d[:, :, np.newaxis]
-        self.k_sfc = np.argmax(above, axis=2)      # shape (nx, ny)
+        self.k_sfc = np.argmax(hc > 0.0, axis=2)   # shape (nx, ny)
+        # Ground height as represented on the grid (bottom of the fluid in the k_sfc cell)
+        I, J = np.meshgrid(np.arange(grid.nx), np.arange(grid.ny), indexing='ij')
+        k = self.k_sfc
+        self.ground = grid.z_face[k + 1] - hc[I, J, k] * grid.dz_face[k]
 
         # Handle edge case: terrain higher than domain top
         # (in this case argmax returns 0, which is wrong)

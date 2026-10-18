@@ -72,6 +72,15 @@ terrain-following coordinates remain an option for that later.
      (200 m ridge) and 1.66–1.92× (100 m ridge); a deeper sponge does not change it. Fixes: finer levels
      near the ground for terrain runs, or partial ("shaved") bottom cells that let a cell be partly solid
      (aperture/volume fractions in the pressure operator and fluxes, Adcroft et al. 1997).
+   - **Partial bottom cells (2026-10-18)**, `TERRAIN_PARTIAL_CELLS = True` (`terrain.hc` fluid fractions,
+     side-face apertures = smaller neighbour fraction, `TERRAIN_HFAC_MIN` 0.3; pressure operator, scalar fluxes
+     ÷ hc, diffusion, surface layer, sedimentation and water budget use them; momentum advection unchanged).
+     Unit tests pass in both modes. Mountain waves at Δz 50 m: 200 m ridge 1.12–1.36× (staircase 1.24–1.47),
+     corr 0.83; 100 m ridge 1.38–1.90× (staircase 1.66–1.92), corr 0.60. Only a small gain: with partial
+     cells the side walls are ~5 m, yet the bias stays ~0.5 Δz of effective extra height in every variant →
+     the cause is not the steps but the z-level lowest-cell treatment of flow up a slope. Remaining options:
+     finer levels near the ground (25 m: 1.05–1.21×), shaved cells with sloping cut faces (Adcroft et al. 1997)
+     or terrain-following coordinates near the ground. Off by default.
    - Heated hill as congestus trigger: not run yet.
    Original stage-4 plan:
    - Resting, stably stratified atmosphere over a Gaussian hill, no fluxes: stays at rest (≤ 1e-6 m/s).

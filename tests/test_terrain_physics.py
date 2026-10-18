@@ -33,17 +33,27 @@ import microphysics
 
 
 def main():
+    for partial in (False, True):
+        cfg.TERRAIN_PARTIAL_CELLS = partial
+        run_checks(partial)
+    cfg.TERRAIN_PARTIAL_CELLS = False
+    print("All terrain physics tests passed.")
+
+
+def run_checks(partial):
     g = Grid(terrain=None)
     g.terrain = Terrain.from_gaussian_hill(g, h_max=400.0, sigma=600.0)
     kk = g.terrain.k_sfc
     nx, ny = g.nx, g.ny
     I, J = np.meshgrid(np.arange(nx), np.arange(ny), indexing='ij')
-    print(g, f"— hill 400 m, ground level k_sfc {kk.min()}–{kk.max()}")
+    hcg = g.terrain.hc[I, J, kk]
+    print(g, f"— hill 400 m, {'partial cells' if partial else 'staircase'}, ground level k_sfc {kk.min()}–{kk.max()}, "
+          f"ground-cell fraction {hcg.min():.2f}–{hcg.max():.2f}")
 
     # 3. height above ground
     zagl = g.z_agl()[I, J, kk]
-    print(f"z_agl of the first fluid cell: {zagl.min():.1f}–{zagl.max():.1f} m (Δz/2 = {g.dz_face[0]/2:.1f} m)")
-    assert np.allclose(zagl, 0.5 * g.dz_face[kk])
+    print(f"z_agl of the first fluid cell: {zagl.min():.1f}–{zagl.max():.1f} m (= half its fluid thickness)")
+    assert np.allclose(zagl, 0.5 * hcg * g.dz_face[kk])
 
     # 1. surface layer
     s = State(g)
@@ -57,8 +67,9 @@ def main():
     dth, dqv = s.theta - th0, s.qv - qv0
     at_ground = np.zeros_like(dth, bool); at_ground[I, J, kk] = True
     pi0 = s._pi0()[0, 0]
-    heat = (s.rho0 * cfg.CP * pi0 * g.dz_face * dth).sum(axis=2)       # J/m² per column
-    moist = (s.rho0 * g.dz_face * dqv).sum(axis=2)                      # kg/m²
+    dzf = g.dz_face * g.terrain.hc                                     # fluid thickness
+    heat = (s.rho0 * cfg.CP * pi0 * dzf * dth).sum(axis=2)             # J/m² per column
+    moist = (s.rho0 * dzf * dqv).sum(axis=2)                            # kg/m²
     print(f"surface layer: θ′ changed outside the ground cells: {np.abs(dth[~at_ground]).max():.1e}; "
           f"column heat / (SHF·dt) {heat.min() / (150 * dt):.6f}–{heat.max() / (150 * dt):.6f}; "
           f"moisture / (LHF/Lv·dt) {moist.min() / (300 / cfg.LV * dt):.6f}–{moist.max() / (300 / cfg.LV * dt):.6f}")
@@ -85,8 +96,8 @@ def main():
     agree = max(np.abs(a.qr - b.qr).max(), np.abs(a.surface_precip_flux - b.surface_precip_flux).max())
     below_untouched = np.array_equal(a.qr[g.terrain.mask], s.qr[g.terrain.mask])
     fluid = ~g.terrain.mask
-    m0 = (np.where(fluid, s.qr, 0) * s.rho0 * g.dz_face).sum(axis=2)
-    m1 = (np.where(fluid, a.qr, 0) * s.rho0 * g.dz_face).sum(axis=2)
+    m0 = (np.where(fluid, s.qr, 0) * s.rho0 * g.dz_face * g.terrain.hc).sum(axis=2)
+    m1 = (np.where(fluid, a.qr, 0) * s.rho0 * g.dz_face * g.terrain.hc).sum(axis=2)
     lost = m0 - m1
     precip = a.surface_precip_flux / 3600.0 * dt                         # kg/m²
     print(f"sedimentation: numba vs numpy {agree:.1e}; cells below ground untouched {below_untouched}; "
@@ -95,7 +106,6 @@ def main():
     assert np.abs(lost - precip).max() < 1e-12
 
     cfg.USE_NUMBA = True
-    print("All terrain physics tests passed.")
 
 
 if __name__ == "__main__":

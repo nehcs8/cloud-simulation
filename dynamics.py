@@ -359,16 +359,14 @@ def _ground_fill(phi: np.ndarray, ter) -> np.ndarray:
     return np.where(ter.mask, sfc, phi)
 
 
-_tm_cache = {}
-
-
 def _terrain_masks(g: Grid, rho0_c, rho0_w, open_x: bool, open_y: bool) -> dict:
-    """Float face masks for diffusion with terrain (1 = face between two fluid cells), cached:
-    mx, my, mz for cell-centred fields (same faces as pressure._terrain_setup), wmx, wmy for
-    the horizontal diffusion of w on interior levels."""
+    """Face masks for diffusion with terrain, cached: mx, my = open fractions of the side faces
+    (pressure._terrain_setup apertures; 0/1 for the staircase), mz = open horizontal faces, wmx, wmy
+    for the horizontal diffusion of w on interior levels, hc = cell fluid fractions, ax/ay apertures."""
     import pressure
-    key = (id(g.terrain), open_x, open_y)
-    if key not in _tm_cache:
+    cache = g.terrain.__dict__.setdefault('_stencil_masks', {})   # on the object (ids get reused)
+    key = (open_x, open_y)
+    if key not in cache:
         t = pressure._terrain_setup(g, rho0_c, rho0_w, open_x, open_y)
         wz = t['wz'][:, :, 1:-1]                       # fluid interior w faces (nx, ny, nz-1)
         nx, ny = g.nx, g.ny
@@ -380,9 +378,10 @@ def _terrain_masks(g: Grid, rho0_c, rho0_w, open_x: bool, open_y: bool) -> dict:
         wmy[:, 1:-1] = wz[:, :-1] & wz[:, 1:]
         wmy[:, 0] = wz[:, 0] if open_y else (wz[:, -1] & wz[:, 0])
         wmy[:, -1] = wz[:, -1] if open_y else wmy[:, 0]
-        _tm_cache[key] = dict(mx=t['ux'].astype(float), my=t['vy'].astype(float), mz=t['mz'],
-                              wmx=wmx, wmy=wmy)
-    return _tm_cache[key]
+        # diffusion: face fluxes scaled by the open fraction (partial cells; 0/1 for the staircase)
+        cache[key] = dict(mx=t['ax'], my=t['ay'], mz=t['mz'], wmx=wmx, wmy=wmy, hc=t['hc'],
+                              ax=t['ax'], ay=t['ay'])
+    return cache[key]
 
 
 # ══ Full tendency computation (C-GRID) ═══════════════════════════════════════
@@ -451,13 +450,17 @@ def compute_tendencies(s: State, g: Grid) -> dict:
     rho0_w[-1] = rho0_c[-1]  # Extrapolate to top
     rho0_w[1:-1] = 0.5 * (rho0_c[:-1] + rho0_c[1:])  # Average to faces
 
+    tm = None if ter is None else _terrain_masks(g, rho0_c, rho0_w, open_x, open_y)
+    # transport velocities: with terrain the flux through a side face is (open fraction) × u
+    u_tr, v_tr = (s.u, s.v) if tm is None else (tm['ax'] * s.u, tm['ay'] * s.v)
+
     def adv_weno3(P):
         """WENO-3 in all directions using true divergence-free face velocities.
         Anelastic: vertical advection uses ρ₀-weighted fluxes. P: halo-padded scalar."""
         if _numba():
-            return kernels.weno3_div(P, s.u, s.v, s.w, dx, dy, dz_f, rho0_c, rho0_w)
-        return (_weno3_x(P, s.u, dx)
-                + _weno3_y(P, s.v, dy)
+            return kernels.weno3_div(P, u_tr, v_tr, s.w, dx, dy, dz_f, rho0_c, rho0_w)
+        return (_weno3_x(P, u_tr, dx)
+                + _weno3_y(P, v_tr, dy)
                 + _weno3_z(P[X, Y], s.w, dz_f, rho0_c, rho0_w))
 
     # Transport conserved variables (Phase 1.4)
@@ -480,8 +483,6 @@ def compute_tendencies(s: State, g: Grid) -> dict:
     # Scalar diffusion (cell-centered fields)
     # Phase 1.4: Diffuse conserved variables θ_l, qt
     # Anelastic: vertical diffusion uses (1/rho0) d/dz(rho0 * K * dphi/dz)
-    tm = None if ter is None else _terrain_masks(g, rho0_c, rho0_w, open_x, open_y)
-
     def diff_s(P):
         if tm is not None:                       # terrain: no diffusive flux through solid faces
             if _numba():
@@ -498,6 +499,11 @@ def compute_tendencies(s: State, g: Grid) -> dict:
     tend_theta_l += diff_s(P_thl)
     tend_qt      += diff_s(P_qt)
     tend_qr      += diff_s(P_qr)
+    if tm is not None:
+        # finite volume: face fluxes per unit cell volume → per unit fluid volume (partial cells)
+        hc = tm['hc']
+        tend_theta_l, tend_qt, tend_qr = (np.where(hc > 0.0, t_ / np.where(hc > 0.0, hc, 1.0), 0.0)
+                                          for t_ in (tend_theta_l, tend_qt, tend_qr))
 
     # Momentum diffusion - apply to cell-centered, then interpolate back
     # (Simplified - proper C-grid diffusion would be on faces)

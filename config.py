@@ -208,6 +208,10 @@ TERRAIN_TYPE: str = "flat"       # "flat", "gaussian_hill", "sine_ridge", "agnes
 TERRAIN_H_MAX: float = 300.0     # m, max height for synthetic terrain
 TERRAIN_SIGMA: float = 2000.0    # m, Gaussian hill σ, Agnesi half-width a, or correlation length
 TERRAIN_FILE: str | None = None  # Path to DEM file (if TERRAIN_TYPE="dem")
+# Partial bottom cells (fluid fraction hc of the cell containing the ground) instead of a staircase
+# of whole cells; fractions below TERRAIN_HFAC_MIN are rounded to 0 or HFAC_MIN (stability).
+TERRAIN_PARTIAL_CELLS: bool = False
+TERRAIN_HFAC_MIN: float = 0.3
 # Pressure solve with terrain (pressure._project_terrain): preconditioned CG on the fluid cells
 TERRAIN_PCG_TOL: float = 1e-8    # relative residual (∇·(ρ₀u) ~1e-7 of its pre-projection value)
 TERRAIN_PCG_MAXIT: int = 200

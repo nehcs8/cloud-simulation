@@ -225,7 +225,7 @@ def _vertical_coefficients(g: Grid, rho0_c: np.ndarray, rho0_w: np.ndarray):
 
 
 def balance_boundary_flux(u: np.ndarray, v: np.ndarray, g: Grid, rho0_c: np.ndarray,
-                          open_x: bool, open_y: bool, ux=None, vy=None) -> float:
+                          open_x: bool, open_y: bool, ux=None, vy=None, ax=None, ay=None) -> float:
     """
     Make the net mass flux through the open lateral boundaries zero (needed with a rigid
     lid: ∫∇·(ρ₀u) dV = boundary flux). Subtracts one uniform outward velocity from every
@@ -244,22 +244,27 @@ def balance_boundary_flux(u: np.ndarray, v: np.ndarray, g: Grid, rho0_c: np.ndar
             flux += float(((v[:, -1] - v[:, 0]) * w_y).sum())
             area += 2.0 * g.nx * float(w_y.sum())
         mw = me = ms = mn = 1.0
+        iw = ie = is_ = in_ = 1.0
     else:
-        mw, me = ux[0].astype(float), ux[-1].astype(float)
-        ms, mn = vy[:, 0].astype(float), vy[:, -1].astype(float)
+        # flux weights = open fraction of each boundary face (partial cells); correction only where open
+        mw, me = ax[0], ax[-1]
+        ms, mn = ay[:, 0], ay[:, -1]
         if open_x:
             flux += float(((u[-1] * me - u[0] * mw) * w_x).sum())
             area += float(((mw + me) * w_x).sum())
         if open_y:
             flux += float(((v[:, -1] * mn - v[:, 0] * ms) * w_y).sum())
             area += float(((ms + mn) * w_y).sum())
+        # the correction is a velocity on every open face (its flux is then weighted by the fraction)
+        iw, ie = (mw > 0.0).astype(float), (me > 0.0).astype(float)
+        is_, in_ = (ms > 0.0).astype(float), (mn > 0.0).astype(float)
     corr = flux / area
     if open_x:
-        u[0] += corr * mw                      # outward normal is −x at the west face
-        u[-1] -= corr * me
+        u[0] += corr * iw                      # outward normal is −x at the west face
+        u[-1] -= corr * ie
     if open_y:
-        v[:, 0] += corr * ms
-        v[:, -1] -= corr * mn
+        v[:, 0] += corr * is_
+        v[:, -1] -= corr * in_
     return corr
 
 
@@ -394,46 +399,47 @@ def _spectral_inverse(rhs: np.ndarray, g: Grid, rho0_c, rho0_w, open_x: bool, op
     return irfft2(phi_hat, s=(nx, ny), axes=(0, 1), workers=_FFT_WORKERS)
 
 
-_terrain_cache = {}
-_terrain_phi = {}             # warm start for _project_terrain, per terrain setup
 
 
 def _terrain_setup(g: Grid, rho0_c, rho0_w, open_x: bool, open_y: bool):
     """Fluid mask, face masks (float, 1 = fluid–fluid connection) and conductances; cached."""
-    key = (id(g.terrain), open_x, open_y, g.nx, g.ny, g.nz, float(rho0_c[0]), float(rho0_c[-1]))
-    if key in _terrain_cache:
-        return _terrain_cache[key]
-    fluid = ~g.terrain.mask
+    # cached on the terrain object itself (ids of freed objects can be reused)
+    cache = g.terrain.__dict__.setdefault('_pressure_setup', {})
+    key = (open_x, open_y, g.nx, g.ny, g.nz, float(rho0_c[0]), float(rho0_c[-1]))
+    if key in cache:
+        return cache[key]
+    hc = g.terrain.hc                                   # fluid fraction (1 full, 0 solid)
+    fluid = hc > 0.0
     nx, ny, nz = fluid.shape
-    mx = np.zeros((nx + 1, ny, nz))
-    mx[1:-1] = fluid[:-1] & fluid[1:]
-    if not open_x:
-        mx[0] = mx[-1] = fluid[-1] & fluid[0]
-    my = np.zeros((nx, ny + 1, nz))
-    my[:, 1:-1] = fluid[:, :-1] & fluid[:, 1:]
-    if not open_y:
-        my[:, 0] = my[:, -1] = fluid[:, -1] & fluid[:, 0]
+    # face apertures (open fraction): the smaller fluid fraction of the two neighbour cells
+    # (partial bottom cells: a side face is open only above the higher ground); staircase → 0/1
+    ax = np.zeros((nx + 1, ny, nz))
+    ax[1:-1] = np.minimum(hc[:-1], hc[1:])
+    ax[0] = hc[0] if open_x else np.minimum(hc[-1], hc[0])
+    ax[-1] = hc[-1] if open_x else ax[0]
+    ay = np.zeros((nx, ny + 1, nz))
+    ay[:, 1:-1] = np.minimum(hc[:, :-1], hc[:, 1:])
+    ay[:, 0] = hc[:, 0] if open_y else np.minimum(hc[:, -1], hc[:, 0])
+    ay[:, -1] = hc[:, -1] if open_y else ay[:, 0]
+    # operator conductance fractions: open boundary faces carry a prescribed u_n (Neumann for φ)
+    mx = ax.copy(); my = ay.copy()
+    if open_x:
+        mx[0] = mx[-1] = 0.0
+    if open_y:
+        my[:, 0] = my[:, -1] = 0.0
     mz = np.zeros((nx, ny, nz + 1))
-    mz[:, :, 1:-1] = fluid[:, :, :-1] & fluid[:, :, 1:]
-    # faces that carry a velocity at all: fluid on at least the inner side (open boundary
-    # faces next to a fluid cell keep their prescribed u_n); everything touching solid → 0
-    ux = np.zeros((nx + 1, ny, nz), dtype=bool)
-    ux[1:-1] = fluid[:-1] & fluid[1:]
-    ux[0] = fluid[0] if open_x else (fluid[-1] & fluid[0])
-    ux[-1] = fluid[-1] if open_x else ux[0]
-    vy = np.zeros((nx, ny + 1, nz), dtype=bool)
-    vy[:, 1:-1] = fluid[:, :-1] & fluid[:, 1:]
-    vy[:, 0] = fluid[:, 0] if open_y else (fluid[:, -1] & fluid[:, 0])
-    vy[:, -1] = fluid[:, -1] if open_y else vy[:, 0]
-    wz = mz.astype(bool)
+    mz[:, :, 1:-1] = fluid[:, :, :-1] & fluid[:, :, 1:]  # horizontal faces: fully open or closed
+    # faces that carry a velocity at all; everything with no opening → 0
+    ux, vy, wz = ax > 0.0, ay > 0.0, mz.astype(bool)
     dzf = g.dz_face
     Tx = rho0_c * g.dy * dzf / g.dx
     Ty = rho0_c * g.dx * dzf / g.dy
     Tz = np.zeros(nz + 1)
     Tz[1:-1] = rho0_w[1:-1] * g.dx * g.dy / g.dz_cen
-    out = dict(fluid=fluid, mx=mx, my=my, mz=mz, ux=ux, vy=vy, wz=wz, Tx=Tx, Ty=Ty, Tz=Tz,
+    out = dict(fluid=fluid, hc=hc, ax=ax, ay=ay, mx=mx, my=my, mz=mz, ux=ux, vy=vy, wz=wz,
+               mxi=(mx > 0.0).astype(float), myi=(my > 0.0).astype(float), Tx=Tx, Ty=Ty, Tz=Tz,
                vol=(g.dx * g.dy * dzf * rho0_c)[None, None, :])
-    _terrain_cache[key] = out
+    cache[key] = out
     return out
 
 
@@ -473,10 +479,11 @@ def _project_terrain(u, v, w, g: Grid, dt: float, rho0_c, rho0_w, open_x: bool, 
         v[:, -1] = v[:, 0]
     u *= t['ux']; v *= t['vy']; w *= t['wz']                  # no flow through solid faces
     if open_x or open_y:
-        balance_boundary_flux(u, v, g, rho0_c, open_x, open_y, t['ux'], t['vy'])
+        balance_boundary_flux(u, v, g, rho0_c, open_x, open_y, t['ux'], t['vy'], t['ax'], t['ay'])
 
     rflux = w * rho0_w[np.newaxis, np.newaxis, :]
-    div = ((u[1:] - u[:-1]) / dx + (v[:, 1:] - v[:, :-1]) / dy
+    ua, va = t['ax'] * u, t['ay'] * v                           # fluxes through the open fractions
+    div = ((ua[1:] - ua[:-1]) / dx + (va[:, 1:] - va[:, :-1]) / dy
            + (rflux[:, :, 1:] - rflux[:, :, :-1]) / (dz_f * rho0_c)[None, None, :])
     b = np.where(fluid, div * t['vol'] / dt, 0.0)
     b[fluid] -= b[fluid].mean()                                 # compatibility (round-off)
@@ -492,7 +499,7 @@ def _project_terrain(u, v, w, g: Grid, dt: float, rho0_c, rho0_w, open_x: bool, 
     # (successive solves have similar shape, but the RK3 stage weight 1/3, 1/2, 1 changes their size)
     phi = np.zeros_like(b)
     r = b.copy()
-    prev = _terrain_phi.get(id(t))
+    prev = t.get('phi_prev')                          # warm start, stored with the setup
     if prev is not None and prev.shape == b.shape:
         Lp = _apply_L(prev, t)
         LL = (Lp * Lp).sum()
@@ -517,7 +524,7 @@ def _project_terrain(u, v, w, g: Grid, dt: float, rho0_c, rho0_w, open_x: bool, 
         rz = rz_new
         it += 1
     last_terrain_iterations = it
-    _terrain_phi[id(t)] = phi
+    t['phi_prev'] = phi
 
     # velocity correction on fluid–fluid faces only
     dpx = np.zeros_like(u)
@@ -525,13 +532,13 @@ def _project_terrain(u, v, w, g: Grid, dt: float, rho0_c, rho0_w, open_x: bool, 
     if not open_x:
         dpx[0] = (phi[0] - phi[-1]) / dx
         dpx[-1] = dpx[0]
-    u -= dt * dpx * t['mx']
+    u -= dt * dpx * t['mxi']
     dpy = np.zeros_like(v)
     dpy[:, 1:-1] = (phi[:, 1:] - phi[:, :-1]) / dy
     if not open_y:
         dpy[:, 0] = (phi[:, 0] - phi[:, -1]) / dy
         dpy[:, -1] = dpy[:, 0]
-    v -= dt * dpy * t['my']
+    v -= dt * dpy * t['myi']
     dpz = np.zeros_like(w)
     dpz[:, :, 1:-1] = (phi[:, :, 1:] - phi[:, :, :-1]) / dz_c[np.newaxis, np.newaxis, :]
     w -= dt * dpz * t['mz']

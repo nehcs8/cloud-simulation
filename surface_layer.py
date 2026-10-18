@@ -272,8 +272,10 @@ def _apply_surface_layer_terrain(s, g, dt: float, shf_map: np.ndarray, lhf_map: 
     kk = ter.k_sfc                                         # (nx, ny)
     nx, ny = g.nx, g.ny
     I, J = np.meshgrid(np.arange(nx), np.arange(ny), indexing='ij')
-    z_lowest = g.z[kk] - g.z_face[kk]                      # height above ground (nx, ny)
-    dz = g.dz_face[kk]
+    hcg = ter.hc[I, J, kk]                                 # fluid fraction of the ground cell
+    # height of the fluid centre above ground; thickness of the fluid layer (partial cells: hc·Δz)
+    z_lowest = np.where(hcg < 1.0, 0.5 * hcg * g.dz_face[kk], g.z[kk] - g.z_face[kk])
+    dz = hcg * g.dz_face[kk]
     rho_sfc = s.rho0[kk]
 
     u_lowest = 0.5 * (s.u[:-1][I, J, kk] + s.u[1:][I, J, kk])
@@ -309,8 +311,14 @@ def _apply_surface_layer_terrain(s, g, dt: float, shf_map: np.ndarray, lhf_map: 
         ty[:, 0] = ty[:, -1] = 0.5 * (tau_y[:, -1] + tau_y[:, 0]); ky[:, 0] = ky[:, -1] = np.maximum(kk[:, -1], kk[:, 0])
     Iu, Ju = np.meshgrid(np.arange(nx + 1), np.arange(ny), indexing='ij')
     Iv, Jv = np.meshgrid(np.arange(nx), np.arange(ny + 1), indexing='ij')
-    s.u[Iu, Ju, kx] -= dt * tx / (s.rho0[kx] * g.dz_face[kx])
-    s.v[Iv, Jv, ky] -= dt * ty / (s.rho0[ky] * g.dz_face[ky])
+    # stress over the open part of the face (aperture × Δz; 1 for the staircase)
+    import pressure
+    rho0_w = np.empty(g.nz + 1); rho0_w[0], rho0_w[-1] = s.rho0[0], s.rho0[-1]
+    rho0_w[1:-1] = 0.5 * (s.rho0[:-1] + s.rho0[1:])
+    t = pressure._terrain_setup(g, s.rho0, rho0_w, open_x, open_y)
+    ax_f, ay_f = t['ax'][Iu, Ju, kx], t['ay'][Iv, Jv, ky]
+    s.u[Iu, Ju, kx] -= dt * tx / (s.rho0[kx] * np.where(ax_f > 0, ax_f, 1.0) * g.dz_face[kx])
+    s.v[Iv, Jv, ky] -= dt * ty / (s.rho0[ky] * np.where(ay_f > 0, ay_f, 1.0) * g.dz_face[ky])
 
     pi0 = s._pi0()[0, 0]
     s.theta[I, J, kk] += u_star * theta_star * dt / (dz * pi0[kk])

@@ -6,9 +6,11 @@ Gaussian hill on a small stretched grid, velocities projected with the terrain s
   1. numba and numpy paths agree to round-off (all tendencies)
   2. a uniform scalar (q_t) has zero advective + diffusive tendency in the fluid (up to the
      CG divergence tolerance; with open BCs away from the edges, where inflow brings the sounding)
-  3. periodic BCs: Σ ρ₀ (scalar tendency) dV over all cells is zero to round-off — no advective or
+  3. periodic BCs: Σ ρ₀ (scalar tendency) dV_fluid over all cells is zero to round-off — no advective or
      diffusive flux crosses a solid face, and solid cells get no tendency
   4. values stored inside the terrain do not affect the tendencies in fluid cells
+
+Run for the staircase and for partial bottom cells (TERRAIN_PARTIAL_CELLS).
 
 Usage: python tests/test_terrain_stencils.py
 """
@@ -52,12 +54,20 @@ def tendencies(s, g, numba):
 
 
 def main():
+    for partial in (False, True):
+        cfg.TERRAIN_PARTIAL_CELLS = partial
+        run_checks(partial)
+    cfg.TERRAIN_PARTIAL_CELLS = False
+    print("All terrain stencil tests passed.")
+
+
+def run_checks(partial):
     g = Grid(terrain=None)
     g.terrain = Terrain.from_gaussian_hill(g, h_max=400.0, sigma=600.0)
     solid, fluid = g.terrain.mask, ~g.terrain.mask
-    dV = g.dx * g.dy * g.dz_face
+    dV = g.dx * g.dy * g.dz_face * g.terrain.hc                 # fluid volume
     rng = np.random.default_rng(11)
-    print(g, f"— hill 400 m, solid {100 * solid.mean():.1f} %")
+    print(g, f"— hill 400 m, {'partial cells' if partial else 'staircase'}, solid {100 * solid.mean():.1f} %")
 
     for bx, by in (("periodic", "periodic"), ("open", "open")):
         print(f"BC {bx}/{by}")
@@ -84,7 +94,7 @@ def main():
         # 3. conservation (periodic only: open boundaries exchange with the outside)
         if bx == "periodic":
             t = tendencies(s, g, True)
-            for key in ("theta_l", "qt", "qr"):
+            for key in ("qt", "qr"):          # θ_l also has the source −w dθ₀/dz (not a flux)
                 tot = float((t[key] * s.rho0 * dV).sum())
                 scale = float(np.abs(t[key] * s.rho0 * dV).sum())
                 print(f"  Σρ₀·tend·dV {key:8s} {tot:+.2e} (rel {abs(tot) / scale:.1e}), "
@@ -105,7 +115,6 @@ def main():
 
     cfg.BC_X = cfg.BC_Y = "periodic"
     cfg.USE_NUMBA = True
-    print("All terrain stencil tests passed.")
 
 
 if __name__ == "__main__":

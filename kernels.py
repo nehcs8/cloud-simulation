@@ -501,9 +501,10 @@ def sedimentation(qr, rho0, dz_face, dt, a_vt, b_vt):
 
 
 @njit(parallel=True, cache=True)
-def sedimentation_kb(qr, rho0, dz_face, dt, a_vt, b_vt, kb):
+def sedimentation_kb(qr, rho0, dz_face, dt, a_vt, b_vt, kb, dzb):
     """sedimentation with terrain: each column's sweep ends at its ground level kb[i, j]
-    (first fluid cell); returns the flux leaving that cell (surface precipitation)."""
+    (first fluid cell, fluid thickness dzb[i, j] — less than Δz for partial cells);
+    returns the flux leaving that cell (surface precipitation)."""
     nx, ny, nz = qr.shape
     sfc = np.empty((nx, ny))
     for i in prange(nx):
@@ -512,7 +513,8 @@ def sedimentation_kb(qr, rho0, dz_face, dt, a_vt, b_vt, kb):
             for k in range(nz - 1, kb[i, j] - 1, -1):
                 q = max(qr[i, j, k], 0.0)
                 V_t = a_vt * ((rho0[k] * q / 1000.0) ** b_vt) * np.sqrt(rho0[0] / rho0[k])
-                q = (q + (dt / dz_face[k]) * (F_in / rho0[k])) / (1.0 + V_t * dt / dz_face[k])
+                dzk = dzb[i, j] if k == kb[i, j] else dz_face[k]
+                q = (q + (dt / dzk) * (F_in / rho0[k])) / (1.0 + V_t * dt / dzk)
                 q = max(q, 0.0)
                 qr[i, j, k] = q
                 F_in = V_t * rho0[k] * q

@@ -61,8 +61,8 @@ budget = {p: 0.0 for p in PROCESSES}
 
 def total_water(s, g):
     dV = g.dx * g.dy * g.dz_face
-    if g.terrain is not None:                       # fluid cells only (solid cells are reset)
-        q = np.where(g.terrain.mask, 0.0, s.qv + s.qc + s.qr)
+    if g.terrain is not None:                       # fluid volume only (solid cells are reset)
+        q = np.where(g.terrain.mask, 0.0, (s.qv + s.qc + s.qr) * g.terrain.hc)
         return float((q.sum(axis=(0, 1)) * s.rho0 * dV).sum())
     return float(((s.qv + s.qc + s.qr).sum(axis=(0, 1)) * s.rho0 * dV).sum())
 
