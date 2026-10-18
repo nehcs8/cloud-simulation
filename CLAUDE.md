@@ -209,6 +209,12 @@ stays stronger (tops 7.2–8.0 km, cover to 39 %, rain to 3.8 mm/h vs 6.3–7.4 
 the environment keeps the sounding instead of warming; net water import through the boundaries +13 % of the
 domain water in 3 h, budget residual 0. The shelf leaves through the east (outflow) edge — cloud along it,
 west edge clear; no boundary-forced updrafts (rms w within 1 km of the edge ≤ interior).
+**Fragmented cloud base (2026-10-18).** The tower is one 3-D body (94–99 % of cloudy cells connected), but its
+base is many narrow feeder columns (11–17 pieces < 500 m at 1.4–1.8 km in the 160² open run) fed by 70–80
+separate sub-cloud updraft cores ~2 grid cells wide. 96² × 2 h tests (pieces 150 m above base / cores at 800 m,
+60–120 min): disc spot 1–2 / 18–45; `SHF_SPOT_SHAPE='gaussian'` 2–4 / 40–86; Gaussian + 1000 m mixed layer at
+RH 0.90 8–9 / 44–89 — reshaping the surface heating doesn't organise the inflow. Remaining candidates: terrain
+(heated hill → upslope convergence, docs/PLAN_terrain.md), 50 m resolution, cold pools.
 
 ### land_cu run
 Reproduction of every past land_cu run (exact overrides): `docs/RUNNING_LAND_CU.md`.
