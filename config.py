@@ -76,6 +76,9 @@ SHF_SPOT_AMP:   float = 0.0         # W/m²
 SHF_SPOT_LHF_AMP: float = 0.0       # W/m²
 SHF_SPOT_DIAM:  float = 3000.0      # m
 SHF_SPOT_TAPER: float = 500.0       # m
+# "disc" (flat top, cos² edge) or "gaussian": exp(−r²/2σ²) peaked at the centre, σ = DIAM/(2√2)
+# so the area integral equals that of an untapered disc of diameter SHF_SPOT_DIAM
+SHF_SPOT_SHAPE: str = "disc"
 SHF_SPOT_X0: float | None = None    # m
 SHF_SPOT_Y0: float | None = None    # m
 

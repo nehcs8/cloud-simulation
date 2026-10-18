@@ -68,7 +68,7 @@ def stripe_profile(g: Grid) -> np.ndarray:
 
 
 def spot_profile(g: Grid) -> np.ndarray:
-    """(nx, ny) weight in [0, 1] of the hot spot (cos² edge, periodic distance; see SHF_SPOT_*)."""
+    """(nx, ny) weight in [0, 1] of the hot spot (disc with cos² edge or Gaussian; periodic distance; see SHF_SPOT_*)."""
     lx, ly = g.nx * g.dx, g.ny * g.dy
     x0 = 0.5 * lx if cfg.SHF_SPOT_X0 is None else cfg.SHF_SPOT_X0
     y0 = 0.5 * ly if cfg.SHF_SPOT_Y0 is None else cfg.SHF_SPOT_Y0
@@ -76,6 +76,9 @@ def spot_profile(g: Grid) -> np.ndarray:
     ddy = (g.y - y0 + 0.5 * ly) % ly - 0.5 * ly
     r = np.hypot(ddx[:, None], ddy[None, :])
     rad = 0.5 * cfg.SHF_SPOT_DIAM
+    if getattr(cfg, 'SHF_SPOT_SHAPE', 'disc') == 'gaussian':
+        sigma = cfg.SHF_SPOT_DIAM / (2.0 * np.sqrt(2.0))       # 2πσ² = π (D/2)²
+        return np.exp(-0.5 * (r / sigma) ** 2)
     tp = max(min(cfg.SHF_SPOT_TAPER, rad), 1e-9)
     return np.sin(0.5 * np.pi * np.clip((rad - r) / tp, 0.0, 1.0)) ** 2
 
