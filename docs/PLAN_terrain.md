@@ -39,7 +39,12 @@ terrain-following coordinates remain an option for that later.
    iterations → 1.5–3× the cost of a projection. Solid faces get zero normal velocity exactly.
    Flat runs keep the direct solver (bitwise identical).
    Test: random field over a hill → ∇·(ρ₀u) ≤ 1e-10 in fluid cells, u_n = 0 on solid faces, iterations count.
-2. **Masked stencils.** Face masks (u-, v-, w-faces touching a solid cell). Advection: zero face velocity
+2. **[done 2026-10-18] Masked stencils.** `dynamics._ground_fill` (solid cells take their column's ground-level
+   value before padding), `dynamics._terrain_masks` + `kernels.kdiff_xy(z)_masked` (no diffusive flux through
+   solid faces, incl. horizontal diffusion of w); advection needs no mask (solid-face velocities are 0).
+   `tests/test_terrain_stencils.py`: numba = numpy, uniform q_t unchanged, scalars conserved to 1e-17 with
+   periodic BCs, values inside the terrain invisible to the fluid. Flat tendencies bitwise identical.
+   Original stage-2 plan: Face masks (u-, v-, w-faces touching a solid cell). Advection: zero face velocity
    already gives zero flux; fill solid cells with neighbouring fluid values before the stencils so WENO
    reconstructions next to walls don't read placeholder values. Diffusion: multiply face fluxes by the
    face mask in `kdiff_*` (numba + numpy). Momentum: no-slip on solid faces. Flat runs bitwise identical.

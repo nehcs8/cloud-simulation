@@ -298,23 +298,28 @@ def _smag_K(s: State, g: Grid):
 
 # ══ Variable-K diffusion (for cell-centered fields) ══════════════════════════
 
-def _kdiff_x(P, KP, dx):
-    """∂/∂x(K ∂φ/∂x) for a cell-centred field; φ and K halo-padded, fluxes on faces 0…nx."""
+def _kdiff_x(P, KP, dx, mask=None):
+    """∂/∂x(K ∂φ/∂x) for a cell-centred field; φ and K halo-padded, fluxes on faces 0…nx.
+    mask (nx+1, ny, nz): optional face mask (terrain; 0 = closed face)."""
     nx, ny = P.shape[0] - 2*H, P.shape[1] - 2*H
     Y = slice(H, H + ny)
     Kf   = 0.5*(KP[H-1:H+nx, Y] + KP[H:H+nx+1, Y])
     flux = Kf * (P[H:H+nx+1, Y] - P[H-1:H+nx, Y]) / dx
+    if mask is not None:
+        flux = mask * flux
     return (flux[1:] - flux[:-1]) / dx
 
-def _kdiff_y(P, KP, dy):
-    """∂/∂y(K ∂φ/∂y); φ and K halo-padded, fluxes on faces 0…ny."""
+def _kdiff_y(P, KP, dy, mask=None):
+    """∂/∂y(K ∂φ/∂y); φ and K halo-padded, fluxes on faces 0…ny; optional face mask (nx, ny+1, nz)."""
     nx, ny = P.shape[0] - 2*H, P.shape[1] - 2*H
     X = slice(H, H + nx)
     Kf   = 0.5*(KP[X, H-1:H+ny] + KP[X, H:H+ny+1])
     flux = Kf * (P[X, H:H+ny+1] - P[X, H-1:H+ny]) / dy
+    if mask is not None:
+        flux = mask * flux
     return (flux[:, 1:] - flux[:, :-1]) / dy
 
-def _kdiff_z(phi, K, dz_face, dz_cen, rho0_c=None, rho0_w=None):
+def _kdiff_z(phi, K, dz_face, dz_cen, rho0_c=None, rho0_w=None, mask=None):
     """
     Anelastic flux-form variable-K diffusion in z: (1/rho0) d/dz(rho0 * K * dphi/dz)
     Neumann BCs (zero flux at boundaries).
@@ -334,6 +339,8 @@ def _kdiff_z(phi, K, dz_face, dz_cen, rho0_c=None, rho0_w=None):
     # rho0 at interior w-faces (1:nz)
     rho0_wf = rho0_w[np.newaxis, np.newaxis, 1:-1]  # (1, 1, nz-1)
     flux_int = rho0_wf * Kf * (phi[:,:,1:] - phi[:,:,:-1]) / dz_c
+    if mask is not None:                       # terrain face mask (nx, ny, nz+1), interior faces
+        flux_int = mask[:, :, 1:-1] * flux_int
 
     zeros    = np.zeros_like(phi[:,:,:1])
     flux     = np.concatenate([zeros, flux_int, zeros], axis=2)   # (nx,ny,nz+1)
@@ -342,6 +349,40 @@ def _kdiff_z(phi, K, dz_face, dz_cen, rho0_c=None, rho0_w=None):
     rho0_c_3d = rho0_c[np.newaxis, np.newaxis, :]
     dz_f = dz_face[np.newaxis, np.newaxis, :]
     return (flux[:,:,1:] - flux[:,:,:-1]) / (rho0_c_3d * dz_f)
+
+
+# ══ Terrain helpers ══════════════════════════════════════════════════════════
+
+def _ground_fill(phi: np.ndarray, ter) -> np.ndarray:
+    """Copy of phi with solid cells set to their column's ground-level (first fluid) value."""
+    sfc = np.take_along_axis(phi, ter.k_sfc[:, :, np.newaxis], axis=2)
+    return np.where(ter.mask, sfc, phi)
+
+
+_tm_cache = {}
+
+
+def _terrain_masks(g: Grid, rho0_c, rho0_w, open_x: bool, open_y: bool) -> dict:
+    """Float face masks for diffusion with terrain (1 = face between two fluid cells), cached:
+    mx, my, mz for cell-centred fields (same faces as pressure._terrain_setup), wmx, wmy for
+    the horizontal diffusion of w on interior levels."""
+    import pressure
+    key = (id(g.terrain), open_x, open_y)
+    if key not in _tm_cache:
+        t = pressure._terrain_setup(g, rho0_c, rho0_w, open_x, open_y)
+        wz = t['wz'][:, :, 1:-1]                       # fluid interior w faces (nx, ny, nz-1)
+        nx, ny = g.nx, g.ny
+        wmx = np.zeros((nx + 1, ny, g.nz - 1))
+        wmx[1:-1] = wz[:-1] & wz[1:]
+        wmx[0] = wz[0] if open_x else (wz[-1] & wz[0])
+        wmx[-1] = wz[-1] if open_x else wmx[0]
+        wmy = np.zeros((nx, ny + 1, g.nz - 1))
+        wmy[:, 1:-1] = wz[:, :-1] & wz[:, 1:]
+        wmy[:, 0] = wz[:, 0] if open_y else (wz[:, -1] & wz[:, 0])
+        wmy[:, -1] = wz[:, -1] if open_y else wmy[:, 0]
+        _tm_cache[key] = dict(mx=t['ux'].astype(float), my=t['vy'].astype(float), mz=t['mz'],
+                              wmx=wmx, wmy=wmy)
+    return _tm_cache[key]
 
 
 # ══ Full tendency computation (C-GRID) ═══════════════════════════════════════
@@ -375,8 +416,15 @@ def compute_tendencies(s: State, g: Grid) -> dict:
         s.v[:, -1, :] = s.v[:, 0, :]
 
     # ── Halo-padded copies (horizontal neighbours for all stencils) ──────────
+    ter = g.terrain
     UP, VP, WP = halo.pad_u(s.u), halo.pad_v(s.v), halo.pad_c(s.w)
-    P_thl, P_qt, P_qr = halo.pad_c(s.theta_l), halo.pad_c(s.qt), halo.pad_c(s.qr)
+    if ter is None:
+        P_thl, P_qt, P_qr = halo.pad_c(s.theta_l), halo.pad_c(s.qt), halo.pad_c(s.qr)
+    else:
+        # terrain: solid cells take their column's ground-level fluid value, so stencils next to
+        # the ground see a zero-gradient continuation (advective fluxes through solid faces are
+        # already zero because the projection zeroes those face velocities)
+        P_thl, P_qt, P_qr = (halo.pad_c(_ground_fill(f, ter)) for f in (s.theta_l, s.qt, s.qr))
     if open_x or open_y:
         # inflow faces see the environment (sounding) in the ghost cells; outflow keeps zero gradient
         masks, ref = open_bc.inflow_masks(s), open_bc.references(s)
@@ -432,7 +480,15 @@ def compute_tendencies(s: State, g: Grid) -> dict:
     # Scalar diffusion (cell-centered fields)
     # Phase 1.4: Diffuse conserved variables θ_l, qt
     # Anelastic: vertical diffusion uses (1/rho0) d/dz(rho0 * K * dphi/dz)
+    tm = None if ter is None else _terrain_masks(g, rho0_c, rho0_w, open_x, open_y)
+
     def diff_s(P):
+        if tm is not None:                       # terrain: no diffusive flux through solid faces
+            if _numba():
+                return kernels.kdiff_xyz_masked(P, P_KH, tm['mx'], tm['my'], tm['mz'], dx, dy,
+                                                dz_f, dz_c, rho0_c, rho0_w)
+            return (_kdiff_x(P, P_KH, dx, tm['mx']) + _kdiff_y(P, P_KH, dy, tm['my'])
+                    + _kdiff_z(P[X, Y], K_H, dz_f, dz_c, rho0_c, rho0_w, tm['mz']))
         if _numba():
             return kernels.kdiff_xyz(P, P_KH, dx, dy, dz_f, dz_c, rho0_c, rho0_w)
         return (_kdiff_x(P, P_KH, dx)
@@ -468,7 +524,12 @@ def compute_tendencies(s: State, g: Grid) -> dict:
     K_M_wface = 0.5*(K_M[:,:,:-1] + K_M[:,:,1:])
     dz_mid = (dz_f[:-1] * dz_f[1:])[np.newaxis, np.newaxis, :]
     P_wi, P_Kw = halo.pad_c(w_int), halo.pad_c(K_M_wface)
-    if _numba():
+    if tm is not None:
+        if _numba():
+            dw_h = kernels.kdiff_xy_masked(P_wi, P_Kw, tm['wmx'], tm['wmy'], dx, dy)
+        else:
+            dw_h = _kdiff_x(P_wi, P_Kw, dx, tm['wmx']) + _kdiff_y(P_wi, P_Kw, dy, tm['wmy'])
+    elif _numba():
         dw_h = kernels.kdiff_xy(P_wi, P_Kw, dx, dy)
     else:
         dw_h = _kdiff_x(P_wi, P_Kw, dx) + _kdiff_y(P_wi, P_Kw, dy)

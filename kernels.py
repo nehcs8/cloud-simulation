@@ -155,6 +155,46 @@ def kdiff_xyz(P, KP, dx, dy, dz_face, dz_cen, rho0_c, rho0_w):
     return out
 
 
+@njit(parallel=True, cache=True)
+def kdiff_xy_masked(P, KP, mx, my, dx, dy):
+    """kdiff_xy with face masks (terrain): mx (nx+1,ny,nz), my (nx,ny+1,nz), 0 = closed face."""
+    nx = P.shape[0] - 4; ny = P.shape[1] - 4; nz = P.shape[2]
+    out = np.empty((nx, ny, nz))
+    for i in prange(nx):
+        I = i + 2
+        for j in range(ny):
+            J = j + 2
+            for k in range(nz):
+                c = P[I, J, k]; Kc = KP[I, J, k]
+                fxp = mx[i + 1, j, k] * 0.5*(Kc + KP[I + 1, J, k]) * (P[I + 1, J, k] - c) / dx
+                fxm = mx[i, j, k] * 0.5*(KP[I - 1, J, k] + Kc) * (c - P[I - 1, J, k]) / dx
+                fyp = my[i, j + 1, k] * 0.5*(Kc + KP[I, J + 1, k]) * (P[I, J + 1, k] - c) / dy
+                fym = my[i, j, k] * 0.5*(KP[I, J - 1, k] + Kc) * (c - P[I, J - 1, k]) / dy
+                out[i, j, k] = (fxp - fxm) / dx + (fyp - fym) / dy
+    return out
+
+
+@njit(parallel=True, cache=True)
+def kdiff_xyz_masked(P, KP, mx, my, mz, dx, dy, dz_face, dz_cen, rho0_c, rho0_w):
+    """kdiff_xyz with face masks (terrain); mz (nx,ny,nz+1)."""
+    nx = P.shape[0] - 4; ny = P.shape[1] - 4; nz = P.shape[2]
+    out = kdiff_xy_masked(P, KP, mx, my, dx, dy)
+    for i in prange(nx):
+        I = i + 2
+        for j in range(ny):
+            J = j + 2
+            f_below = 0.0
+            for k in range(nz):
+                if k < nz - 1:
+                    f_above = (mz[i, j, k + 1] * rho0_w[k + 1] * (0.5*(KP[I, J, k] + KP[I, J, k + 1]))
+                               * (P[I, J, k + 1] - P[I, J, k]) / dz_cen[k])
+                else:
+                    f_above = 0.0
+                out[i, j, k] += (f_above - f_below) / (rho0_c[k] * dz_face[k])
+                f_below = f_above
+    return out
+
+
 # ══ Smagorinsky K_M ══════════════════════════════════════════════════════════
 
 @njit(parallel=True, cache=True)
