@@ -256,7 +256,10 @@ VTK_DEFAULT_OPENGL_WINDOW=vtkEGLRenderWindow ./venv/bin/python3 scripts/visualiz
 # --xrange X0 X1 (km) crops x, e.g. to the test region of a fringe run (hides the twin fetch)
 # --trange T0 T1 (s) only those snapshots, e.g. the 0–45 min life of the single_cu bubble cloud
 # single_cu: use --zexp 1.0 — the camera is framed for shallow Cu, so 7 km tops at 1.5× leave the frame
-# dx/dy come from the run's effective_config.txt. Before 2026-10-14 the renderer assumed 100 m,
+# dx/dy and BC_X/BC_Y come from the run's effective_config.txt; in open directions shadows and smoothing
+# don't wrap around (before 2026-10-18 they did, which drew a ghost sheet of outflowing cloud on the far edge).
+# Clouds cut by the domain edge are closed with a flat face there.
+# Before 2026-10-14 the renderer assumed 100 m,
 # so earlier 50 m GIFs are stretched 2× horizontally (clouds look flatter/wider than they are).
 ```
 Snapshots are written every `SNAPSHOT_EVERY = 60 s` (≈6.5 MB each at 64×64), one GIF frame each.

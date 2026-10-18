@@ -68,8 +68,25 @@ def _cloud_levels(paths) -> tuple[int, int]:
     return max(k_lo - 2, 0), k_hi + 3
 
 
-def _ground_colors(qc, qr, z_face, dx, dy) -> np.ndarray:
-    """(nx, ny, 3) ground RGB: sun-projected cloud shadows + rain tint (periodic domain)."""
+def _shift(a: np.ndarray, sx: int, sy: int, open_x: bool, open_y: bool) -> np.ndarray:
+    """Shift a 2-D field by (sx, sy) cells: wrap-around in periodic directions, zero fill in open ones."""
+    out = np.roll(a, (sx, sy), axis=(0, 1))
+    if open_x and sx:
+        if sx > 0:
+            out[:sx] = 0.0
+        else:
+            out[sx:] = 0.0
+    if open_y and sy:
+        if sy > 0:
+            out[:, :sy] = 0.0
+        else:
+            out[:, sy:] = 0.0
+    return out
+
+
+def _ground_colors(qc, qr, z_face, dx, dy, open_x=False, open_y=False) -> np.ndarray:
+    """(nx, ny, 3) ground RGB: sun-projected cloud shadows + rain tint.
+    Shadows wrap around only in periodic directions (open: they leave the domain)."""
     nx, ny, nz = qc.shape
     dz = np.diff(z_face)
     zc = 0.5 * (z_face[:-1] + z_face[1:])
@@ -81,8 +98,9 @@ def _ground_colors(qc, qr, z_face, dx, dy) -> np.ndarray:
     tau = np.zeros((nx, ny))
     for k in np.nonzero(qc.max(axis=(0, 1)) > 0)[0]:
         lwp_k = RHO_AIR * qc[:, :, k] * dz[k]
-        tau += np.roll(lwp_k, (sx[k], sy[k]), axis=(0, 1))
-    tau = gaussian_filter(tau, sigma=0.7, mode="wrap")          # soften 100 m pixels
+        tau += _shift(lwp_k, sx[k], sy[k], open_x, open_y)
+    tau = gaussian_filter(tau, sigma=0.7, mode=("nearest" if open_x else "wrap",
+                                                "nearest" if open_y else "wrap"))   # soften pixels
     shade = np.exp(-EXTINCTION * tau / np.sin(np.radians(SUN_ELEV)))[..., None]
     rgb = SHADOW_RGB + (GROUND_RGB - SHADOW_RGB) * shade
     rain = np.clip(RHO_AIR * (qr[:, :, 0] * 1e3) / 0.05, 0.0, 1.0)[..., None]   # surface qr
@@ -103,14 +121,17 @@ def _caption(d, z) -> str:
 
 def render_frame(path: str, k_range: tuple[int, int], zexp: float, mode: str,
                  smooth: float = QC_SMOOTH, dx: float = 100.0, dy: float = 100.0,
-                 xrange: tuple[float, float] | None = None) -> np.ndarray:
+                 xrange: tuple[float, float] | None = None,
+                 open_xy: tuple[bool, bool] = (False, False)) -> np.ndarray:
     d = np.load(path)
     qc = d["qc"].astype(np.float32) * 1e3                 # g/kg
     qr = d["qr"].astype(np.float32)
     z_face = d["z_face"]
     z = d["z"]
-    rgb = _ground_colors(qc * 1e-3, qr, z_face, dx, dy)   # shadows on the full (periodic) domain
-    periodic_x = xrange is None
+    open_x, open_y = open_xy
+    rgb = _ground_colors(qc * 1e-3, qr, z_face, dx, dy, open_x, open_y)   # shadows on the full domain
+    periodic_x = xrange is None and not open_x
+    periodic_y = not open_y
     if xrange is not None:
         i0, i1 = int(round(xrange[0] * 1e3 / dx)), int(round(xrange[1] * 1e3 / dx))
         qc, rgb = qc[i0:i1], rgb[i0:i1]
@@ -136,14 +157,15 @@ def render_frame(path: str, k_range: tuple[int, int], zexp: float, mode: str,
     ground.cell_data["rgb"] = (rgb.reshape(-1, 3, order="F") * 255).astype(np.uint8)
     pl.add_mesh(ground, scalars="rgb", rgb=True, ambient=0.45, diffuse=0.6, specular=0.0)
 
-    # Clouds: cropped to the cloud layer, smoothed (periodic in x, y)
+    # Clouds: cropped to the cloud layer, smoothed (wrap-around only in periodic directions)
     k0, k1 = k_range
     k1 = min(k1, qc.shape[2])
     sub = qc[:, :, k0:k1]
     if smooth > 0:
         sub = gaussian_filter(sub, sigma=smooth,
-                              mode=("wrap" if periodic_x else "nearest", "wrap", "nearest"))
-    # Zero-pad the lateral edges so clouds cut by the periodic boundary are closed surfaces
+                              mode=("wrap" if periodic_x else "nearest",
+                                    "wrap" if periodic_y else "nearest", "nearest"))
+    # Zero-pad the lateral edges so clouds cut by the domain boundary are closed surfaces
     sub = np.pad(sub, ((1, 1), (1, 1), (0, 0)))
     zz = z[k0:k1] * zexp
     xs = np.concatenate([[0.0], (np.arange(nx) + 0.5) * dx, [Lx]])
@@ -211,10 +233,15 @@ def main() -> None:
         paths = [p for p in paths if a.trange[0] <= t_of(p) <= a.trange[1]]
     k_range = _cloud_levels(paths)
     dx = dy = 100.0
+    open_xy = [False, False]                       # lateral BCs of the run (periodic unless "open")
     eff = os.path.join(a.run_dir, "effective_config.txt")
     if os.path.exists(eff):
         for line in open(eff):
-            if line.startswith("DX = "):
+            if line.startswith("BC_X = "):
+                open_xy[0] = "open" in line
+            elif line.startswith("BC_Y = "):
+                open_xy[1] = "open" in line
+            elif line.startswith("DX = "):
                 dx = float(line.split("=")[1])
             elif line.startswith("DY = "):
                 dy = float(line.split("=")[1])
@@ -226,15 +253,18 @@ def main() -> None:
         times = np.array([float(np.load(p)["t"]) for p in paths])
         p = paths[int(np.argmin(np.abs(times - a.single)))]
         t0 = time.time()
-        imageio.imwrite(a.out, render_frame(p, k_range, a.zexp, a.mode, a.smooth, dx, dy, xr))
+        imageio.imwrite(a.out, render_frame(p, k_range, a.zexp, a.mode, a.smooth, dx, dy, xr,
+                                              tuple(open_xy)))
         print(f"Saved {a.out} ({time.time() - t0:.1f} s)")
         return
 
     os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
+    if any(open_xy):
+        print(f"Open lateral boundaries (x {open_xy[0]}, y {open_xy[1]}): no wrap-around of shadows/smoothing")
     print(f"Rendering {len(paths)} frames ({a.mode}, smooth={a.smooth}, "
           f"levels {k_range[0]}–{k_range[1]}) → {a.out}", flush=True)
     t0 = time.time()
-    jobs = [(p, k_range, a.zexp, a.mode, a.smooth, dx, dy, xr) for p in paths]
+    jobs = [(p, k_range, a.zexp, a.mode, a.smooth, dx, dy, xr, tuple(open_xy)) for p in paths]
     if a.jobs > 1:
         with ProcessPoolExecutor(a.jobs) as ex:
             imgs = list(ex.map(_render_one, jobs))
