@@ -48,7 +48,17 @@ terrain-following coordinates remain an option for that later.
    already gives zero flux; fill solid cells with neighbouring fluid values before the stencils so WENO
    reconstructions next to walls don't read placeholder values. Diffusion: multiply face fluxes by the
    face mask in `kdiff_*` (numba + numpy). Momentum: no-slip on solid faces. Flat runs bitwise identical.
-3. **Surface physics on the terrain.** Surface layer at `k_sfc` per column (height above ground of the
+3. **[done 2026-10-18] Surface physics on the terrain.** `surface_layer._apply_surface_layer_terrain` (fluxes into
+   each column's `k_sfc` cell, stress at each face's ground level), `kernels.sedimentation_kb` + numpy
+   (sweep ends at `k_sfc`, precipitation measured there), `Grid.z_agl()` (noise layer and bubble relative
+   to the ground), fluid-only total water in `run_case.py`. `tests/test_terrain_physics.py`; flat 20-min
+   congestus run with rain bitwise identical to the stage-2 code. First full run (500 m / σ 1.5 km hill,
+   64², 30 min, background heating only): stable, water-budget residual 0, upslope flow 0.1–0.24 m/s toward
+   the summit and +0.17 m/s at 300 m over it. Not done: wall drag/fluxes on vertical step faces, LCL /
+   qv_bl diagnostics still use the lowest model levels, old terrain masking in
+   `timestepping._apply_boundary_conditions` uses non-periodic boundary-face masks (harmless while the
+   terrain is away from the edges).
+   Original stage-3 plan: Surface layer at `k_sfc` per column (height above ground of the
    first fluid cell = Δz/2), flux maps / hot spot / shading unchanged in x, y; wall drag on vertical step
    faces (optional, small for gentle slopes). Sedimentation ends at `k_sfc` (surface precipitation at
    the ground). Initial noise/bubble relative to the ground. Diagnostics and the water budget exclude

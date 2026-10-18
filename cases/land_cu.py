@@ -160,7 +160,7 @@ def init_perturbations(s, g) -> None:
     """Background qv plus white-noise θ', qv' in the lowest 200 m."""
     rng = np.random.default_rng(cfg.RANDOM_SEED)
     shape = (g.nx, g.ny, g.nz)
-    low = (g.z < Z_NOISE)[np.newaxis, np.newaxis, :]
+    low = g.z_agl() < Z_NOISE                       # height above ground (terrain-aware)
 
     s.qv[:] = s.qv0[np.newaxis, np.newaxis, :]
     s.theta += THETA_NOISE * rng.uniform(-1.0, 1.0, shape) * low

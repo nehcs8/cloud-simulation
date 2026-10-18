@@ -254,10 +254,13 @@ def sedimentation(s: State, g: Grid, dt: float) -> None:
           qr[k] = (qr[k] + dt/dz[k] * F_in[k]/rho0[k]) / (1 + V_t[k]*dt/dz[k])
           F_out[k] = V_t[k] * rho0[k] * qr[k]  (mass flux leaving this cell)
     """
+    kb = None if g.terrain is None else g.terrain.k_sfc    # terrain: rain reaches the ground at k_sfc
     if _numba():
         s.qr = np.array(s.qr, dtype=np.float64)
-        sfc = kernels.sedimentation(s.qr, np.asarray(s.rho0, dtype=np.float64),
-                                    np.asarray(g.dz_face, dtype=np.float64), dt, _A_VT, _B_VT)
+        args = (s.qr, np.asarray(s.rho0, dtype=np.float64), np.asarray(g.dz_face, dtype=np.float64),
+                dt, _A_VT, _B_VT)
+        sfc = (kernels.sedimentation(*args) if kb is None
+               else kernels.sedimentation_kb(*args, np.ascontiguousarray(kb, dtype=np.int64)))
         s.surface_precip_flux = sfc * 3600.0
         return
 
@@ -283,7 +286,12 @@ def sedimentation(s: State, g: Grid, dt: float) -> None:
     # F_out[k] = mass flux leaving cell k (downward, kg/m²/s)
     F_out = np.zeros_like(s.qr)  # (nx, ny, nz)
 
+    active = None
     for k in range(g.nz - 1, -1, -1):  # k = nz-1, nz-2, ..., 1, 0
+        if kb is not None:
+            active = k >= kb                       # (nx, ny): this level is above the ground
+            if not active.any():
+                break
         # Flux entering from above
         if k == g.nz - 1:
             F_in_k = 0.0  # Top boundary: no flux from above
@@ -298,17 +306,23 @@ def sedimentation(s: State, g: Grid, dt: float) -> None:
 
         # Update qr (implicit)
         denominator = 1.0 + V_t_k * dt / dz_k
-        s.qr[:, :, k] = (s.qr[:, :, k] + (dt / dz_k) * (F_in_k / rho0_k)) / denominator
-
-        # Ensure non-negative
-        s.qr[:, :, k] = np.maximum(s.qr[:, :, k], 0.0)
+        q_new = np.maximum((s.qr[:, :, k] + (dt / dz_k) * (F_in_k / rho0_k)) / denominator, 0.0)
+        if active is None:
+            s.qr[:, :, k] = q_new
+        else:
+            s.qr[:, :, k] = np.where(active, q_new, s.qr[:, :, k])
 
         # Compute outgoing flux (mass flux, kg/m²/s)
         F_out[:, :, k] = V_t_k * rho0_k * s.qr[:, :, k]
+        if active is not None:
+            F_out[:, :, k] = np.where(active, F_out[:, :, k], 0.0)
 
     # Surface precipitation flux: F_out[k=0] is rain leaving the domain
     # Convert from kg/m²/s to mm/hr: 1 kg/m²/s = 3600 mm/hr (since 1 kg/m² water = 1 mm depth)
-    s.surface_precip_flux = F_out[:, :, 0] * 3600.0  # (nx, ny) in mm/hr
+    if kb is None:
+        s.surface_precip_flux = F_out[:, :, 0] * 3600.0  # (nx, ny) in mm/hr
+    else:                                                  # flux out of each column's ground cell
+        s.surface_precip_flux = np.take_along_axis(F_out, kb[:, :, None], axis=2)[:, :, 0] * 3600.0
 
     # Final safety check
     s.qr = np.maximum(s.qr, 0.0)

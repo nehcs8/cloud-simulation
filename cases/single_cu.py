@@ -216,7 +216,7 @@ def add_warm_bubble(s, g) -> None:
     y0 = 0.5 * ly if cfg.BUBBLE_Y0 is None else cfg.BUBBLE_Y0
     ddx = ((g.x - x0 + 0.5 * lx) % lx - 0.5 * lx)[:, None, None]
     ddy = ((g.y - y0 + 0.5 * ly) % ly - 0.5 * ly)[None, :, None]
-    ddz = (g.z - cfg.BUBBLE_Z0)[None, None, :]
+    ddz = g.z_agl() - cfg.BUBBLE_Z0                 # bubble height above ground
     r = np.sqrt((ddx**2 + ddy**2) / cfg.BUBBLE_RX**2 + ddz**2 / cfg.BUBBLE_RZ**2)
     w = np.where(r < 1.0, np.cos(0.5 * np.pi * np.minimum(r, 1.0)) ** 2, 0.0)
 
@@ -231,7 +231,7 @@ def init_perturbations(s, g) -> None:
     """Background qv, white-noise θ', qv' in the lowest 200 m, optional warm bubble."""
     rng = np.random.default_rng(cfg.RANDOM_SEED)
     shape = (g.nx, g.ny, g.nz)
-    low = (g.z < Z_NOISE)[np.newaxis, np.newaxis, :]
+    low = g.z_agl() < Z_NOISE                       # height above ground (terrain-aware)
 
     s.qv[:] = s.qv0[np.newaxis, np.newaxis, :]
     s.theta += THETA_NOISE * rng.uniform(-1.0, 1.0, shape) * low

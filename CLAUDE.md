@@ -74,7 +74,9 @@ Rules:
 - Terrain in `pressure.py` (`_project_terrain`, stage 1 of `docs/PLAN_terrain.md`): when `g.terrain` is set,
   preconditioned CG on the fluid cells (`TERRAIN_PCG_TOL` 1e-8), zero flow through solid faces; ~2.2× the
   step cost on 160². Stencils are terrain-aware (stage 2: ground fill + masked diffusion in `dynamics.py` /
-  `kernels.py`); surface layer and rain are not yet (stage 3)
+  `kernels.py`); surface layer, sedimentation, initial noise/bubble (`Grid.z_agl()`) and the water budget
+  follow the terrain surface (stage 3). Run with `"TERRAIN_TYPE='gaussian_hill'" TERRAIN_H_MAX=500.0
+  TERRAIN_SIGMA=1500.0` (hill at the domain centre)
 - `halo.py` — halo (ghost-cell, H = 2) padding for all horizontal stencils: `pad_c`, `pad_u`, `pad_v`
   gather with one index map per direction (periodic: wrap; open: zero-gradient placeholder until stage 3
   of `docs/PLAN_open_boundaries.md`). `dynamics.py` / `kernels.py` read neighbours only from padded
@@ -127,6 +129,7 @@ Run as scripts: `./venv/bin/python3 tests/test_projection.py`.
 `tests/test_halo.py` checks the halo stencils with open BCs (numba = numpy, uniform scalar unchanged,
 flux-form conservation = boundary flux, interior identical to periodic away from the edges).
 `tests/test_open_bc.py` checks inflow/outflow ghosts, radiation, relaxation and the boundary water flux.
+`tests/test_terrain_physics.py` checks surface fluxes, stress and sedimentation on the terrain.
 `tests/test_terrain_stencils.py` checks the terrain-aware stencils (conservation, walls, numba = numpy).
 `tests/test_pressure_terrain.py` checks the terrain projection (divergence, no flow through solids, CG count).
 `tests/test_pressure_open.py` checks the open-boundary projection (residual, flux balance, boundary

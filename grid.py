@@ -48,6 +48,14 @@ class Grid:
         # ── Terrain (optional) ────────────────────────────────────────────────
         self.terrain = terrain  # None for flat domain, or Terrain instance
 
+    def z_agl(self) -> np.ndarray:
+        """Height of the cell centres above the ground: (1, 1, nz) without terrain,
+        (nx, ny, nz) with terrain (ground = bottom face of each column's first fluid cell)."""
+        if self.terrain is None:
+            return self.Z3
+        ground = self.z_face[self.terrain.k_sfc]
+        return self.z[np.newaxis, np.newaxis, :] - ground[:, :, np.newaxis]
+
     # ── Convenience ───────────────────────────────────────────────────────────
     def __repr__(self) -> str:
         return (

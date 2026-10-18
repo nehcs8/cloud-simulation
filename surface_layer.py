@@ -176,6 +176,10 @@ def apply_surface_layer(s, g, dt: float, shf_map: np.ndarray, lhf_map: np.ndarra
         shf_map = shf_map * transmittance
         lhf_map = lhf_map * transmittance
 
+    if g.terrain is not None:
+        _apply_surface_layer_terrain(s, g, dt, shf_map, lhf_map)
+        return
+
     # Lowest model level (k=0 for flat terrain)
     k = 0
     z_lowest = g.z[k]  # Height above surface
@@ -256,3 +260,58 @@ def apply_surface_layer(s, g, dt: float, shf_map: np.ndarray, lhf_map: np.ndarra
     # w'q' = -u* * q*
     dqv = u_star * q_star * dt / dz
     s.qv[:, :, k] += dqv
+
+
+def _apply_surface_layer_terrain(s, g, dt: float, shf_map: np.ndarray, lhf_map: np.ndarray) -> None:
+    """
+    apply_surface_layer on the terrain surface: each column uses its first fluid level
+    k_sfc (height above ground Δz/2 of that level); the stress on a u- (v-) face acts at the
+    face's lowest fluid level, the higher k_sfc of its two neighbour cells.
+    """
+    ter = g.terrain
+    kk = ter.k_sfc                                         # (nx, ny)
+    nx, ny = g.nx, g.ny
+    I, J = np.meshgrid(np.arange(nx), np.arange(ny), indexing='ij')
+    z_lowest = g.z[kk] - g.z_face[kk]                      # height above ground (nx, ny)
+    dz = g.dz_face[kk]
+    rho_sfc = s.rho0[kk]
+
+    u_lowest = 0.5 * (s.u[:-1][I, J, kk] + s.u[1:][I, J, kk])
+    v_lowest = 0.5 * (s.v[:, :-1][I, J, kk] + s.v[:, 1:][I, J, kk])
+    theta_abs_lowest = s.theta[I, J, kk] + s.theta0[kk]
+
+    u_star_guess = 0.3
+    theta_star_guess = shf_map / (rho_sfc * cfg.CP * u_star_guess)
+    theta_surface = theta_abs_lowest + theta_star_guess * np.log(z_lowest / Z0_H) / KAPPA
+    u_star, L, theta_star = compute_friction_velocity(
+        u_lowest, v_lowest, z_lowest, theta_abs_lowest, theta_surface)
+    theta_star = shf_map / (rho_sfc * cfg.CP * u_star + 1e-6)
+    q_star = lhf_map / (rho_sfc * cfg.LV * u_star + 1e-6)
+
+    u_mag = np.sqrt(u_lowest**2 + v_lowest**2) + 1e-6
+    tau_x = rho_sfc * u_star**2 * (u_lowest / u_mag)
+    tau_y = rho_sfc * u_star**2 * (v_lowest / u_mag)
+
+    open_x = getattr(cfg, 'BC_X', 'periodic') == 'open'
+    open_y = getattr(cfg, 'BC_Y', 'periodic') == 'open'
+    # u-faces: stress averaged from the two neighbour cells, applied at the face's ground level
+    tx = np.zeros((nx + 1, ny)); kx = np.zeros((nx + 1, ny), dtype=int)
+    tx[1:-1] = 0.5 * (tau_x[:-1] + tau_x[1:]); kx[1:-1] = np.maximum(kk[:-1], kk[1:])
+    if open_x:
+        tx[0], tx[-1], kx[0], kx[-1] = tau_x[0], tau_x[-1], kk[0], kk[-1]
+    else:
+        tx[0] = tx[-1] = 0.5 * (tau_x[-1] + tau_x[0]); kx[0] = kx[-1] = np.maximum(kk[-1], kk[0])
+    ty = np.zeros((nx, ny + 1)); ky = np.zeros((nx, ny + 1), dtype=int)
+    ty[:, 1:-1] = 0.5 * (tau_y[:, :-1] + tau_y[:, 1:]); ky[:, 1:-1] = np.maximum(kk[:, :-1], kk[:, 1:])
+    if open_y:
+        ty[:, 0], ty[:, -1], ky[:, 0], ky[:, -1] = tau_y[:, 0], tau_y[:, -1], kk[:, 0], kk[:, -1]
+    else:
+        ty[:, 0] = ty[:, -1] = 0.5 * (tau_y[:, -1] + tau_y[:, 0]); ky[:, 0] = ky[:, -1] = np.maximum(kk[:, -1], kk[:, 0])
+    Iu, Ju = np.meshgrid(np.arange(nx + 1), np.arange(ny), indexing='ij')
+    Iv, Jv = np.meshgrid(np.arange(nx), np.arange(ny + 1), indexing='ij')
+    s.u[Iu, Ju, kx] -= dt * tx / (s.rho0[kx] * g.dz_face[kx])
+    s.v[Iv, Jv, ky] -= dt * ty / (s.rho0[ky] * g.dz_face[ky])
+
+    pi0 = s._pi0()[0, 0]
+    s.theta[I, J, kk] += u_star * theta_star * dt / (dz * pi0[kk])
+    s.qv[I, J, kk] += u_star * q_star * dt / dz
