@@ -33,11 +33,13 @@ except ImportError:
     _kernels = None
 
 
-def theta_l_from_state(theta: np.ndarray, qc: np.ndarray, pi0: np.ndarray) -> np.ndarray:
+def theta_l_from_state(theta: np.ndarray, qc: np.ndarray, pi0: np.ndarray,
+                       theta0: np.ndarray = None) -> np.ndarray:
     """
     Compute liquid water potential temperature perturbation from θ' and qc.
 
     θ_l' = θ' - (Lv/cp) * qc / π₀
+    ICE_SCHEME "mixed": θ_l' = θ' - (Lv + (1 - α(T)) Lf)/cp * qc / π₀ (needs theta0 for T)
 
     Args:
         theta: Potential temperature perturbation θ' [K]
@@ -47,6 +49,8 @@ def theta_l_from_state(theta: np.ndarray, qc: np.ndarray, pi0: np.ndarray) -> np
     Returns:
         θ_l: Liquid water potential temperature PERTURBATION θ_l' [K]
     """
+    if _mixed():
+        return _theta_l_mixed(theta, qc, theta0, pi0)
     L_cp = cfg.LV / cfg.CP
     return theta - L_cp * qc / pi0
 
@@ -102,6 +106,105 @@ def saturation_mixing_ratio(T: np.ndarray, pi0: np.ndarray) -> np.ndarray:
     e_s = 611.2 * np.exp(17.67 * T_C / (T_C + 243.5))   # Pa
     p   = cfg.P00 * pi0 ** (cfg.CP / cfg.RD)
     return cfg.EPS * e_s / np.maximum(p - e_s, 1.0)
+
+
+# ── Mixed phase (ICE_SCHEME = "mixed") ─────────────────────────────────────────
+# Cloud condensate qc is liquid with fraction α(T) = (T − T_ICE_00)/(T_ICE_0 − T_ICE_00), clipped to
+# [0, 1], and ice otherwise. Saturation is over that mix, q_s = α q_sw + (1 − α) q_si (Buck 1981), and
+# the latent heat is L_v + (1 − α) L_f, so θ_l is the ice-liquid water potential temperature. The numba
+# kernels (kernels.diagnose_cloud_water_mixed / theta_l_mixed) mirror these functions cell by cell.
+
+def _mixed() -> bool:
+    return getattr(cfg, 'ICE_SCHEME', 'none') == 'mixed'
+
+
+def _use_kernels(a: np.ndarray, pi0) -> bool:
+    return (_kernels is not None and getattr(cfg, 'USE_NUMBA', True) and a.ndim == 3
+            and np.size(pi0) == a.shape[2])
+
+
+def liquid_fraction(T: np.ndarray):
+    """α(T) and dα/dT: liquid fraction of the cloud condensate."""
+    t0, t00 = cfg.T_ICE_0, cfg.T_ICE_00
+    a = np.clip((T - t00) / (t0 - t00), 0.0, 1.0)
+    da = np.where((T > t00) & (T < t0), 1.0 / (t0 - t00), 0.0)
+    return a, da
+
+
+def qsat_mixed(T: np.ndarray, p: np.ndarray):
+    """Saturation mixing ratio over the liquid/ice mix and dq_s/dT (Buck 1981 e_w, e_i)."""
+    T_C = T - 273.15
+    e_w = 611.2 * np.exp(17.67 * T_C / (T_C + 243.5))
+    e_i = 611.15 * np.exp(22.452 * T_C / (T_C + 272.55))
+    dw = np.maximum(p - e_w, 1.0); di = np.maximum(p - e_i, 1.0)
+    q_w = cfg.EPS * e_w / dw; q_i = cfg.EPS * e_i / di
+    dq_w = q_w * p / dw * 17.67 * 243.5 / (T_C + 243.5) ** 2
+    dq_i = q_i * p / di * 22.452 * 272.55 / (T_C + 272.55) ** 2
+    a, da = liquid_fraction(T)
+    return a * q_w + (1 - a) * q_i, a * dq_w + (1 - a) * dq_i + da * (q_w - q_i)
+
+
+def _theta_l_mixed(theta, qc, theta0, pi0):
+    lv_cp, lf_cp = cfg.LV / cfg.CP, cfg.LF / cfg.CP
+    if _use_kernels(theta, pi0):
+        return _kernels.theta_l_mixed(
+            np.ascontiguousarray(theta, dtype=np.float64), np.ascontiguousarray(qc, dtype=np.float64),
+            np.asarray(theta0, dtype=np.float64), np.asarray(pi0, dtype=np.float64).reshape(-1),
+            lv_cp, lf_cp, cfg.T_ICE_0, cfg.T_ICE_00)
+    th0 = np.asarray(theta0).reshape(1, 1, -1)
+    a, _ = liquid_fraction((theta + th0) * pi0)
+    return theta - (lv_cp + (1 - a) * lf_cp) * qc / pi0
+
+
+def diagnose_cloud_water_mixed(theta_l: np.ndarray, qt: np.ndarray,
+                               theta0: np.ndarray, pi0: np.ndarray) -> tuple:
+    """
+    Mixed-phase saturation adjustment: (θ_l', qt) → (qv, qc, θ').
+
+    Solves T = T_l + (L_v + (1 − α(T)) L_f)/c_p · max(qt − q_s(T), 0) for T with a safeguarded
+    Newton iteration on the bracket [T_l, T_l + (L_v + L_f) qt / c_p] (the residual is monotone in T).
+    """
+    lv_cp, lf_cp = cfg.LV / cfg.CP, cfg.LF / cfg.CP
+    pi0 = np.asarray(pi0, dtype=np.float64)
+    if _use_kernels(theta_l, pi0):
+        pi0_1d = np.ascontiguousarray(pi0.reshape(-1))
+        p = cfg.P00 * pi0_1d ** (cfg.CP / cfg.RD)
+        qv, qc, theta, _ = _kernels.diagnose_cloud_water_mixed(
+            np.ascontiguousarray(theta_l, dtype=np.float64), np.ascontiguousarray(qt, dtype=np.float64),
+            np.asarray(theta0, dtype=np.float64), pi0_1d, p, lv_cp, lf_cp, cfg.EPS,
+            cfg.T_ICE_0, cfg.T_ICE_00)
+        return qv, qc, theta
+
+    th0 = np.asarray(theta0).reshape(1, 1, -1)
+    p = cfg.P00 * pi0 ** (cfg.CP / cfg.RD) * np.ones_like(theta_l)
+    Tl = (theta_l + th0) * pi0
+    qs, _ = qsat_mixed(Tl, p)
+    sat = qt > qs
+    T = Tl.copy()
+    if sat.any():
+        Ts, Tls, q, ps = Tl[sat], Tl[sat], qt[sat], p[sat]
+        lo, hi = Tls.copy(), Tls + (lv_cp + lf_cp) * q
+        done = np.zeros(Ts.shape, dtype=bool)
+        for _ in range(30):
+            qs, dqs = qsat_mixed(Ts, ps)
+            a, da = liquid_fraction(Ts)
+            c = np.maximum(q - qs, 0.0)
+            L = lv_cp + (1 - a) * lf_cp
+            R = Ts - Tls - L * c
+            done |= np.abs(R) < 1e-9          # converged cells stay put (as the per-cell kernel's break)
+            if done.all():
+                break
+            hi = np.where(R > 0, Ts, hi)
+            lo = np.where(R > 0, lo, Ts)
+            dR = 1.0 + lf_cp * da * c + np.where(c > 0, L * dqs, 0.0)
+            Tn = Ts - R / dR
+            Ts = np.where(done, Ts, np.where((Tn > lo) & (Tn < hi), Tn, 0.5 * (lo + hi)))
+        T[sat] = Ts
+    qs, _ = qsat_mixed(T, p)
+    qc = np.where(sat, np.maximum(qt - qs, 0.0), 0.0)
+    a, _ = liquid_fraction(T)
+    theta = theta_l + (lv_cp + (1 - a) * lf_cp) * qc / pi0
+    return np.maximum(qt - qc, 0.0), qc, theta
 
 
 def diagnose_cloud_water(theta_l: np.ndarray, qt: np.ndarray,
@@ -206,7 +309,7 @@ def diagnose_cloud_water(theta_l: np.ndarray, qt: np.ndarray,
 
 
 def convert_to_theta_l_qt(theta: np.ndarray, qv: np.ndarray, qc: np.ndarray, qr: np.ndarray,
-                          pi0: np.ndarray) -> tuple:
+                          pi0: np.ndarray, theta0: np.ndarray = None) -> tuple:
     """
     Convert from (θ', qv, qc, qr) to (θ_l', qt, qr).
 
@@ -224,7 +327,7 @@ def convert_to_theta_l_qt(theta: np.ndarray, qv: np.ndarray, qc: np.ndarray, qr:
         qt: Total water [kg/kg]
         qr: Rain water [kg/kg] (unchanged)
     """
-    theta_l = theta_l_from_state(theta, qc, pi0)
+    theta_l = theta_l_from_state(theta, qc, pi0, theta0)
     qt = qt_from_state(qv, qc, qr)
     return theta_l, qt, qr
 
@@ -252,6 +355,10 @@ def convert_from_theta_l_qt(theta_l: np.ndarray, qt: np.ndarray, qr: np.ndarray,
     # Remove rain from total water (rain doesn't contribute to saturation calculation)
     qt_norain = qt - qr
     qt_norain = np.maximum(qt_norain, 0.0)
+
+    if _mixed():
+        qv, qc, theta = diagnose_cloud_water_mixed(theta_l, qt_norain, theta0, pi0)
+        return theta, qv, qc, qr
 
     # Diagnose vapor/cloud partition
     qv, qc = diagnose_cloud_water(theta_l, qt_norain, theta0, pi0)

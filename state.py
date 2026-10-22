@@ -384,7 +384,7 @@ class State:
         from thermodynamics import convert_to_theta_l_qt
         pi0 = self._pi0()
         self.theta_l, self.qt, self.qr = convert_to_theta_l_qt(
-            self.theta, self.qv, self.qc, self.qr, pi0
+            self.theta, self.qv, self.qc, self.qr, pi0, self.theta0
         )
 
     def _update_diagnostic_variables(self) -> None:

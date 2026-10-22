@@ -429,6 +429,106 @@ def diagnose_cloud_water(theta_l, qt, theta0, pi0, p, L_cp, lv, rv, eps_rd, max_
     return qv, qc, flags.any()
 
 
+# ══ Mixed-phase saturation (ICE_SCHEME = "mixed", thermodynamics.py) ══════════
+
+@njit(inline='always')
+def _qsat_mixed(T, p_k, eps_rd, t0, t00):
+    """Saturation over the liquid/ice mix of a cell at T: returns (q_s, dq_s/dT, α, dα/dT),
+    α = liquid fraction (1 at ≥ t0, 0 at ≤ t00, linear between); Buck (1981) e_w and e_i."""
+    T_C = T - 273.15
+    e_w = 611.2 * np.exp(17.67 * T_C / (T_C + 243.5))
+    e_i = 611.15 * np.exp(22.452 * T_C / (T_C + 272.55))
+    dw = max(p_k - e_w, 1.0); di = max(p_k - e_i, 1.0)
+    q_w = eps_rd * e_w / dw; q_i = eps_rd * e_i / di
+    dq_w = q_w * p_k / dw * 17.67 * 243.5 / (T_C + 243.5) ** 2
+    dq_i = q_i * p_k / di * 22.452 * 272.55 / (T_C + 272.55) ** 2
+    if T >= t0:
+        a = 1.0; da = 0.0
+    elif T <= t00:
+        a = 0.0; da = 0.0
+    else:
+        a = (T - t00) / (t0 - t00); da = 1.0 / (t0 - t00)
+    return a * q_w + (1.0 - a) * q_i, a * dq_w + (1.0 - a) * dq_i + da * (q_w - q_i), a, da
+
+
+@njit(inline='always')
+def _liquid_fraction(T, t0, t00):
+    if T >= t0:
+        return 1.0
+    if T <= t00:
+        return 0.0
+    return (T - t00) / (t0 - t00)
+
+
+@njit(inline='always')
+def _adjust_mixed(Tl, q, p_k, eps_rd, lv_cp, lf_cp, t0, t00):
+    """Solve T = Tl + (L_v + (1 − α(T)) L_f)/c_p · max(q − q_s(T), 0) for T (safeguarded Newton,
+    bracket [Tl, Tl + (L_v + L_f) q / c_p]). Returns (q_c, T)."""
+    qs, dqs, a, da = _qsat_mixed(Tl, p_k, eps_rd, t0, t00)
+    if q <= qs:
+        return 0.0, Tl
+    lo = Tl; hi = Tl + (lv_cp + lf_cp) * q
+    T = Tl
+    for it in range(30):
+        qs, dqs, a, da = _qsat_mixed(T, p_k, eps_rd, t0, t00)
+        c = max(q - qs, 0.0)
+        L = lv_cp + (1.0 - a) * lf_cp
+        R = T - Tl - L * c
+        if abs(R) < 1e-9:
+            break
+        if R > 0.0:
+            hi = T
+        else:
+            lo = T
+        dR = 1.0 + lf_cp * da * c + (L * dqs if c > 0.0 else 0.0)
+        Tn = T - R / dR
+        T = Tn if lo < Tn < hi else 0.5 * (lo + hi)
+    qs, dqs, a, da = _qsat_mixed(T, p_k, eps_rd, t0, t00)
+    return max(q - qs, 0.0), T
+
+
+@njit(parallel=True, cache=True)
+def diagnose_cloud_water_mixed(theta_l, qt, theta0, pi0, p, lv_cp, lf_cp, eps_rd, t0, t00):
+    """Mixed-phase thermodynamics.diagnose_cloud_water_mixed: (θ_l′, q_t) → (q_v, q_c, θ′, any_sat)."""
+    nx, ny, nz = theta_l.shape
+    qv = np.empty_like(qt)
+    qc = np.zeros_like(qt)
+    th = np.empty_like(qt)
+    flags = np.zeros(nx, dtype=np.bool_)
+    for i in prange(nx):
+        for j in range(ny):
+            for k in range(nz):
+                q = qt[i, j, k]
+                Tl = (theta_l[i, j, k] + theta0[k]) * pi0[k]
+                c, T = _adjust_mixed(Tl, q, p[k], eps_rd, lv_cp, lf_cp, t0, t00)
+                if c > 0.0:
+                    flags[i] = True
+                    a = _liquid_fraction(T, t0, t00)
+                    th[i, j, k] = theta_l[i, j, k] + (lv_cp + (1.0 - a) * lf_cp) * c / pi0[k]
+                else:
+                    th[i, j, k] = theta_l[i, j, k]
+                qc[i, j, k] = c
+                qv[i, j, k] = max(q - c, 0.0)
+    return qv, qc, th, flags.any()
+
+
+@njit(parallel=True, cache=True)
+def theta_l_mixed(theta, qc, theta0, pi0, lv_cp, lf_cp, t0, t00):
+    """θ_l′ = θ′ − (L_v + (1 − α(T)) L_f) q_c / (c_p π₀), T = (θ′ + θ₀) π₀."""
+    nx, ny, nz = theta.shape
+    out = np.empty_like(theta)
+    for i in prange(nx):
+        for j in range(ny):
+            for k in range(nz):
+                c = qc[i, j, k]
+                if c > 0.0:
+                    a = _liquid_fraction((theta[i, j, k] + theta0[k]) * pi0[k], t0, t00)
+                    out[i, j, k] = theta[i, j, k] - (lv_cp + (1.0 - a) * lf_cp) * c / pi0[k]
+                else:
+                    out[i, j, k] = theta[i, j, k]
+    return out
+
+
 # ══ Kessler microphysics (microphysics.py) ═══════════════════════════════════
 
 @njit(inline='always')
@@ -462,9 +562,10 @@ def saturation_adjustment(theta, qv, qc, theta0, pi0, p, L_cp, lv, rv, eps_rd):
 
 @njit(parallel=True, cache=True)
 def warm_rain(theta, qv, qc, qr, theta0, pi0, p, rho0, eps_rd, dt, scheme, evap_kw,
-              auto_rate, auto_thresh, k2, k_evp, nc, sb_au, sb_kr, sb_xstar, L_cp):
+              auto_rate, auto_thresh, k2, k_evp, nc, sb_au, sb_kr, sb_xstar, L_cp, lf_cp, t0, t00):
     """In-place autoconversion, accretion and rain evaporation, as microphysics.warm_rain.
-    scheme 1 = Seifert–Beheng 2001, 0 = Kessler; evap_kw 1 = Klemp–Wilhelmson 1978, 0 = legacy."""
+    scheme 1 = Seifert–Beheng 2001, 0 = Kessler; evap_kw 1 = Klemp–Wilhelmson 1978, 0 = legacy.
+    lf_cp > 0 (ICE_SCHEME "mixed"): the ice part (1 − α(T)) of the converted cloud melts into rain."""
     nx, ny, nz = theta.shape
     for i in prange(nx):
         for j in range(ny):
@@ -486,6 +587,8 @@ def warm_rain(theta, qv, qc, qr, theta0, pi0, p, rho0, eps_rd, dt, scheme, evap_
                 conv = min(rate * dt, c)
                 c -= conv
                 r += conv
+                if lf_cp > 0.0 and conv > 0.0:
+                    theta[i, j, k] -= lf_cp * (1.0 - _liquid_fraction(T, t0, t00)) * conv / pi0[k]
                 deficit = max(0.0, q_s - qv[i, j, k])
                 if evap_kw == 1:
                     rq = rho * 1e-3 * r

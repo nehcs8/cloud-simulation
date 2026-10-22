@@ -210,6 +210,14 @@ AUTOCONV_THRESHOLD: float = 0.5e-3  # kg/kg, cloud water threshold for autoconve
 # Rain evaporation: "kw78" = Klemp & Wilhelmson (1978) as in CM1/WRF Kessler; "legacy" = the
 # K_EVP·deficit·qr^0.525 form used before 2026-10-19 (70–100× weaker: almost no cold pools)
 RAIN_EVAP: str = "kw78"
+# Ice (2026-10-22, step 1): "none" = warm only; "mixed" = cloud condensate qc split into liquid/ice by
+# temperature (liquid fraction 1 at ≥ T_ICE_0, 0 at ≤ T_ICE_00, linear between), saturation over that mix
+# (Buck water/ice), latent heat L_v + (1 − α)·L_f, so θ_l is the ice-liquid potential temperature. Rain stays
+# liquid: the ice part of cloud → rain conversion takes L_f back (no precipitating ice yet).
+ICE_SCHEME: str = "none"
+LF: float = 3.34e5               # J/kg, latent heat of fusion
+T_ICE_0: float = 273.15          # K, all condensate liquid at and above
+T_ICE_00: float = 253.15         # K, all condensate ice at and below
 
 # ── Terrain (Phase 2) ──────────────────────────────────────────────────────────
 TERRAIN_TYPE: str = "flat"       # "flat", "gaussian_hill", "sine_ridge", "agnesi_ridge", "random", "dem"

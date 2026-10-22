@@ -11,6 +11,7 @@ Processes (applied in order each timestep):
 
 import numpy as np
 import config as cfg
+import thermodynamics
 from grid import Grid
 from state import State
 
@@ -52,7 +53,13 @@ def saturation_adjustment(s: State, dt: float) -> None:
     Adjust θ′, qv, qc so the parcel is exactly at saturation when
     qv > q_sat.  Uses an iterative Newton step (2 iterations sufficient).
     Modifies s.theta, s.qv, s.qc in-place.
+    ICE_SCHEME "mixed": exact mixed-phase adjustment via θ_l (thermodynamics.diagnose_cloud_water_mixed).
     """
+    if thermodynamics._mixed():
+        pi0 = s._pi0()
+        theta_l = thermodynamics.theta_l_from_state(s.theta, s.qc, pi0, s.theta0)
+        s.qv, s.qc, s.theta = thermodynamics.diagnose_cloud_water_mixed(theta_l, s.qv + s.qc, s.theta0, pi0)
+        return
     if _numba():
         theta0, pi0_1d, p = _profiles(s)
         s.theta, s.qv, s.qc = (np.array(a, dtype=np.float64) for a in (s.theta, s.qv, s.qc))
@@ -231,6 +238,11 @@ def _evap_rate(qr, qv, q_s, rho, p):
     return (deficit / q_s) * C * rq ** 0.525 / ((5.4e5 + 2.55e6 / (p * 1e-2 * q_s)) * rho * 1e-3)
 
 
+def _lf_cp() -> float:
+    """L_f/c_p when cloud ice exists (ICE_SCHEME "mixed"), else 0."""
+    return cfg.LF / cfg.CP if thermodynamics._mixed() else 0.0
+
+
 def warm_rain(s: State, g: Grid, dt: float) -> None:
     """
     Autoconversion, accretion, rain evaporation.  Updates qc, qr, theta in-place.
@@ -243,7 +255,8 @@ def warm_rain(s: State, g: Grid, dt: float) -> None:
         kernels.warm_rain(s.theta, s.qv, s.qc, s.qr, theta0, pi0_1d, p,
                           np.asarray(s.rho0, dtype=np.float64), cfg.EPS, dt,
                           scheme, evap, cfg.AUTOCONV_RATE, cfg.AUTOCONV_THRESHOLD, _K2, _K_EVP,
-                          cfg.CLOUD_NC, _SB_AU, _SB_KR, _SB_XSTAR, cfg.LV / cfg.CP)
+                          cfg.CLOUD_NC, _SB_AU, _SB_KR, _SB_XSTAR, cfg.LV / cfg.CP,
+                          _lf_cp(), cfg.T_ICE_0, cfg.T_ICE_00)
         return
     pi0 = s._pi0()
     theta_abs = s.theta + s.theta0[np.newaxis, np.newaxis, :]
@@ -257,6 +270,8 @@ def warm_rain(s: State, g: Grid, dt: float) -> None:
     conv = np.minimum(_rain_rates(s.qc, s.qr, rho) * dt, s.qc)
     s.qc -= conv
     s.qr += conv
+    if _lf_cp() > 0.0:                                       # rain is liquid: the ice part melts
+        s.theta -= _lf_cp() * (1.0 - thermodynamics.liquid_fraction(T)[0]) * conv / pi0
 
     # Rain evaporation (only where sub-saturated; never beyond saturation)
     evap = _evap_rate(s.qr, s.qv, q_s, rho, p) * dt

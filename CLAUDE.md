@@ -98,7 +98,15 @@ Rules:
   `dynamics.py` / `thermodynamics.py` / `microphysics.py` / `pressure.py` as the reference
   (`USE_NUMBA = False`); keep both paths in sync and rerun `tests/test_kernels.py` after changes
 - `timestepping.py` — RK3 + physics chain
-- `thermodynamics.py` — θ_l/q_t conversions, q_sat (Buck)
+- `thermodynamics.py` — θ_l/q_t conversions, q_sat (Buck). `ICE_SCHEME="mixed"` (2026-10-22, off by default):
+  cloud condensate q_c is liquid with fraction α(T) = (T − `T_ICE_00`)/(`T_ICE_0` − `T_ICE_00`) clipped to [0, 1]
+  (0 °C / −20 °C) and ice otherwise; saturation over the mix (Buck e_w, e_i), latent heat L_v + (1 − α)L_f, so
+  θ_l is the ice-liquid potential temperature (`diagnose_cloud_water_mixed`: safeguarded Newton on T; numba twins
+  `kernels.diagnose_cloud_water_mixed` / `theta_l_mixed`). q_c stays one field (ice = (1 − α(T))·q_c, recover it
+  from θ′ in the snapshots). Rain stays liquid: cloud → rain conversion of the ice part takes L_f back
+  (`warm_rain`), so there is no precipitating ice yet (step 2: graupel/snow + melting). Rain also evaporates
+  inside icy cloud (q_v = q_s,mix < q_sw), the vapour is redeposited as cloud ice — a crude Bergeron path.
+  Reversible parcel (`tests/test_ice.py`): +0.6 K at −7 °C, +1.4 K at −12 °C, +2.5 K at −17 °C vs warm
 - `microphysics.py` — warm rain: `RAIN_SCHEME` "sb2001" (Seifert–Beheng 2001 autoconversion/accretion,
   droplet number `CLOUD_NC`, default 300 cm⁻³) or "kessler" (before 2026-10-19); rain evaporation `RAIN_EVAP`
   "kw78" (Klemp–Wilhelmson 1978) or "legacy"; implicit Kessler-fall-speed sedimentation
@@ -142,6 +150,8 @@ flux-form conservation = boundary flux, interior identical to periodic away from
 velocities kept, idempotence, uniform through-flow) on numba and numpy paths.
 `tests/test_single_cu.py` checks the single_cu state and prints parcel LCL/LFC/EL/CAPE (target
 500–1500 J/kg); run it after any sounding change.
+`tests/test_ice.py` checks the mixed-phase thermodynamics (warm limit, numba = numpy, round trip, q_v = q_s over the
+mix, L_f of the ice → rain conversion, parcel warming vs warm).
 `tests/test_kernels.py [snap.npz]` checks numba vs numpy (agreement to round-off) and times both.
 `test_advection.py` and `test_cgrid_end_to_end.py` are stale (they expect a `theta` tendency key
 from before the θ_l/qt switch).
@@ -185,8 +195,8 @@ MPLBACKEND=Agg ./venv/bin/python3 run_case.py single_cu:bubble 14400 TAG=main   
 Folders: `runs/<ts>_single_cu_<variant>_<min>min[_<tag>]/`. Always name the variant (the bare case
 is the hot spot, but its folder name then lacks `_hotspot`). Tuning knobs: `SHF_SPOT_AMP/_DIAM`,
 `BUBBLE_DTHETA/_RH/_Z0/_RX/_RZ`, `SHF`, `LHF`, `U_GEO`; sounding constants at the top of
-`cases/single_cu.py` (`SCU_LAPSE`, `SCU_RH_CL`). Warm rain only, so no ice and no anvil above the
-~3.55 km freezing level. Measured cost at 128² (160 levels): 4 threads alone 2.2 s/step, 43 wall-min
+`cases/single_cu.py` (`SCU_LAPSE`, `SCU_RH_CL`). Warm rain only unless `"ICE_SCHEME='mixed'"` (cloud ice, no
+precipitating ice yet; all runs before 2026-10-22 are warm). Measured cost at 128² (160 levels): 4 threads alone 2.2 s/step, 43 wall-min
 per simulated hour; two runs side by side on 2 threads each 3.1–3.2 s/step, 66–69 wall-min/h. Mean dt
 2.7–2.9 s. Snapshots ~45 MB each (60 s) → ~11 GB per 4 h run.
 64² tuning 2026-10-15 (2 threads each, ~18 wall-min per simulated hour, mean dt 2.7–3 s):
@@ -275,6 +285,12 @@ the downstream half (x > 6.4 km). The hill doesn't trigger cloud over its summit
 frequency in the y-band through the hill at the last 1.6 km: 20 % vs 8 % flat, off-band ~10 % in both). Domain-mean θ_bl
 stalls at +0.22 K after 75 min because the BL air is replaced every ~70 min. Real days need an inflow BL that is heated too
 (time-varying boundary state, or a recycled/precursor inflow).
+**Ice step 1 (2026-10-22, `runs/*_styria_c14_ice`, = `styria_c14` + `"ICE_SCHEME='mixed'"`, 72², 2 h, 44 wall-min on 4
+threads; log `outputs/logs/styria_c14_ice.runner.log`):** small effect, as expected for a congestus whose coldest cloud is
+−17 °C (ice ≤ 34 % of the condensate). Tops +100–400 m (max 7.33 vs 7.03 km), mean θ_v′ of w > 5 m/s cores at 4.5–6 km
++0.3–0.4 K at 90–120 min vs −0.9…+0.5 warm, cloud cover above 5 km lasts longer (16.6 vs 7.1 % at 120 min), w_max unchanged
+(25.8 vs 24.5 m/s), surface rain 12 min later (101 vs 89 min), same total (0.126 vs 0.133 mm domain mean), local peak 31 vs
+37 mm/h. Cloud ice cannot fall yet, so it piles up aloft → step 2 (precipitating ice + melting).
 
 ### land_cu run
 Reproduction of every past land_cu run (exact overrides): `docs/RUNNING_LAND_CU.md`.
