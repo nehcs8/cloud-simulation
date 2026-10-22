@@ -172,6 +172,9 @@ from before the θ_l/qt switch).
 - `analyze_fringe_paired.py RUN_DIR [t0 t1]` — fringe runs with patches: patch effect = test region minus
   its upstream twin (x − RECYCLE_X), along x and as lagged correlation with the SHF map (+ null from
   unrelated maps). Caches 2-D fields in `RUN_DIR/reduced_2d.npz` (survives snapshot thinning)
+- `compare_microphysics.py RUN_DIR [RUN_DIR …] [--t0 60] [--every 15]` — warm/ice runs side by side: rain timing, peaks,
+  surface total; per snapshot cloud liquid/ice (α(T) split), rain, graupel masses [kt], graupel height, export of rain + graupel
+  through the edges (estimate), cover above 5 km, cold pool, local surface rain
 - `visualize/render_clouds.py` — fast lit iso-surface renderer → GIF (see Visualize)
 - `visualize/visualize3d.py` — older volume renderer (slow without a GPU)
 - `find_cloud.py`, `track_cloud.py`, `setup_nested.py`, `archive_current_nested.py`,
@@ -307,6 +310,15 @@ log `outputs/logs/styria_c14_graupel.runner.log`):** graupel from 60 min, up to 
 **most graupel leaves through the open lateral boundaries** with the 5 km outflow (estimated from the snapshots: ~6 kt per 5 min
 at 105–110 min, i.e. the whole drop 10.9 → 4.8 kt; mean graupel height stays at 4.9 km while it vanishes). The 7.2 km domain is
 too small for a 5 km plume plus its anvil: judge precipitation of ice runs on ≥ 128² (12.8 km).
+**128² warm vs graupel (2026-10-22, `runs/*_styria128_{warm,graupel}`, same Styria setup on 12.8 km, 2 threads each side by side,
+109/116 wall-min per simulated hour, 1.1 GB each; `scripts/compare_microphysics.py`, output `outputs/logs/compare_styria128.txt`):**
+graupel 3.2 g/kg max, 26 kt at 110 min (> rain 20 kt), centred at 4.3–4.9 km; ground rain from 93 min (warm 99), tops 7.8 vs
+7.5 km, w_max 28 vs 27 m/s; local rain 23 vs 38 mm/h, cold pool −3.0 vs −3.8 K; surface total at 2 h 0.078 vs 0.108 mm, but
+**both cells are still raining at 2 h** (warm peaks at 119 min), so totals are truncated. Graupel again leaves the domain — all
+through the downwind (east) edge, carried by the 4 m/s wind at 4–5 km (export 4 → 17 t/s from 100 to 120 min; 39 % of the
+graupel within 1 km of the edges at 120 min): slow (1.7–2.4 m/s) graupel/snow drifts downstream in the anvil for > 25 min
+before melting. With the spot at the centre there are only 6.4 km of fetch downwind: put the spot upwind (`SHF_SPOT_X0`) and run
+≥ 3 h to close the precipitation budget.
 
 ### land_cu run
 Reproduction of every past land_cu run (exact overrides): `docs/RUNNING_LAND_CU.md`.
