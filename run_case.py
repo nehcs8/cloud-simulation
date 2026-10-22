@@ -7,7 +7,7 @@ VARIANTS dict (e.g. single_cu:bubble), applied after case.configure(). KEY=VALUE
 a config value after that (value parsed as a Python literal, e.g. SHF=110 TAU_NUDGE_Q=5400).
 The run folder is runs/<ts>_<case>[_<variant>]_<min>min[_<tag>]/.
 
-Total water W = Σ ρ₀ (qv + qc + qr) dV [kg]. Each physics call in rk3_step is
+Total water W = Σ ρ₀ (qv + qc + qr + qg) dV [kg]. Each physics call in rk3_step is
 wrapped to record its ΔW; the residual (ΔW minus all physics terms) is what
 the dynamics (advection + projection) and clipping did; water crossing open lateral
 boundaries (open_bc.py) is its own column, boundary_outflow_pct. Written every
@@ -62,9 +62,9 @@ budget = {p: 0.0 for p in PROCESSES}
 def total_water(s, g):
     dV = g.dx * g.dy * g.dz_face
     if g.terrain is not None:                       # fluid volume only (solid cells are reset)
-        q = np.where(g.terrain.mask, 0.0, (s.qv + s.qc + s.qr) * g.terrain.hc)
+        q = np.where(g.terrain.mask, 0.0, (s.qv + s.qc + s.qr + s.qg) * g.terrain.hc)
         return float((q.sum(axis=(0, 1)) * s.rho0 * dV).sum())
-    return float(((s.qv + s.qc + s.qr).sum(axis=(0, 1)) * s.rho0 * dV).sum())
+    return float(((s.qv + s.qc + s.qr + s.qg).sum(axis=(0, 1)) * s.rho0 * dV).sum())
 
 
 def _wrap(name):

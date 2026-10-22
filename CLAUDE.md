@@ -109,7 +109,16 @@ Rules:
   Reversible parcel (`tests/test_ice.py`): +0.6 K at −7 °C, +1.4 K at −12 °C, +2.5 K at −17 °C vs warm
 - `microphysics.py` — warm rain: `RAIN_SCHEME` "sb2001" (Seifert–Beheng 2001 autoconversion/accretion,
   droplet number `CLOUD_NC`, default 300 cm⁻³) or "kessler" (before 2026-10-19); rain evaporation `RAIN_EVAP`
-  "kw78" (Klemp–Wilhelmson 1978) or "legacy"; implicit Kessler-fall-speed sedimentation
+  "kw78" (Klemp–Wilhelmson 1978) or "legacy"; implicit Kessler-fall-speed sedimentation.
+  `ICE_SCHEME="graupel"` (2026-10-22, step 2): the "mixed" thermodynamics + prognostic graupel/snow `s.qg` (advected,
+  diffused, in q_t, buoyancy loading, open-BC ghosts = 0, sponge, fringe, water budget, snapshots `qg`, diag `qg_max`;
+  only transported when on, so warm runs are bitwise unchanged — checked on a 25-min bubble run). `ice_graupel`
+  (numba twin `kernels.ice_graupel`): cloud-ice autoconversion (Lin 1983, `ICE_AUTO_QI0`), collection of cloud ice
+  (`GR_E_ICE`), cloud liquid (riming; shed as rain above 0 °C) and rain by graupel, Bigg rain freezing, melting (never
+  below 0 °C in a step), sublimation. Marshall–Palmer graupel `GR_N0` 4e6 m⁻⁴, `GR_RHO` 400 kg/m³, V = 19.3 D^0.37 →
+  1.7–2.4 m/s mass-weighted; it sediments with the rain scheme's implicit sweep (`_sediment`), and surface precip =
+  rain + graupel. Heating Δθ = [L_v(−Δq_v) + L_f Δ(ice)]/(c_p π), ice = (1 − α)q_c + q_g, so the T-diagnosed
+  liquid/ice split stays energy-consistent (the step-1 "melt" term is the same relabelling). Warm rain uses α q_c only
 - `surface_layer.py` — M-O surface layer, optional cloud shading
 - `lateral_bc.py` — `LATERAL_BC = "fringe"`: inflow/outflow in x on the periodic grid. The last
   FRINGE_WIDTH is relaxed toward a copy of the strip upstream of RECYCLE_X ([0, RECYCLE_X) = homogeneous
@@ -291,6 +300,13 @@ threads; log `outputs/logs/styria_c14_ice.runner.log`):** small effect, as expec
 +0.3–0.4 K at 90–120 min vs −0.9…+0.5 warm, cloud cover above 5 km lasts longer (16.6 vs 7.1 % at 120 min), w_max unchanged
 (25.8 vs 24.5 m/s), surface rain 12 min later (101 vs 89 min), same total (0.126 vs 0.133 mm domain mean), local peak 31 vs
 37 mm/h. Cloud ice cannot fall yet, so it piles up aloft → step 2 (precipitating ice + melting).
+**Ice step 2 (2026-10-22, `runs/*_styria_c14_graupel`, same setup + `"ICE_SCHEME='graupel'"`, 46 wall-min, budget residual 0;
+log `outputs/logs/styria_c14_graupel.runner.log`):** graupel from 60 min, up to 3.6 g/kg and 10.9 kt at 100–105 min (vs rain
+9.8 kt), centred at ~4.9 km; rain aloft 65 min, at the ground 93 min (warm 89, step 1 101); peak local rain 29 mm/h, cold pool
+−2.6 K (warm −2.4); tops 7.24 km, w_max 26 m/s (forcing, not microphysics). Total surface precip 0.089 mm vs 0.133 warm, because
+**most graupel leaves through the open lateral boundaries** with the 5 km outflow (estimated from the snapshots: ~6 kt per 5 min
+at 105–110 min, i.e. the whole drop 10.9 → 4.8 kt; mean graupel height stays at 4.9 km while it vanishes). The 7.2 km domain is
+too small for a 5 km plume plus its anvil: judge precipitation of ice runs on ≥ 128² (12.8 km).
 
 ### land_cu run
 Reproduction of every past land_cu run (exact overrides): `docs/RUNNING_LAND_CU.md`.

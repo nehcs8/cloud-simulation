@@ -7,6 +7,11 @@ Checks:
   3. Round trip (θ_l, q_t) → (θ, q_v, q_c) → θ_l is exact; saturated cells sit at q_s over the mix.
   4. Energy: converting cloud ice to (liquid) rain cools by L_f (1 − α) Δq / (c_p π) (+ L_v for rain evaporation).
   5. Reversible parcel ascent with and without ice: extra warming above the freezing level.
+  Graupel (ICE_SCHEME = "graupel", step 2):
+  6. ice_graupel: numba = numpy; total water per cell unchanged; ice-liquid energy invariant
+     θ − [L_v (q_c + q_r + q_g) + L_f ((1 − α) q_c + q_g)] / (c_p π) unchanged (α at the start state);
+     melting never cools a cell below 0 °C; graupel forms in cold cloud, melts in warm air.
+  7. Graupel fall speed and sedimentation (column loss = surface flux × dt, numba = numpy).
 
 Run: ./venv/bin/python3 tests/test_ice.py
 """
@@ -139,8 +144,92 @@ def main():
     k3 = np.searchsorted(z, 3000.0)
     ok &= abs(res["mixed"][0][k3] - res["none"][0][k3]) < 1e-6
 
+    ok &= graupel_checks()
+
     cfg.ICE_SCHEME = "none"; cfg.USE_NUMBA = True
     print("PASS" if ok else "FAIL")
+    return ok
+
+
+class _S:
+    pass
+
+
+def graupel_state(seed=2):
+    """Saturated mixed state + rain and graupel everywhere (cold and warm cells)."""
+    cfg.ICE_SCHEME = "graupel"; cfg.USE_NUMBA = False
+    z, theta0, pi0, theta_l, qt = random_state(seed=seed)
+    pi3 = pi0.reshape(1, 1, -1)
+    rng = np.random.default_rng(seed)
+    s = _S()
+    s.theta, s.qv, s.qc, _ = th.convert_from_theta_l_qt(theta_l, qt, np.zeros_like(qt), theta0, pi3)
+    s.qr = rng.uniform(0, 2e-3, qt.shape) * (rng.random(qt.shape) < 0.6)
+    s.qg = rng.uniform(0, 3e-3, qt.shape) * (rng.random(qt.shape) < 0.6)
+    s.qv = s.qv * rng.uniform(0.85, 1.0, qt.shape)          # some sub-saturated cells (sublimation)
+    s.theta0 = theta0
+    s.rho0 = cfg.P00 * pi0 ** (cfg.CP / cfg.RD - 1) / (cfg.RD * theta0)
+    s._pi0 = lambda: pi3
+    return s, z, pi3
+
+
+def graupel_checks():
+    ok = True
+    lv_cp, lf_cp = cfg.LV / cfg.CP, cfg.LF / cfg.CP
+    out = {}
+    for numba in (False, True):
+        s, z, pi3 = graupel_state()
+        cfg.USE_NUMBA = numba
+        T0 = (s.theta + s.theta0) * pi3
+        a, _ = th.liquid_fraction(T0)
+        inv = lambda s: s.theta - (lv_cp * (s.qc + s.qr + s.qg) + lf_cp * ((1 - a) * s.qc + s.qg)) / pi3
+        W0, E0 = s.qv + s.qc + s.qr + s.qg, inv(s)
+        start = {k: getattr(s, k).copy() for k in ('qc', 'qr', 'qg')}
+        mp.ice_graupel(s, None, 5.0)
+        out[numba] = s
+        dW = np.abs(s.qv + s.qc + s.qr + s.qg - W0).max()
+        dE = np.abs(inv(s) - E0).max()
+        neg = min(s.qc.min(), s.qr.min(), s.qg.min(), s.qv.min())
+        T1 = (s.theta + s.theta0) * pi3
+        melted = (start['qg'] - s.qg > 0) & (T0 > 273.15)
+        under = (T1[melted] - 273.15).min() if melted.any() else 0.0
+        print(f"6. ice_graupel ({'numba' if numba else 'numpy'}): |Δ total water| {dW:.1e}, |Δ energy invariant| {dE:.1e} K, "
+              f"min field {neg:.1e}, warm cells melting {melted.sum()} (coldest after {under:+.3f} °C)")
+        ok &= dW < 1e-15 and dE < 1e-10 and neg >= 0 and under >= -1e-9
+    d = max(np.abs(getattr(out[True], k) - getattr(out[False], k)).max() for k in ('theta', 'qv', 'qc', 'qr', 'qg'))
+    print(f"   numba vs numpy max diff {d:.1e}")
+    ok &= d < 1e-12
+
+    # process signs in two single cells: cold ice cloud without graupel → graupel; warm graupel → melts
+    s, z, pi3 = graupel_state()
+    cfg.USE_NUMBA = False
+    T = (s.theta + s.theta0) * pi3
+    s.qr[:] = 0.0; s.qg[:] = 0.0
+    cold = (T < 258.0) & (s.qc > 5e-4)
+    mp.ice_graupel(s, None, 60.0)
+    print(f"   cold cloud ({cold.sum()} cells, no graupel at start): graupel after 60 s {s.qg[cold].max()*1e3:.3f} g/kg max")
+    ok &= cold.any() and s.qg[cold].min() > 0
+
+    # 7. fall speed and sedimentation
+    a_vt, b_vt = mp._graupel_vt()
+    for m in (1e-4, 1e-3, 5e-3):
+        print(f"7. graupel V_t(ρq = {m*1e3:.1f} g/m³) at the surface = {a_vt * (m / 1000) ** b_vt:.2f} m/s "
+              f"(rain {mp._A_VT * (m / 1000) ** mp._B_VT:.2f})")
+    res = {}
+    for numba in (False, True):
+        cfg.USE_NUMBA = numba
+        s, z, pi3 = graupel_state()
+        g = _S(); g.terrain = None; g.nz = z.size
+        g.dz_face = np.full(z.size, z[1] - z[0])
+        col0 = (s.qg * s.rho0 * g.dz_face).sum(axis=2)
+        q, sfc = mp._sediment(s.qg, s, g, 10.0, a_vt, b_vt)
+        col1 = (q * s.rho0 * g.dz_face).sum(axis=2)
+        err = np.abs(col0 - col1 - sfc / 3600.0 * 10.0).max()
+        res[numba] = q
+        print(f"   sedimentation ({'numba' if numba else 'numpy'}): column loss − flux·dt max {err:.1e} kg/m² "
+              f"(flux max {sfc.max():.1f} mm/h)")
+        ok &= err < 1e-12
+    ok &= np.abs(res[True] - res[False]).max() < 1e-14
+    cfg.ICE_SCHEME = "none"; cfg.USE_NUMBA = True
     return ok
 
 

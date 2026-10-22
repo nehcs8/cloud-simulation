@@ -562,10 +562,13 @@ def saturation_adjustment(theta, qv, qc, theta0, pi0, p, L_cp, lv, rv, eps_rd):
 
 @njit(parallel=True, cache=True)
 def warm_rain(theta, qv, qc, qr, theta0, pi0, p, rho0, eps_rd, dt, scheme, evap_kw,
-              auto_rate, auto_thresh, k2, k_evp, nc, sb_au, sb_kr, sb_xstar, L_cp, lf_cp, t0, t00):
+              auto_rate, auto_thresh, k2, k_evp, nc, sb_au, sb_kr, sb_xstar, L_cp, lf_cp, t0, t00,
+              liq_only):
     """In-place autoconversion, accretion and rain evaporation, as microphysics.warm_rain.
     scheme 1 = Seifert–Beheng 2001, 0 = Kessler; evap_kw 1 = Klemp–Wilhelmson 1978, 0 = legacy.
-    lf_cp > 0 (ICE_SCHEME "mixed"): the ice part (1 − α(T)) of the converted cloud melts into rain."""
+    lf_cp > 0 (mixed phase): q_c keeps its liquid fraction α(T), so removing Δ as rain relabels (1 − α)Δ
+    of the remaining condensate from liquid to ice … i.e. takes L_f (1 − α) Δ back. liq_only = 1
+    ("graupel"): the rates see only the liquid part α q_c."""
     nx, ny, nz = theta.shape
     for i in prange(nx):
         for j in range(ny):
@@ -573,22 +576,24 @@ def warm_rain(theta, qv, qc, qr, theta0, pi0, p, rho0, eps_rd, dt, scheme, evap_
                 T = (theta[i, j, k] + theta0[k]) * pi0[k]
                 q_s = _qsat_buck(T, p[k], eps_rd)
                 c = qc[i, j, k]; r = qr[i, j, k]; rho = rho0[k]
+                a = _liquid_fraction(T, t0, t00) if lf_cp > 0.0 else 1.0
+                cl = a * c if liq_only == 1 else c          # condensate the rain processes act on
                 if scheme == 1:
-                    qt = c + r
+                    qt = cl + r
                     tau = min(max(r / qt if qt > 0.0 else 0.0, 0.0), 0.9999)
-                    Lc = rho * c; Lr = rho * r
+                    Lc = rho * cl; Lr = rho * r
                     xc = min(Lc / nc, sb_xstar)
                     t68 = tau ** 0.68
                     au = sb_au * Lc * Lc * xc * xc * (1.0 + 600.0 * t68 * (1.0 - t68) ** 3 / (1.0 - tau) ** 2)
                     ac = sb_kr * Lc * Lr * (tau / (tau + 5e-4)) ** 4
                     rate = (au + ac) / rho
                 else:
-                    rate = max(0.0, auto_rate * (c - auto_thresh)) + k2 * c * r ** 0.875
-                conv = min(rate * dt, c)
+                    rate = max(0.0, auto_rate * (cl - auto_thresh)) + k2 * cl * r ** 0.875
+                conv = min(rate * dt, cl)
                 c -= conv
                 r += conv
                 if lf_cp > 0.0 and conv > 0.0:
-                    theta[i, j, k] -= lf_cp * (1.0 - _liquid_fraction(T, t0, t00)) * conv / pi0[k]
+                    theta[i, j, k] -= lf_cp * (1.0 - a) * conv / pi0[k]
                 deficit = max(0.0, q_s - qv[i, j, k])
                 if evap_kw == 1:
                     rq = rho * 1e-3 * r
@@ -601,6 +606,65 @@ def warm_rain(theta, qv, qc, qr, theta0, pi0, p, rho0, eps_rd, dt, scheme, evap_
                 qr[i, j, k] = r - evap
                 qv[i, j, k] += evap
                 theta[i, j, k] -= L_cp * evap / pi0[k]
+
+
+@njit(parallel=True, cache=True)
+def ice_graupel(theta, qv, qc, qr, qg, theta0, pi0, p, rho0, eps_rd, dt, lv_cp, lf_cp, t0, t00,
+                n0, rho_g, a_g, b_g, e_ice, qi0, c_coll, c_vent, ka, nu, sc, psi, rv, cp):
+    """In-place graupel processes, as microphysics.ice_graupel (one category of precipitating ice q_g).
+    c_coll = π/4 n0 a Γ(3+b), c_vent = 0.31 Sc^(1/3) Γ((b+5)/2) √(a/ν) (constants of the rates)."""
+    nx, ny, nz = theta.shape
+    ls = (lv_cp + lf_cp) * cp
+    for i in prange(nx):
+        for j in range(ny):
+            for k in range(nz):
+                T = (theta[i, j, k] + theta0[k]) * pi0[k]
+                Tc = T - 273.15
+                rho = rho0[k]
+                rfac = np.sqrt(rho0[0] / rho)
+                a = _liquid_fraction(T, t0, t00)
+                c = qc[i, j, k]; ql = a * c; qi = c - ql
+                g = qg[i, j, k]; r = qr[i, j, k]
+                aut = 0.0; gaci = 0.0; gacw = 0.0; gacr = 0.0; gfr = 0.0; melt = 0.0; sub = 0.0
+                if Tc < 0.0 and qi > qi0:
+                    aut = 1e-3 * np.exp(0.025 * Tc) * (qi - qi0)
+                if Tc < 0.0 and r > 1e-12:                                  # Bigg (1953) freezing
+                    lam_r = (np.pi * 1000.0 * 8.0e6 / (rho * r)) ** 0.25
+                    gfr = (20.0 * np.pi**2 * 100.0 * 8.0e6 * (1000.0 / rho)
+                           * (np.exp(-0.66 * Tc) - 1.0) / lam_r**7)
+                if g > 1e-12:
+                    lam = (np.pi * rho_g * n0 / (rho * g)) ** 0.25
+                    coll = c_coll * lam ** (-(3.0 + b_g)) * rfac
+                    gacw = coll * ql
+                    if Tc < 0.0:
+                        gaci = e_ice * coll * qi
+                        gacr = coll * r
+                    vent = 0.78 / lam**2 + c_vent * np.sqrt(rfac) * lam ** (-0.5 * (b_g + 5.0))
+                    if Tc > 0.0:
+                        melt = 2.0 * np.pi * n0 * ka * Tc * vent / (rho * lf_cp * cp)
+                    e_i = 611.15 * np.exp(22.452 * Tc / (Tc + 272.55))
+                    qsi = eps_rd * e_i / max(p[k] - e_i, 1.0)
+                    if qv[i, j, k] < qsi:
+                        abi = ls * ls / (ka * rv * T * T) + 1.0 / (rho * qsi * psi)
+                        sub = 2.0 * np.pi * n0 * (1.0 - qv[i, j, k] / qsi) * vent / (rho * abi)
+                        sub = min(sub * dt, (qsi - qv[i, j, k]) / (1.0 + ls / cp * qsi * ls / (rv * T * T))) / dt
+                d_i = min((aut + gaci) * dt, qi)
+                d_l = min(gacw * dt, ql)
+                d_r = min((gacr + gfr) * dt, r)
+                d_m = min(melt * dt, g, max(Tc, 0.0) / lf_cp)
+                d_s = min(sub * dt, g - d_m)
+                to_g = d_i + d_r - d_m - d_s
+                to_r = d_m - d_r
+                if Tc < 0.0:
+                    to_g += d_l                     # riming
+                else:
+                    to_r += d_l                     # wet graupel sheds the collected water as rain
+                qc[i, j, k] = c - d_i - d_l
+                qg[i, j, k] = g + to_g
+                qr[i, j, k] = r + to_r
+                qv[i, j, k] += d_s
+                d_ice = (1.0 - a) * (-d_i - d_l) + to_g      # ice = (1 − α) q_c + q_g, α fixed
+                theta[i, j, k] += (-lv_cp * d_s + lf_cp * d_ice) / pi0[k]
 
 
 @njit(parallel=True, cache=True)

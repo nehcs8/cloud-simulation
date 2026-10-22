@@ -60,6 +60,7 @@ _DIAG_FIELDS = [
     "vort_max", "vort_cloud_mean",     # vorticity (max and in-cloud mean)
     "centroid_x", "centroid_y",        # cloud mass centroid (km)
     "centroid_speed",                  # speed of centroid movement (m/s)
+    "qg_max",                          # graupel/snow (ICE_SCHEME "graupel"; 0 otherwise), g/kg
 ]
 
 
@@ -286,6 +287,7 @@ class Simulation:
             ('theta_l', s.theta_l),
             ('qt', s.qt),
             ('qr', s.qr),
+            ('qg', s.qg),
         ]
 
         for name, field in fields_to_check:
@@ -328,6 +330,7 @@ class Simulation:
             theta_l=s.theta_l,
             qt=s.qt,
             qr=s.qr,
+            qg=s.qg,
             # Diagnostic fields
             theta=s.theta,
             qv=s.qv,
@@ -557,6 +560,7 @@ class Simulation:
             vort_max=vort_max, vort_cloud_mean=vort_cloud_mean,
             centroid_x=centroid_x, centroid_y=centroid_y,
             centroid_speed=centroid_speed,
+            qg_max=s.qg.max() * 1e3,
         )
 
     def _report(self, d: dict) -> None:
@@ -591,6 +595,7 @@ class Simulation:
             v       = v_cc.astype(np.float32),
             qc      = s.qc.astype(np.float32),
             qr      = s.qr.astype(np.float32),
+            qg      = s.qg.astype(np.float32),
             qv      = s.qv.astype(np.float32),
             w       = (0.5 * (s.w[:,:,:-1] + s.w[:,:,1:])).astype(np.float32),
             theta   = s.theta.astype(np.float32),
@@ -604,6 +609,7 @@ class Simulation:
             prof_v     = v_cc.mean(axis=(0, 1)).astype(np.float32),
             prof_qc    = s.qc.mean(axis=(0, 1)).astype(np.float32),
             prof_qr    = s.qr.mean(axis=(0, 1)).astype(np.float32),
+            prof_qg    = s.qg.mean(axis=(0, 1)).astype(np.float32),
             prof_qv    = s.qv.mean(axis=(0, 1)).astype(np.float32),
             prof_theta = s.theta.mean(axis=(0, 1)).astype(np.float32),
             prof_w     = (0.5 * (s.w[:,:,:-1] + s.w[:,:,1:])).mean(axis=(0, 1)).astype(np.float32),

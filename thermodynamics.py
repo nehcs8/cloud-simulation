@@ -73,7 +73,7 @@ def theta_from_theta_l(theta_l: np.ndarray, qc: np.ndarray, pi0: np.ndarray) -> 
     return theta_l + L_cp * qc / pi0
 
 
-def qt_from_state(qv: np.ndarray, qc: np.ndarray, qr: np.ndarray) -> np.ndarray:
+def qt_from_state(qv: np.ndarray, qc: np.ndarray, qr: np.ndarray, qg=0.0) -> np.ndarray:
     """
     Compute total water mixing ratio.
 
@@ -87,7 +87,7 @@ def qt_from_state(qv: np.ndarray, qc: np.ndarray, qr: np.ndarray) -> np.ndarray:
     Returns:
         qt: Total water mixing ratio [kg/kg]
     """
-    return qv + qc + qr
+    return qv + qc + qr + qg
 
 
 def saturation_mixing_ratio(T: np.ndarray, pi0: np.ndarray) -> np.ndarray:
@@ -115,7 +115,13 @@ def saturation_mixing_ratio(T: np.ndarray, pi0: np.ndarray) -> np.ndarray:
 # kernels (kernels.diagnose_cloud_water_mixed / theta_l_mixed) mirror these functions cell by cell.
 
 def _mixed() -> bool:
-    return getattr(cfg, 'ICE_SCHEME', 'none') == 'mixed'
+    """Mixed-phase cloud condensate: ICE_SCHEME "mixed" (step 1) or "graupel" (step 2)."""
+    return getattr(cfg, 'ICE_SCHEME', 'none') in ('mixed', 'graupel')
+
+
+def _graupel() -> bool:
+    """Prognostic precipitating ice q_g (ICE_SCHEME "graupel")."""
+    return getattr(cfg, 'ICE_SCHEME', 'none') == 'graupel'
 
 
 def _use_kernels(a: np.ndarray, pi0) -> bool:
@@ -309,7 +315,7 @@ def diagnose_cloud_water(theta_l: np.ndarray, qt: np.ndarray,
 
 
 def convert_to_theta_l_qt(theta: np.ndarray, qv: np.ndarray, qc: np.ndarray, qr: np.ndarray,
-                          pi0: np.ndarray, theta0: np.ndarray = None) -> tuple:
+                          pi0: np.ndarray, theta0: np.ndarray = None, qg=0.0) -> tuple:
     """
     Convert from (θ', qv, qc, qr) to (θ_l', qt, qr).
 
@@ -328,12 +334,12 @@ def convert_to_theta_l_qt(theta: np.ndarray, qv: np.ndarray, qc: np.ndarray, qr:
         qr: Rain water [kg/kg] (unchanged)
     """
     theta_l = theta_l_from_state(theta, qc, pi0, theta0)
-    qt = qt_from_state(qv, qc, qr)
+    qt = qt_from_state(qv, qc, qr, qg)
     return theta_l, qt, qr
 
 
 def convert_from_theta_l_qt(theta_l: np.ndarray, qt: np.ndarray, qr: np.ndarray,
-                            theta0: np.ndarray, pi0: np.ndarray) -> tuple:
+                            theta0: np.ndarray, pi0: np.ndarray, qg=0.0) -> tuple:
     """
     Convert from (θ_l', qt, qr) to (θ', qv, qc, qr).
 
@@ -353,7 +359,7 @@ def convert_from_theta_l_qt(theta_l: np.ndarray, qt: np.ndarray, qr: np.ndarray,
         qr: Rain water [kg/kg] (unchanged)
     """
     # Remove rain from total water (rain doesn't contribute to saturation calculation)
-    qt_norain = qt - qr
+    qt_norain = qt - qr - qg            # precipitation (rain, graupel) is not in the saturation balance
     qt_norain = np.maximum(qt_norain, 0.0)
 
     if _mixed():

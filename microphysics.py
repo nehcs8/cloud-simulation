@@ -7,8 +7,11 @@ Processes (applied in order each timestep):
   3. Accretion              – rain collecting cloud droplets
   4. Rain evaporation       – sub-saturated air evaporates rain
   5. Sedimentation          – rain falls at terminal velocity
+ICE_SCHEME "mixed"/"graupel": cloud condensate is split into liquid/ice by temperature
+(thermodynamics.py); "graupel" adds precipitating ice q_g (ice_graupel) between 4 and 5.
 """
 
+import math
 import numpy as np
 import config as cfg
 import thermodynamics
@@ -256,7 +259,7 @@ def warm_rain(s: State, g: Grid, dt: float) -> None:
                           np.asarray(s.rho0, dtype=np.float64), cfg.EPS, dt,
                           scheme, evap, cfg.AUTOCONV_RATE, cfg.AUTOCONV_THRESHOLD, _K2, _K_EVP,
                           cfg.CLOUD_NC, _SB_AU, _SB_KR, _SB_XSTAR, cfg.LV / cfg.CP,
-                          _lf_cp(), cfg.T_ICE_0, cfg.T_ICE_00)
+                          _lf_cp(), cfg.T_ICE_0, cfg.T_ICE_00, int(thermodynamics._graupel()))
         return
     pi0 = s._pi0()
     theta_abs = s.theta + s.theta0[np.newaxis, np.newaxis, :]
@@ -267,11 +270,13 @@ def warm_rain(s: State, g: Grid, dt: float) -> None:
     p = cfg.P00 * pi0 ** (cfg.CP / cfg.RD)
 
     # Autoconversion + accretion: cloud → rain
-    conv = np.minimum(_rain_rates(s.qc, s.qr, rho) * dt, s.qc)
+    alpha = thermodynamics.liquid_fraction(T)[0] if _lf_cp() > 0.0 else 1.0
+    cl = alpha * s.qc if thermodynamics._graupel() else s.qc   # "graupel": rain from the liquid part only
+    conv = np.minimum(_rain_rates(cl, s.qr, rho) * dt, cl)
     s.qc -= conv
     s.qr += conv
-    if _lf_cp() > 0.0:                                       # rain is liquid: the ice part melts
-        s.theta -= _lf_cp() * (1.0 - thermodynamics.liquid_fraction(T)[0]) * conv / pi0
+    if _lf_cp() > 0.0:            # q_c keeps its split α(T): removing Δ relabels (1 − α)Δ liquid → ice
+        s.theta -= _lf_cp() * (1.0 - alpha) * conv / pi0
 
     # Rain evaporation (only where sub-saturated; never beyond saturation)
     evap = _evap_rate(s.qr, s.qv, q_s, rho, p) * dt
@@ -290,7 +295,7 @@ _A_VT = 36.34   # terminal velocity coefficient
 _B_VT = 0.1364  # exponent
 
 
-def sedimentation(s: State, g: Grid, dt: float) -> None:
+def _sediment(q: np.ndarray, s: State, g: Grid, dt: float, a_vt: float, b_vt: float):
     """
     Implicit upwind sedimentation using terminal velocity only.
 
@@ -307,42 +312,44 @@ def sedimentation(s: State, g: Grid, dt: float) -> None:
           F_in[k] = F_out[k+1] if k < nz-1 else 0  (flux from above)
           qr[k] = (qr[k] + dt/dz[k] * F_in[k]/rho0[k]) / (1 + V_t[k]*dt/dz[k])
           F_out[k] = V_t[k] * rho0[k] * qr[k]  (mass flux leaving this cell)
+
+    Generic for any precipitation species with V_t = a_vt (ρq [g/cm³])^b_vt √(ρ_sfc/ρ):
+    returns (q after sedimentation, surface flux [mm/h]).
     """
     kb = None if g.terrain is None else g.terrain.k_sfc    # terrain: rain reaches the ground at k_sfc
     if kb is not None:                                      # fluid thickness of the ground cell
         hcg = np.take_along_axis(g.terrain.hc, kb[:, :, None], axis=2)[:, :, 0]
         dzb = hcg * g.dz_face[kb]
     if _numba():
-        s.qr = np.array(s.qr, dtype=np.float64)
-        args = (s.qr, np.asarray(s.rho0, dtype=np.float64), np.asarray(g.dz_face, dtype=np.float64),
-                dt, _A_VT, _B_VT)
+        q = np.array(q, dtype=np.float64)
+        args = (q, np.asarray(s.rho0, dtype=np.float64), np.asarray(g.dz_face, dtype=np.float64),
+                dt, a_vt, b_vt)
         sfc = (kernels.sedimentation(*args) if kb is None
                else kernels.sedimentation_kb(*args, np.ascontiguousarray(kb, dtype=np.int64),
                                              np.ascontiguousarray(dzb, dtype=np.float64)))
-        s.surface_precip_flux = sfc * 3600.0
-        return
+        return q, sfc * 3600.0
 
     rho0 = s.rho0[np.newaxis, np.newaxis, :]  # (1,1,nz)
     dz_f = g.dz_face[np.newaxis, np.newaxis, :]  # (1,1,nz)
 
     # Ensure non-negative qr before computing terminal velocity
-    s.qr = np.maximum(s.qr, 0.0)
+    q = np.maximum(q, 0.0)
 
     # Terminal velocity (Klemp & Wilhelmson 1978):
     # V_t = A_VT * (rho*qr [g/cm³])^B_VT * sqrt(rho_sfc/rho)
     # Unit conversion: rho0 [kg/m³] * qr [kg/kg] → [kg/m³] → [g/cm³] (divide by 1000)
-    rho_qr_SI = rho0 * s.qr  # kg/m³
+    rho_qr_SI = rho0 * q  # kg/m³
     rho_qr_cgs = rho_qr_SI / 1000.0  # g/cm³
 
     # Density correction factor: sqrt(rho_sfc / rho)
     rho_sfc = s.rho0[0]
     density_correction = np.sqrt(rho_sfc / rho0)  # (1,1,nz)
 
-    V_t = _A_VT * (rho_qr_cgs ** _B_VT) * density_correction  # (nx,ny,nz) [m/s]
+    V_t = a_vt * (rho_qr_cgs ** b_vt) * density_correction  # (nx,ny,nz) [m/s]
 
     # Top-down sweep: solve implicit sedimentation layer by layer
     # F_out[k] = mass flux leaving cell k (downward, kg/m²/s)
-    F_out = np.zeros_like(s.qr)  # (nx, ny, nz)
+    F_out = np.zeros_like(q)  # (nx, ny, nz)
 
     active = None
     for k in range(g.nz - 1, -1, -1):  # k = nz-1, nz-2, ..., 1, 0
@@ -366,26 +373,128 @@ def sedimentation(s: State, g: Grid, dt: float) -> None:
         if active is not None:
             dz_k = np.where(kb == k, dzb, dz_k)
         denominator = 1.0 + V_t_k * dt / dz_k
-        q_new = np.maximum((s.qr[:, :, k] + (dt / dz_k) * (F_in_k / rho0_k)) / denominator, 0.0)
+        q_new = np.maximum((q[:, :, k] + (dt / dz_k) * (F_in_k / rho0_k)) / denominator, 0.0)
         if active is None:
-            s.qr[:, :, k] = q_new
+            q[:, :, k] = q_new
         else:
-            s.qr[:, :, k] = np.where(active, q_new, s.qr[:, :, k])
+            q[:, :, k] = np.where(active, q_new, q[:, :, k])
 
         # Compute outgoing flux (mass flux, kg/m²/s)
-        F_out[:, :, k] = V_t_k * rho0_k * s.qr[:, :, k]
+        F_out[:, :, k] = V_t_k * rho0_k * q[:, :, k]
         if active is not None:
             F_out[:, :, k] = np.where(active, F_out[:, :, k], 0.0)
 
     # Surface precipitation flux: F_out[k=0] is rain leaving the domain
     # Convert from kg/m²/s to mm/hr: 1 kg/m²/s = 3600 mm/hr (since 1 kg/m² water = 1 mm depth)
     if kb is None:
-        s.surface_precip_flux = F_out[:, :, 0] * 3600.0  # (nx, ny) in mm/hr
+        sfc = F_out[:, :, 0] * 3600.0  # (nx, ny) in mm/hr
     else:                                                  # flux out of each column's ground cell
-        s.surface_precip_flux = np.take_along_axis(F_out, kb[:, :, None], axis=2)[:, :, 0] * 3600.0
+        sfc = np.take_along_axis(F_out, kb[:, :, None], axis=2)[:, :, 0] * 3600.0
 
     # Final safety check
-    s.qr = np.maximum(s.qr, 0.0)
+    return np.maximum(q, 0.0), sfc
+
+
+def sedimentation(s: State, g: Grid, dt: float) -> None:
+    """Rain (and graupel, ICE_SCHEME "graupel") fall-out; s.surface_precip_flux = their sum [mm/h]."""
+    s.qr, sfc = _sediment(s.qr, s, g, dt, _A_VT, _B_VT)
+    if thermodynamics._graupel():
+        a_vt, b_vt = _graupel_vt()
+        s.qg, sfc_g = _sediment(s.qg, s, g, dt, a_vt, b_vt)
+        sfc = sfc + sfc_g
+    s.surface_precip_flux = sfc
+
+
+# ── Graupel (ICE_SCHEME = "graupel") ─────────────────────────────────────────
+# One category of precipitating ice, inverse-exponential sizes n(D) = n0 e^(−λD), m = π/6 ρ_g D³,
+# V = a D^b √(ρ_sfc/ρ): λ = (π ρ_g n0 / (ρ q_g))^¼, mass-weighted V = a Γ(4+b)/6 λ^(−b) √(ρ_sfc/ρ).
+# Rates after Lin et al. (1983) / Rutledge & Hobbs (1984); cloud ice and liquid are the α(T) split of q_c.
+_KA, _NU, _SC, _PSI = 2.43e-2, 1.5e-5, 0.6, 2.26e-5   # air conductivity, viscosity, Schmidt no., vapour diffusivity
+
+
+def _graupel_vt():
+    """(a_vt, b_vt) of the sedimentation power law for graupel, V = a_vt (ρq [g/cm³])^b_vt √(ρ_sfc/ρ)."""
+    b = cfg.GR_B
+    c = cfg.GR_A * math.gamma(4.0 + b) / 6.0 * (np.pi * cfg.GR_RHO * cfg.GR_N0) ** (-b / 4.0)
+    return c * 1000.0 ** (b / 4.0), b / 4.0
+
+
+def _graupel_consts():
+    b = cfg.GR_B
+    c_coll = np.pi / 4.0 * cfg.GR_N0 * cfg.GR_A * math.gamma(3.0 + b)
+    c_vent = 0.31 * _SC ** (1.0 / 3.0) * math.gamma(0.5 * (b + 5.0)) * np.sqrt(cfg.GR_A / _NU)
+    return c_coll, c_vent
+
+
+def ice_graupel(s: State, g: Grid, dt: float) -> None:
+    """
+    Graupel processes (in place on θ′, q_v, q_c, q_r, q_g):
+      cloud ice → graupel   autoconversion 1e-3·e^(0.025 T_c)·(q_i − ICE_AUTO_QI0) + collection (GR_E_ICE)
+      cloud liquid → graupel  riming (T < 0 °C); above 0 °C the collected water is shed as rain
+      rain → graupel         collection by graupel + Bigg (1953) freezing (T < 0 °C)
+      graupel → rain         melting (T > 0 °C; never cools the cell below 0 °C in one step)
+      graupel → vapour       sublimation where q_v < q_si
+    Heating Δθ = [L_v (−Δq_v) + L_f Δ(ice)] / (c_p π₀), ice = (1 − α) q_c + q_g at the cell's α(T),
+    so the diagnostic liquid/ice split of q_c stays energy-consistent.
+    """
+    lv_cp, lf_cp = cfg.LV / cfg.CP, cfg.LF / cfg.CP
+    c_coll, c_vent = _graupel_consts()
+    if _numba():
+        theta0, pi0_1d, p = _profiles(s)
+        s.theta, s.qv, s.qc, s.qr, s.qg = (np.array(a, dtype=np.float64)
+                                           for a in (s.theta, s.qv, s.qc, s.qr, s.qg))
+        kernels.ice_graupel(s.theta, s.qv, s.qc, s.qr, s.qg, theta0, pi0_1d, p,
+                            np.asarray(s.rho0, dtype=np.float64), cfg.EPS, dt, lv_cp, lf_cp,
+                            cfg.T_ICE_0, cfg.T_ICE_00, cfg.GR_N0, cfg.GR_RHO, cfg.GR_A, cfg.GR_B,
+                            cfg.GR_E_ICE, cfg.ICE_AUTO_QI0, c_coll, c_vent, _KA, _NU, _SC, _PSI,
+                            cfg.RV, cfg.CP)
+        return
+    pi0 = s._pi0()
+    p = cfg.P00 * pi0 ** (cfg.CP / cfg.RD)
+    rho = s.rho0[np.newaxis, np.newaxis, :]
+    rfac = np.sqrt(s.rho0[0] / rho)
+    T = (s.theta + s.theta0[np.newaxis, np.newaxis, :]) * pi0
+    Tc = T - 273.15
+    cold = Tc < 0.0
+    a, _ = thermodynamics.liquid_fraction(T)
+    c, r, gq, qv = s.qc, s.qr, s.qg, s.qv
+    ql = a * c; qi = c - ql
+    ls = cfg.LV + cfg.LF
+
+    aut = np.where(cold & (qi > cfg.ICE_AUTO_QI0),
+                   1e-3 * np.exp(0.025 * Tc) * (qi - cfg.ICE_AUTO_QI0), 0.0)
+    has_r = cold & (r > 1e-12)
+    lam_r = (np.pi * 1000.0 * 8.0e6 / (rho * np.where(has_r, r, 1.0))) ** 0.25
+    gfr = np.where(has_r, 20.0 * np.pi**2 * 100.0 * 8.0e6 * (1000.0 / rho)
+                   * (np.exp(-0.66 * Tc) - 1.0) / lam_r**7, 0.0)
+    has_g = gq > 1e-12
+    lam = (np.pi * cfg.GR_RHO * cfg.GR_N0 / (rho * np.where(has_g, gq, 1.0))) ** 0.25
+    coll = np.where(has_g, c_coll * lam ** (-(3.0 + cfg.GR_B)) * rfac, 0.0)
+    gacw = coll * ql
+    gaci = np.where(cold, cfg.GR_E_ICE * coll * qi, 0.0)
+    gacr = np.where(cold, coll * r, 0.0)
+    vent = 0.78 / lam**2 + c_vent * np.sqrt(rfac) * lam ** (-0.5 * (cfg.GR_B + 5.0))
+    melt = np.where(has_g & (Tc > 0.0), 2.0 * np.pi * cfg.GR_N0 * _KA * Tc * vent / (rho * cfg.LF), 0.0)
+    e_i = 611.15 * np.exp(22.452 * Tc / (Tc + 272.55))
+    qsi = cfg.EPS * e_i / np.maximum(p - e_i, 1.0)
+    subl = has_g & (qv < qsi)
+    abi = ls * ls / (_KA * cfg.RV * T * T) + 1.0 / (rho * qsi * _PSI)
+    sub = np.where(subl, 2.0 * np.pi * cfg.GR_N0 * (1.0 - qv / qsi) * vent / (rho * abi), 0.0)
+    sub = np.where(subl, np.minimum(sub * dt, (qsi - qv) / (1.0 + ls / cfg.CP * qsi * ls / (cfg.RV * T * T))) / dt, 0.0)
+
+    d_i = np.minimum((aut + gaci) * dt, qi)
+    d_l = np.minimum(gacw * dt, ql)
+    d_r = np.minimum((gacr + gfr) * dt, r)
+    d_m = np.minimum(np.minimum(melt * dt, gq), np.maximum(Tc, 0.0) / lf_cp)
+    d_s = np.minimum(sub * dt, gq - d_m)
+    to_g = d_i + d_r - d_m - d_s + np.where(cold, d_l, 0.0)
+    to_r = d_m - d_r + np.where(cold, 0.0, d_l)
+    s.qc = c - d_i - d_l
+    s.qg = gq + to_g
+    s.qr = r + to_r
+    s.qv = qv + d_s
+    d_ice = (1.0 - a) * (-d_i - d_l) + to_g
+    s.theta = s.theta + (-lv_cp * d_s + lf_cp * d_ice) / pi0
 
 
 # ── Main microphysics driver ──────────────────────────────────────────────────
@@ -408,9 +517,12 @@ def apply_microphysics(s: State, g: Grid, dt: float) -> None:
         saturation_adjustment(s, dt)
 
     warm_rain(s, g, dt)
+    if thermodynamics._graupel():
+        ice_graupel(s, g, dt)
     sedimentation(s, g, dt)
 
     # Enforce non-negative mixing ratios
     s.qv = np.maximum(s.qv, 0.0)
     s.qc = np.maximum(s.qc, 0.0)
     s.qr = np.maximum(s.qr, 0.0)
+    s.qg = np.maximum(s.qg, 0.0)

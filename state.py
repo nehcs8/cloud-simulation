@@ -51,6 +51,7 @@ class State:
         self.theta_l = np.zeros(shape)    # Liquid water potential temperature
         self.qt      = np.zeros(shape)    # Total water mixing ratio
         self.qr      = np.zeros(shape)    # Rain water
+        self.qg      = np.zeros(shape)    # Graupel/snow (ICE_SCHEME "graupel"; stays 0 otherwise)
 
         # Diagnostic fields (derived from theta_l, qt)
         self.theta = np.zeros(shape)      # θ′  (perturbation) - diagnostic
@@ -220,6 +221,8 @@ class State:
         # Load fields
         self.qc = data['qc'].astype(float)
         self.qr = data['qr'].astype(float)
+        if 'qg' in data:
+            self.qg = data['qg'].astype(float)
         self.qv = data['qv'].astype(float)
         self.theta = data['theta'].astype(float)
 
@@ -343,7 +346,7 @@ class State:
     # ── Derived quantities ────────────────────────────────────────────────────
     def buoyancy(self) -> np.ndarray:
         """
-        Boussinesq buoyancy: B = g (θ′/θ₀ + 0.61 qv − qc − qr)
+        Boussinesq buoyancy: B = g (θ′/θ₀ + 0.61 qv − qc − qr − qg)
         Shape: (nx, ny, nz)
         """
         theta0 = self.theta0[np.newaxis, np.newaxis, :]
@@ -353,6 +356,7 @@ class State:
             + 0.61 * (self.qv - qv0)   # perturbation from background, not total qv
             - self.qc
             - self.qr
+            - self.qg
         )
 
     def T(self) -> np.ndarray:
@@ -384,7 +388,7 @@ class State:
         from thermodynamics import convert_to_theta_l_qt
         pi0 = self._pi0()
         self.theta_l, self.qt, self.qr = convert_to_theta_l_qt(
-            self.theta, self.qv, self.qc, self.qr, pi0, self.theta0
+            self.theta, self.qv, self.qc, self.qr, pi0, self.theta0, self.qg
         )
 
     def _update_diagnostic_variables(self) -> None:
@@ -396,5 +400,5 @@ class State:
         from thermodynamics import convert_from_theta_l_qt
         pi0 = self._pi0()
         self.theta, self.qv, self.qc, self.qr = convert_from_theta_l_qt(
-            self.theta_l, self.qt, self.qr, self.theta0, pi0
+            self.theta_l, self.qt, self.qr, self.theta0, pi0, self.qg
         )

@@ -218,6 +218,16 @@ ICE_SCHEME: str = "none"
 LF: float = 3.34e5               # J/kg, latent heat of fusion
 T_ICE_0: float = 273.15          # K, all condensate liquid at and above
 T_ICE_00: float = 253.15         # K, all condensate ice at and below
+# "graupel" (step 2) = "mixed" + prognostic precipitating ice q_g (one graupel/snow category, Marshall–Palmer,
+# V = GR_A·D^GR_B): cloud-ice autoconversion (Lin 1983, rate 1e-3·exp(0.025 T_c) s⁻¹ above ICE_AUTO_QI0),
+# collection of cloud ice (GR_E_ICE), cloud liquid (riming) and rain (T < 0 °C) by graupel, Bigg rain freezing,
+# melting (T > 0 °C), sublimation; warm rain acts on the liquid part of q_c only.
+GR_N0: float = 4.0e6             # m⁻⁴, intercept (Rutledge & Hobbs 1984 graupel)
+GR_RHO: float = 400.0            # kg/m³, particle density
+GR_A: float = 19.3               # m^(1−b)/s, fall speed V = a D^b (Locatelli & Hobbs lump graupel)
+GR_B: float = 0.37
+GR_E_ICE: float = 0.1            # collection efficiency graupel–cloud ice
+ICE_AUTO_QI0: float = 1.0e-4     # kg/kg, cloud-ice threshold for autoconversion to graupel
 
 # ── Terrain (Phase 2) ──────────────────────────────────────────────────────────
 TERRAIN_TYPE: str = "flat"       # "flat", "gaussian_hill", "sine_ridge", "agnesi_ridge", "random", "dem"

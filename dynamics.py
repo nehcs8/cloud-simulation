@@ -430,18 +430,22 @@ def compute_tendencies(s: State, g: Grid) -> dict:
     # ── Halo-padded copies (horizontal neighbours for all stencils) ──────────
     ter = g.terrain
     UP, VP, WP = halo.pad_u(s.u), halo.pad_v(s.v), halo.pad_c(s.w)
+    graupel = getattr(cfg, 'ICE_SCHEME', 'none') == 'graupel'    # q_g is transported only then
     if ter is None:
         P_thl, P_qt, P_qr = halo.pad_c(s.theta_l), halo.pad_c(s.qt), halo.pad_c(s.qr)
+        P_qg = halo.pad_c(s.qg) if graupel else None
     else:
         # terrain: solid cells take their column's ground-level fluid value, so stencils next to
         # the ground see a zero-gradient continuation (advective fluxes through solid faces are
         # already zero because the projection zeroes those face velocities)
         P_thl, P_qt, P_qr = (halo.pad_c(_ground_fill(f, ter)) for f in (s.theta_l, s.qt, s.qr))
+        P_qg = halo.pad_c(_ground_fill(s.qg, ter)) if graupel else None
     if open_x or open_y:
         # inflow faces see the environment (sounding) in the ghost cells; outflow keeps zero gradient
         masks, ref = open_bc.inflow_masks(s), open_bc.references(s)
-        for P, key in ((P_thl, 'theta_l'), (P_qt, 'qt'), (P_qr, 'qr')):
-            open_bc.inflow_ghosts(P, ref[key], masks)
+        for P, key in ((P_thl, 'theta_l'), (P_qt, 'qt'), (P_qr, 'qr'), (P_qg, 'qg')):
+            if P is not None:
+                open_bc.inflow_ghosts(P, ref[key], masks)
 
     # ── Scalar advection ──────────────────────────────────────────────────────
     # CONSISTENT WENO-3 for all scalars (Phase 1.3)
@@ -480,6 +484,7 @@ def compute_tendencies(s: State, g: Grid) -> dict:
     tend_theta_l = -adv_weno3(P_thl)
     tend_qt      = -adv_weno3(P_qt)
     tend_qr      = -adv_weno3(P_qr)
+    tend_qg      = -adv_weno3(P_qg) if graupel else None
 
     # ── Momentum advection ────────────────────────────────────────────────────
     # Anelastic flux-form energy-conserving scheme (prevents KE blow-up)
@@ -512,11 +517,15 @@ def compute_tendencies(s: State, g: Grid) -> dict:
     tend_theta_l += diff_s(P_thl)
     tend_qt      += diff_s(P_qt)
     tend_qr      += diff_s(P_qr)
+    if graupel:
+        tend_qg += diff_s(P_qg)
     if tm is not None:
         # finite volume: face fluxes per unit cell volume → per unit fluid volume (partial cells)
         hc = tm['hc']
         tend_theta_l, tend_qt, tend_qr = (np.where(hc > 0.0, t_ / np.where(hc > 0.0, hc, 1.0), 0.0)
                                           for t_ in (tend_theta_l, tend_qt, tend_qr))
+        if graupel:
+            tend_qg = np.where(hc > 0.0, tend_qg / np.where(hc > 0.0, hc, 1.0), 0.0)
 
     # Momentum diffusion - apply to cell-centered, then interpolate back
     # (Simplified - proper C-grid diffusion would be on faces)
@@ -560,7 +569,7 @@ def compute_tendencies(s: State, g: Grid) -> dict:
         # boundary-face normal velocity: radiation condition instead of the interior tendency
         open_bc.radiation_tendency(tend_u, tend_v, s, g)
         # outward total-water flux through the open boundaries [kg/s] (for the water budget);
-        # q_t = q_v + q_c + q_r already includes rain
+        # q_t = q_v + q_c + q_r (+ q_g) already includes the precipitation
         s.boundary_water_rate = open_bc.boundary_outflow(P_qt, P_KH, s, g)
 
     # ── Coriolis force (f-plane) ──────────────────────────────────────────────
@@ -589,5 +598,8 @@ def compute_tendencies(s: State, g: Grid) -> dict:
     dtheta0_dz = np.gradient(s.theta0, g.z)
     tend_theta_l -= w_cen * dtheta0_dz[np.newaxis, np.newaxis, :]
 
-    return dict(u=tend_u, v=tend_v, w=tend_w,
-                theta_l=tend_theta_l, qt=tend_qt, qr=tend_qr)
+    out = dict(u=tend_u, v=tend_v, w=tend_w,
+               theta_l=tend_theta_l, qt=tend_qt, qr=tend_qr)
+    if graupel:
+        out['qg'] = tend_qg
+    return out

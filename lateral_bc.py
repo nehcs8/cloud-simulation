@@ -64,7 +64,7 @@ def apply_fringe(s, g, dt: float) -> None:
 
     # Diagnostic θ, qv, qc are relaxed too, so they stay consistent with θ_l, q_t until the
     # end-of-step update (q_t = qv + qc holds since the relaxation is linear)
-    for name in ('v', 'w', 'theta_l', 'qt', 'qr', 'theta', 'qv', 'qc'):   # x index = cell index
+    for name in ('v', 'w', 'theta_l', 'qt', 'qr', 'qg', 'theta', 'qv', 'qc'):   # x index = cell index
         a = getattr(s, name)
         target = a[src].copy()
         a[dst] += a_c * (target - a[dst])

@@ -70,6 +70,8 @@ def rk3_step(s: State, g: Grid, dt: float,
         s.qc = np.maximum(s.qc, 0.0)
         s.qr = np.maximum(s.qr, 0.0)
         s.qv = np.maximum(s.qv, 0.0)
+        if 'qg' in tend:
+            s.qg = np.maximum(s.qg, 0.0)
 
         # Pressure projection after each stage (maintains divergence-free)
         project(s.u, s.v, s.w, g, dt, rho0=s.rho0)
@@ -147,7 +149,7 @@ def _copy_state(s: State) -> dict:
     This avoids deep-copying the entire State object (which includes
     reference profiles, grid, etc.).
     """
-    return {
+    out = {
         'u': s.u.copy(),
         'v': s.v.copy(),
         'w': s.w.copy(),
@@ -155,6 +157,9 @@ def _copy_state(s: State) -> dict:
         'qt': s.qt.copy(),
         'qr': s.qr.copy(),
     }
+    if getattr(cfg, 'ICE_SCHEME', 'none') == 'graupel':
+        out['qg'] = s.qg.copy()
+    return out
 
 
 def _update_state(s: State, s0: dict, tend: dict, dt_eff: float) -> None:
@@ -175,6 +180,8 @@ def _update_state(s: State, s0: dict, tend: dict, dt_eff: float) -> None:
     s.theta_l[:] = s0['theta_l'] + dt_eff * tend['theta_l']
     s.qt[:]      = s0['qt']      + dt_eff * tend['qt']
     s.qr[:]      = s0['qr']      + dt_eff * tend['qr']
+    if 'qg' in tend:
+        s.qg[:]  = s0['qg']      + dt_eff * tend['qg']
 
     # Update diagnostic variables (θ, qv, qc) from conserved (θ_l, qt)
     s._update_diagnostic_variables()
@@ -212,6 +219,7 @@ def _apply_boundary_conditions(s: State, g: Grid) -> None:
     # Non-negative water (Phase 1.4: enforce on conserved variables)
     s.qt = np.maximum(s.qt, 0.0)
     s.qr = np.maximum(s.qr, 0.0)
+    s.qg = np.maximum(s.qg, 0.0)
 
     # Terrain masking (if terrain is present)
     if g.terrain is not None:
@@ -223,6 +231,7 @@ def _apply_boundary_conditions(s: State, g: Grid) -> None:
         qt0_full = np.broadcast_to(s.qv0, (g.nx, g.ny, g.nz))  # Use qv0 as qt background
         s.qt[mask] = qt0_full[mask]
         s.qr[mask] = 0.0
+        s.qg[mask] = 0.0
 
         # Update diagnostics after terrain masking
         s._update_diagnostic_variables()
