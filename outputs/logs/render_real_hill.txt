@@ -1,0 +1,3 @@
+Open lateral boundaries (x True, y True): no wrap-around of shadows/smoothing
+Rendering 37 frames (iso, smooth=0.0, levels 31–81) → cloud_gifs/20261021_single_cu_real_hill400_128sq_0-180min.gif
+Saved cloud_gifs/20261021_single_cu_real_hill400_128sq_0-180min.gif: 37 frames in 7 s

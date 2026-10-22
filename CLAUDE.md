@@ -76,8 +76,10 @@ Rules:
   step cost on 160². Stencils are terrain-aware (stage 2: ground fill + masked diffusion in `dynamics.py` /
   `kernels.py`); surface layer, sedimentation, initial noise/bubble (`Grid.z_agl()`) and the water budget
   follow the terrain surface (stage 3). `TERRAIN_PARTIAL_CELLS=True`: partial bottom cells (fluid fractions,
-  exact ground height; off by default). Mountain-wave drag is too high by ~(1 + Δz/h): use 25 m levels near
-  the ground for terrain runs (see docs/PLAN_terrain.md, stage 4). Run with `"TERRAIN_TYPE='gaussian_hill'" TERRAIN_H_MAX=500.0
+  exact ground height; off by default). Smagorinsky K is 0 in solid cells with one-sided
+  du/dz at `k_sfc` (fixed 2026-10-19; before, a spurious K spike under the ground cut dt 3–6×). Mountain-wave
+  drag: 25 m levels pass (1.05–1.19× theory); 12.5 m gives the same, so finer levels are not the fix; a 100 m
+  ridge is still 1.2–1.6× (see docs/PLAN_terrain.md, stage 4). Run with `"TERRAIN_TYPE='gaussian_hill'" TERRAIN_H_MAX=500.0
   TERRAIN_SIGMA=1500.0` (hill at the domain centre)
 - `halo.py` — halo (ghost-cell, H = 2) padding for all horizontal stencils: `pad_c`, `pad_u`, `pad_v`
   gather with one index map per direction (periodic: wrap; open: zero-gradient placeholder until stage 3
@@ -97,7 +99,9 @@ Rules:
   (`USE_NUMBA = False`); keep both paths in sync and rerun `tests/test_kernels.py` after changes
 - `timestepping.py` — RK3 + physics chain
 - `thermodynamics.py` — θ_l/q_t conversions, q_sat (Buck)
-- `microphysics.py` — Kessler warm rain, implicit sedimentation
+- `microphysics.py` — warm rain: `RAIN_SCHEME` "sb2001" (Seifert–Beheng 2001 autoconversion/accretion,
+  droplet number `CLOUD_NC`, default 300 cm⁻³) or "kessler" (before 2026-10-19); rain evaporation `RAIN_EVAP`
+  "kw78" (Klemp–Wilhelmson 1978) or "legacy"; implicit Kessler-fall-speed sedimentation
 - `surface_layer.py` — M-O surface layer, optional cloud shading
 - `lateral_bc.py` — `LATERAL_BC = "fringe"`: inflow/outflow in x on the periodic grid. The last
   FRINGE_WIDTH is relaxed toward a copy of the strip upstream of RECYCLE_X ([0, RECYCLE_X) = homogeneous
@@ -158,7 +162,10 @@ from before the θ_l/qt switch).
 - `runs/<YYYYMMDD_HHMM>_<CASE_NAME>/` — one folder per run: `diag.csv`, `console.log`,
   `config.py` copy, `effective_config.txt` (values after overrides), `profiles.npz`,
   `snapshots/snap_*.npz`, plus `water_budget.csv` / `runner.log` from `run_case.py`
-- `experiments/` — older parent-run experiment series (Sept 2026)
+  **Thinned 2026-10-21:** every run up to `real_flat`/`real_hill` keeps only snapshots at multiples of 15 min
+  (t % 900 = 0); diag.csv (60 s) is complete. GIFs re-rendered from these runs have 15-min frames.
+- `experiments/` — older parent-run experiment series (Sept 2026); thinned 2026-10-21 to snapshots at multiples of 15 min plus each
+  run's last snapshot (`final_snapshot.npz`, diag.csv and logs kept)
 - `nested_runs/` — nested runs (YAML metadata); `nested_runs/ics/` — nested initial conditions
 - `restart_snapshots/` — protected restart files (copy, never modify)
 - `snapshots/` — legacy ephemeral snapshot dir from older `main.py` runs (current runs write into `runs/`)
@@ -203,13 +210,14 @@ GIFs `cloud_gifs/20261016_single_cu_*_lapse_*.gif`): hot spot — first Cu at ~2
 4.5–4.8 km at 2–2.5 h, 5.6–6.2 km from 3 h, w up to 24 m/s, rain ≤ 0.03 mm/h (domain mean), cover ≤ 1.6 %;
 all cloud within 3 km of the spot (centroid ~2 km downwind), background clear for 4 h. Bubble — top 7.5 km
 at ≤ 20 min, w 29 m/s, rain ≤ 0.5 mm/h, gone by 40 min, clear 40 min–4 h.
-**`congestus` variant (2026-10-17) — the first proper congestus.** Tropical sounding (θ 303 K ML to 900 m,
+**`congestus` variant (2026-10-17) — the first proper congestus.** Open lateral boundaries since 2026-10-19
+(`BC_X/BC_Y='open'` in the variant; all earlier congestus runs are periodic unless tagged `_open`). Tropical sounding (θ 303 K ML to 900 m,
 qv 15.2 g/kg, RH 0.85 to 3 km / 0.70 at 5 km, 2 K/km at 1.3–3 km, 6.5 K/km above + 2 K cap at 5.3–5.8 km,
 CAPE 630, EL 6.8 km), 5 km moist hot spot + 1.5 K bubble, u 0 → 4 m/s over 0–5 km, 160². First try (4.5 K/km
 above 3 km, +1.5 K cap, CAPE 1790) went to 8.4–9.3 km: the cap must sit where parcel buoyancy is already small.
 Main run `runs/20261017_1511_single_cu_congestus_180min_main/` (4 threads, mean dt 1.8 s, 109 wall-min per
 simulated hour, 13 GB; GIF `cloud_gifs/20261017_single_cu_congestus_0-180min.gif`): one broad tower (3–4 km)
-over the spot for 3 h, tops 6–7.4 km, w 18–32 m/s, surface rain to ~2 mm/h (domain max), new surges every
+over the spot for 3 h, tops 6–7.4 km, w 18–32 m/s, surface rain to ~2 mm/h (domain mean), new surges every
 30–40 min; from ~75 min a detrainment shelf at 4.4–5.7 km spreads under the cap across the domain (that is the
 cloud "beyond 6 km", not background convection — background BL stays clear). Weak cold pools (rain-shaft air
 only ~0.2 K cooler): rain falls on the still-heated spot; `ENABLE_CLOUD_SHADING=True` is the obvious next test.
@@ -224,8 +232,49 @@ west edge clear; no boundary-forced updrafts (rms w within 1 km of the edge ≤ 
 base is many narrow feeder columns (11–17 pieces < 500 m at 1.4–1.8 km in the 160² open run) fed by 70–80
 separate sub-cloud updraft cores ~2 grid cells wide. 96² × 2 h tests (pieces 150 m above base / cores at 800 m,
 60–120 min): disc spot 1–2 / 18–45; `SHF_SPOT_SHAPE='gaussian'` 2–4 / 40–86; Gaussian + 1000 m mixed layer at
-RH 0.90 8–9 / 44–89 — reshaping the surface heating doesn't organise the inflow. Remaining candidates: terrain
-(heated hill → upslope convergence, docs/PLAN_terrain.md), 50 m resolution, cold pools.
+RH 0.90 8–9 / 44–89 — reshaping the surface heating doesn't organise the inflow. A heated 400 m hill under the
+spot (2026-10-19, docs/PLAN_terrain.md stage 4) doesn't organise it either (cores 40–81 vs 40–86 flat; calm: more
+fragmented). Remaining candidates: 50 m resolution, cold pools.
+**New warm rain + open BCs (2026-10-19/20, 96², 2 h, Seifert–Beheng Nc 300 cm⁻³ + KW78 evaporation).** Runs
+`runs/*_tune96_{gauss_sb,hillcalm_sb}` (periodic) and `*_tune96_{gauss_sb_open,hillcalm_sb_open}`; GIFs
+`cloud_gifs/20261019_single_cu_congestus96_*_sb*_0-120min.gif`. Rain aloft (qr > 0.1 g/kg) at 12 min when the tower
+is already ~5.8 km (Kessler: 6–7 min at 2.1–2.4 km), at the ground from 27 min (Kessler 16–18), peak 7.3–7.4 mm/h
+(domain mean; locally up to 162 mm/h) at 90–100 min. Real cold pools for the first time: lowest-level θ′ down to −1.1 (calm hill) / −2.2 K
+(flat), domain mean −0.1 / −0.9 K at 2 h (Kessler runs never went below 0); the gust front ends the cell — updraft
+cores at 800 m AGL fall from 50–110 to 1–7 by 120 min, outflow u_r +2…+4.5 m/s. Flat open at 90 min: inflow −3 m/s
+inside 1.5 km and the largest base piece 3.9 km — the most organised base so far (gust-front convergence).
+Periodic runs trap the 5–6 km detrainment sheet (high cover 58 % flat); open with shear exports it (12 %); open and
+calm has no wind to export it, so it fills the 9.6 km domain (high cover 92 %, low 2 %) — a domain-size effect.
+No boundary artefacts (rms w within 1 km of the edges 0.2–0.6 vs interior 0.6–1.3 m/s), budget residual 0.
+Open issues: mature-stage tops 8.2–8.7 km overshoot the EL (6.8 km, tuned under Kessler) for 6–19 min; qr aloft
+up to 11–13 g/kg in the 30 m/s cores.
+**Retune and realism tests (2026-10-20, 72² open, Seifert–Beheng).** `precip_mmhr` in diag.csv is the DOMAIN MEAN; local
+surface rain (ρ q_r V_t at the lowest level) is 15–20× larger. Sounding retune (`runs/*_snd72_*`): stronger cap + more
+stable 1.3–3 km (`l3c4`) keeps tops ≤ 6.9 km. Trigger tests (`runs/*_trig_*`): without the bubble the hot spot alone
+makes the congestus (first cloud 30 min, rain aloft 59 min); bubble and hot-spot strength only change timing — all
+runs reach w_max 25–29 m/s, q_r aloft 5–8 g/kg, local rain 75–91 mm/h. Styria-like sounding (`runs/*_styria_c14`,
+`_c18`: θ 302 K, q_v 11.6 g/kg, mixed layer 1.2 km, LCL 1.7 km, 0 °C at 3.8 km, −10 °C at 5.5 km, CAPE ~320 J/kg,
+4.5 K/km above 3 km, stable layer 5.5–6 km; no bubble): rain aloft 68 min, at the ground 89–101 min, local rain
+45–47 mm/h (half), q_r aloft 5.8–6.6 g/kg, tops 6.8–7.0 km, but w_max still ~25 m/s (realistic congestus 5–15). Cap
++5 K (`c14`) ≈ +7 K (`c18`). Remaining suspect: 100 m resolution → `styria_c14_dx50` (144² at 50 m). Diagnostics:
+`scripts/analyze_updraft_dilution.py` (undiluted fraction of cores from q_t; > 1 at 2 km because hot-spot air is
+moister than the reference surface air — use for comparison only) and local surface rain.
+**50 m test (2026-10-20, `runs/*_styria_c14_dx50`, 144² at 50 m, 4 threads, 92 wall-min per simulated hour):** resolution
+is not the cause — w_max 28.3 vs 24.5 m/s at 100 m, w99 8.3 vs 6.8, q_c 7.1 vs 6.4, q_r 5.5 vs 5.8 g/kg, local rain
+51 vs 47 mm/h, same dilution (~0.8 at 3 km, ~0.6 at 4 km), same base fragmentation (2–5 pieces); faster life cycle
+(peak 70–80 min, gone by 110). Hot-spot air is only +0.4–0.6 K / +0.2 g/kg (CAPE 440–480 J/kg, √(2·CAPE) 30–31 m/s), so
+updrafts reach 80–90 % of parcel theory in every variant (real congestus ~50 %). Open suspects: one wide, sustained
+plume over a 5 km spot (SHF 350 + LHF 400 W/m² there exceeds midday net radiation), and the SGS/numerics.
+**Uniform "real" forcing (2026-10-21, `runs/*_real_{flat,hill}`, 128² at 100 m, open, U 3 m/s, Styria sounding, SHF 180 /
+LHF 280 W/m² everywhere, no spot/bubble; hill = 400 m Gaussian, σ 1.5 km, at the centre; GIFs
+`cloud_gifs/20261021_single_cu_real_{flat,hill400}_128sq_0-180min.gif`):** no congestus — a field of small to medium Cu, first
+cloud 43 (flat) / 37 (hill) min, cover 1–4 %, base 1675 m, tops mostly 2–3 km (max 3.3 / 4.2 km), w_max 6–8 (hill up to 10) m/s,
+q_c ≤ 2.3 g/kg, no surface rain (q_r aloft ≤ 0.14 g/kg). **Fetch artefact:** inflow is relaxed to the unheated initial sounding,
+so the mixed layer warms along x (θ′ below 600 m 0.06 K at the inflow edge, 0.36–0.38 K at the outflow edge) and every cloud is in
+the downstream half (x > 6.4 km). The hill doesn't trigger cloud over its summit; it adds a cloud street in its lee (cloud
+frequency in the y-band through the hill at the last 1.6 km: 20 % vs 8 % flat, off-band ~10 % in both). Domain-mean θ_bl
+stalls at +0.22 K after 75 min because the BL air is replaced every ~70 min. Real days need an inflow BL that is heated too
+(time-varying boundary state, or a recycled/precursor inflow).
 
 ### land_cu run
 Reproduction of every past land_cu run (exact overrides): `docs/RUNNING_LAND_CU.md`.
@@ -272,10 +321,12 @@ VTK_DEFAULT_OPENGL_WINDOW=vtkEGLRenderWindow ./venv/bin/python3 scripts/visualiz
 # --zexp vertical exaggeration (1.5), --mode volume (soft, slower)
 # --xrange X0 X1 (km) crops x, e.g. to the test region of a fringe run (hides the twin fetch)
 # --trange T0 T1 (s) only those snapshots, e.g. the 0–45 min life of the single_cu bubble cloud
-# single_cu: use --zexp 1.0 — the camera is framed for shallow Cu, so 7 km tops at 1.5× leave the frame
+# The camera backs off until the ground and the run's highest cloud level fit (since 2026-10-21; before, it was
+# framed for shallow Cu and 7 km towers were cut off). single_cu: --zexp 1.0 keeps towers in proportion
 # dx/dy and BC_X/BC_Y come from the run's effective_config.txt; in open directions shadows and smoothing
 # don't wrap around (before 2026-10-18 they did, which drew a ghost sheet of outflowing cloud on the far edge).
 # Clouds cut by the domain edge are closed with a flat face there.
+# Terrain (gaussian_hill, agnesi_ridge from effective_config.txt) is drawn as the ground with 100 m contours.
 # Before 2026-10-14 the renderer assumed 100 m,
 # so earlier 50 m GIFs are stretched 2× horizontally (clouds look flatter/wider than they are).
 ```
@@ -307,6 +358,10 @@ MPLBACKEND=Agg nohup ./venv/bin/python3 main_nested.py > outputs/logs/nested_sim
 
 ## Key fixes and lessons
 
+- **Warm rain (2026-10-19):** Kessler (qc > 0.5 g/kg) made rain within 60 s of the first cloud (0.4–0.65 km
+  deep), and the legacy evaporation was 70–100× weaker than Klemp–Wilhelmson, so rain reached the ground
+  undiminished and cold pools were ~0.2 K. Runs before this date used `RAIN_SCHEME="kessler"
+  RAIN_EVAP="legacy"`; pass those to reproduce them.
 - **Anelastic projection (2026-10-11):** the Poisson RHS lacked ρ₀ on the horizontal
   divergence, and the projection used a constant-θ ρ₀. Fixed; residual ~1e-16 and the water
   budget closes exactly (`water_budget.csv` residual 0). Always pass `rho0=state.rho0`.

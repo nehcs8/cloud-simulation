@@ -198,11 +198,13 @@ def kdiff_xyz_masked(P, KP, mx, my, mz, dx, dy, dz_face, dz_cen, rho0_c, rho0_w)
 # ══ Smagorinsky K_M ══════════════════════════════════════════════════════════
 
 @njit(parallel=True, cache=True)
-def smag_KM(UC, VC, WC, w, z, dx, dy, dz_face, cs):
+def smag_KM(UC, VC, WC, w, z, dx, dy, dz_face, cs, kb):
     """
     K_M = (Cs·Δ)² |S| at cell centres; same stencils as dynamics._smag_K
     (centred horizontal differences, np.gradient-style du/dz, dv/dz).
     UC, VC, WC: cell-centred u, v, w, halo-padded (H = 2); w: unpadded z-faces.
+    kb (nx, ny): first fluid level per column (zeros without terrain); K_M = 0 below it,
+    one-sided du/dz, dv/dz at it (as at k = 0 over flat ground).
     """
     nx = UC.shape[0] - 4; ny = UC.shape[1] - 4; nz = UC.shape[2]
     KM = np.empty((nx, ny, nz))
@@ -210,7 +212,10 @@ def smag_KM(UC, VC, WC, w, z, dx, dy, dz_face, cs):
         I = i + 2
         for j in range(ny):
             J = j + 2
-            for k in range(nz):
+            k0 = kb[i, j]
+            for k in range(k0):
+                KM[i, j, k] = 0.0
+            for k in range(k0, nz):
                 dudx = (UC[I + 1, J, k] - UC[I - 1, J, k]) / (2*dx)
                 dvdy = (VC[I, J + 1, k] - VC[I, J - 1, k]) / (2*dy)
                 dudy = (UC[I, J + 1, k] - UC[I, J - 1, k]) / (2*dy)
@@ -219,10 +224,10 @@ def smag_KM(UC, VC, WC, w, z, dx, dy, dz_face, cs):
                 dwdx = (WC[I + 1, J, k] - WC[I - 1, J, k]) / (2*dx)
                 dwdy = (WC[I, J + 1, k] - WC[I, J - 1, k]) / (2*dy)
                 # np.gradient(·, z): one-sided at the ends, 2nd-order non-uniform inside
-                if k == 0:
-                    h = z[1] - z[0]
-                    dudz = (UC[I, J, 1] - UC[I, J, 0]) / h
-                    dvdz = (VC[I, J, 1] - VC[I, J, 0]) / h
+                if k == k0 and k < nz - 1:
+                    h = z[k + 1] - z[k]
+                    dudz = (UC[I, J, k + 1] - UC[I, J, k]) / h
+                    dvdz = (VC[I, J, k + 1] - VC[I, J, k]) / h
                 elif k == nz - 1:
                     h = z[nz - 1] - z[nz - 2]
                     dudz = (UC[I, J, k] - UC[I, J, k - 1]) / h
@@ -456,22 +461,39 @@ def saturation_adjustment(theta, qv, qc, theta0, pi0, p, L_cp, lv, rv, eps_rd):
 
 
 @njit(parallel=True, cache=True)
-def warm_rain(theta, qv, qc, qr, theta0, pi0, p, eps_rd, dt,
-              auto_rate, auto_thresh, k2, k_evp, L_cp):
-    """In-place autoconversion, accretion and rain evaporation, as microphysics.warm_rain."""
+def warm_rain(theta, qv, qc, qr, theta0, pi0, p, rho0, eps_rd, dt, scheme, evap_kw,
+              auto_rate, auto_thresh, k2, k_evp, nc, sb_au, sb_kr, sb_xstar, L_cp):
+    """In-place autoconversion, accretion and rain evaporation, as microphysics.warm_rain.
+    scheme 1 = Seifert–Beheng 2001, 0 = Kessler; evap_kw 1 = Klemp–Wilhelmson 1978, 0 = legacy."""
     nx, ny, nz = theta.shape
     for i in prange(nx):
         for j in range(ny):
             for k in range(nz):
                 T = (theta[i, j, k] + theta0[k]) * pi0[k]
                 q_s = _qsat_buck(T, p[k], eps_rd)
-                c = qc[i, j, k]; r = qr[i, j, k]
-                auto = min(max(0.0, auto_rate * (c - auto_thresh)) * dt, c)
-                accr = min(k2 * c * r ** 0.875 * dt, c)
-                c -= auto + accr
-                r += auto + accr
+                c = qc[i, j, k]; r = qr[i, j, k]; rho = rho0[k]
+                if scheme == 1:
+                    qt = c + r
+                    tau = min(max(r / qt if qt > 0.0 else 0.0, 0.0), 0.9999)
+                    Lc = rho * c; Lr = rho * r
+                    xc = min(Lc / nc, sb_xstar)
+                    t68 = tau ** 0.68
+                    au = sb_au * Lc * Lc * xc * xc * (1.0 + 600.0 * t68 * (1.0 - t68) ** 3 / (1.0 - tau) ** 2)
+                    ac = sb_kr * Lc * Lr * (tau / (tau + 5e-4)) ** 4
+                    rate = (au + ac) / rho
+                else:
+                    rate = max(0.0, auto_rate * (c - auto_thresh)) + k2 * c * r ** 0.875
+                conv = min(rate * dt, c)
+                c -= conv
+                r += conv
                 deficit = max(0.0, q_s - qv[i, j, k])
-                evap = min(k_evp * deficit * r ** 0.525 * dt, r)
+                if evap_kw == 1:
+                    rq = rho * 1e-3 * r
+                    vent = 1.6 + 124.9 * rq ** 0.2046
+                    e = (deficit / q_s) * vent * rq ** 0.525 / ((5.4e5 + 2.55e6 / (p[k] * 1e-2 * q_s)) * rho * 1e-3)
+                    evap = min(e * dt, deficit, r)
+                else:
+                    evap = min(k_evp * deficit * r ** 0.525 * dt, r)
                 qc[i, j, k] = c
                 qr[i, j, k] = r - evap
                 qv[i, j, k] += evap

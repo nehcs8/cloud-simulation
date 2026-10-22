@@ -109,6 +109,16 @@ def test_kernels():
     K_M_nb, _ = dynamics._smag_K(s, g)
     check("Smagorinsky K_M", K_M_nb, K_M_ref, results)
 
+    # terrain: K_M = 0 in solid cells, one-sided du/dz at the first fluid cell
+    from terrain import Terrain
+    g.terrain = Terrain.from_gaussian_hill(g, h_max=400.0, sigma=600.0)
+    cfg.USE_NUMBA = False
+    K_M_ref_t, _ = dynamics._smag_K(s, g)
+    cfg.USE_NUMBA = True
+    K_M_nb_t, _ = dynamics._smag_K(s, g)
+    g.terrain = None
+    check("Smagorinsky K_M (terrain)", K_M_nb_t, K_M_ref_t, results)
+
     P, PK = pc(s.qt), pc(K_H)
     ref = (dynamics._kdiff_x(P, PK, dx) + dynamics._kdiff_y(P, PK, dy)
            + dynamics._kdiff_z(s.qt, K_H, dz_f, dz_c, rho0_c, rho0_w))
@@ -131,16 +141,19 @@ def test_kernels():
     check("diagnose qv", new[0], ref[0], results)
     check("diagnose qc", new[1], ref[1], results)
 
-    print("Microphysics (apply_microphysics, dt = 2 s):")
-    out = {}
-    for flag in (False, True):
-        cfg.USE_NUMBA = flag
-        sc = copy.deepcopy(s)
-        sc.qr = sc.qr + 2e-4 * (sc.qc > 0)          # some rain inside clouds
-        microphysics.apply_microphysics(sc, g, 2.0)
-        out[flag] = sc
-    for k in ("theta", "qv", "qc", "qr", "surface_precip_flux"):
-        check(f"micro {k}", getattr(out[True], k), getattr(out[False], k), results)
+    for scheme, evap in (("sb2001", "kw78"), ("kessler", "legacy")):
+        cfg.RAIN_SCHEME, cfg.RAIN_EVAP = scheme, evap
+        print(f"Microphysics (apply_microphysics, dt = 2 s, {scheme} + {evap} evaporation):")
+        out = {}
+        for flag in (False, True):
+            cfg.USE_NUMBA = flag
+            sc = copy.deepcopy(s)
+            sc.qr = sc.qr + 2e-4 * (sc.qc > 0) + 1e-4  # rain inside clouds and in sub-saturated air
+            microphysics.apply_microphysics(sc, g, 2.0)
+            out[flag] = sc
+        for k in ("theta", "qv", "qc", "qr", "surface_precip_flux"):
+            check(f"micro {k}", getattr(out[True], k), getattr(out[False], k), results)
+    cfg.RAIN_SCHEME, cfg.RAIN_EVAP = "sb2001", "kw78"
 
     print("Pressure projection:")
     out = {}

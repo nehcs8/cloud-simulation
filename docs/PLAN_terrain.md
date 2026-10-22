@@ -81,7 +81,46 @@ terrain-following coordinates remain an option for that later.
      the cause is not the steps but the z-level lowest-cell treatment of flow up a slope. Remaining options:
      finer levels near the ground (25 m: 1.05–1.21×), shaved cells with sloping cut faces (Adcroft et al. 1997)
      or terrain-following coordinates near the ground. Off by default.
-   - Heated hill as congestus trigger: not run yet.
+   - **Smagorinsky K over terrain (fixed 2026-10-19).** `_smag_K` / `kernels.smag_KM` ignored the terrain: the
+     solid cell under the ground (u = 0) next to 10 m/s fluid gave K ≈ 180 m²/s (≤ 12 elsewhere), which set the
+     diffusive dt limit (0.073 s at Δz 12.5 m, 0.44 s at 25 m), and the centred du/dz in the first fluid cell saw
+     the solid u = 0 as no-slip shear on the free-slip ground. Now K = 0 in solid cells and du/dz, dv/dz are
+     one-sided at `k_sfc`. dt 0.4 s (12.5 m) / 1.07 s (25 m), 3–5× faster; drag only 0.02–0.04 lower.
+     Mountain waves after the fix (2.5 h, M/M_theory at 1–6 km):
+       Δz 25 m,   h₀ 200 m: 1.05–1.19, corr 0.89, amplitude 1.01 (PASS)
+       Δz 12.5 m, h₀ 200 m: 1.01–1.19, corr 0.89, amplitude 1.02 (PASS)
+       Δz 12.5 m, h₀ 200 m, partial cells: 1.03–1.23, corr 0.87 (PASS)
+       Δz 12.5 m, h₀ 100 m: 1.22–1.58, corr 0.90, amplitude 1.13 (FAIL; was 1.66–1.92 / corr 0.50 at 50 m)
+     **Halving Δz below 25 m changes nothing**, so the bias is not the near-ground vertical treatment. The
+     excess is about the same in N/m for both ridges (+690 N/m at 200 m, +520 N/m at 100 m) — closer to an
+     additive drag than an effective extra height. Controls (2026-10-19): flat ground with the same open BCs
+     gives M = 0 and w = 0 for 2.5 h (the boundaries make no drag). **Δx 100 m** (512 × 4, Δz 25 m, h₀ 200 m):
+     1.01–1.10, corr 0.91, amplitude 0.99 — mean excess over 1–6 km 6 % vs 12 % at Δx 200 m. **But** the
+     100 m ridge at Δx 100 m, Δz 25 m gives 1.43–1.75 (corr 0.78, amplitude 1.41), between Δz 12.5 m
+     (1.22–1.58) and Δz 50 m (1.66–1.92) at Δx 200 m: for the small ridge the excess follows Δz, not Δx.
+     M(t) fluctuates by ±0.1 after 2 h, so the 200 m-ridge Δx gain is within the noise. **Cause unresolved.**
+     The small ridge (Nh/U = 0.1) is the most linear case yet the worst, so the error is a roughly fixed
+     amount (tens of m of effective height, or several hundred N/m), not a nonlinear-theory gap. Not yet
+     tried: longer runs / time-averaging M over 1.5–2.5 h, wider domain, a 100 m ridge with Δz 12.5 m and
+     Δx 100 m, momentum advection at the terrain (unchanged by partial cells).
+   - **Heated hill as congestus trigger (2026-10-19).** `single_cu:congestus`, 96² at 100 m, periodic, Gaussian
+     moist hot spot (`SHF_SPOT_SHAPE='gaussian'`) + bubble as in `tune96_gauss`, plus a 400 m Gaussian hill
+     (σ 1.5 km) under the spot: `runs/20261019_1633_single_cu_congestus_120min_tune96_hill` (shear) and `…_hillcalm`
+     (U = 0). Metrics from `scripts/analyze_cloud_base.py` (30/60/90/120 min, r < 3.5 km; cores 800 m above ground):
+       flat (tune96_gauss): pieces at base+150 m 1/2/3/4, cores 86/46/64/40, u_r(50 m AGL, 0.5–1.5 km) −0.4…−1.9 m/s
+       hill, shear:         pieces 4/7/4/3, cores 81/55/51/40, u_r −0.6…−1.3; tops ≤ 6.7 km, rain ≤ 2.3 mm/h
+       hill, calm:          pieces 1/15/8/9, cores 109/66/56/70, u_r −1.0 at 30 min, then +1.4/+2.6 (rain outflow
+                            from the summit), rain ≤ 5.7 mm/h, tops ≤ 7.8 km
+     The hill doubles the early low-level inflow (30 min) but **does not organise the cloud base**: core counts
+     match the flat run, and without wind the base is more fragmented. Once it rains over the summit the
+     outflow replaces the upslope flow. GIFs: `cloud_gifs/20261019_single_cu_congestus96_hill{,_calm}_0-120min.gif`,
+     flat reference `cloud_gifs/20261018_single_cu_congestus96_gauss_flat_0-120min.gif` (renderer now draws the
+     terrain with 100 m contours). Remaining candidates for the fragmented base: 50 m resolution, cold pools.
+     Rerun 2026-10-19/20 with Seifert–Beheng rain + KW78 evaporation (see CLAUDE.md): calm hill periodic
+     (`…_hillcalm_sb`) and open (`…_hillcalm_sb_open`): one compact tower over the summit until ~80 min, then a real
+     cold pool (θ′ −1.1 K) and outflow (+2.7…+4.5 m/s at 120 min) shut it down; the "wild" refiring of the Kessler
+     run was the missing evaporation (summit stayed +3 K under 5 mm/h rain). Base still fragmented at 60–90 min
+     (13–22 pieces).
    Original stage-4 plan:
    - Resting, stably stratified atmosphere over a Gaussian hill, no fluxes: stays at rest (≤ 1e-6 m/s).
    - Linear mountain waves: uniform U, constant N, small ridge (Nh/U ≈ 0.1), open x / periodic y, compared

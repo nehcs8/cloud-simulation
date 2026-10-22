@@ -72,6 +72,7 @@ CONGESTUS = dict(
     NX=160, NY=160,
     SHF_SPOT_AMP=300.0, SHF_SPOT_LHF_AMP=300.0, SHF_SPOT_DIAM=5000.0,
     BUBBLE_DTHETA=1.5, BUBBLE_RH=0.85,
+    BC_X="open", BC_Y="open",    # since 2026-10-19 (earlier congestus runs: periodic unless tagged _open)
 )
 
 # Variants: config values applied after configure() by run_case.py (case:variant)

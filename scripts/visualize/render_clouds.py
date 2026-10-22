@@ -122,7 +122,8 @@ def _caption(d, z) -> str:
 def render_frame(path: str, k_range: tuple[int, int], zexp: float, mode: str,
                  smooth: float = QC_SMOOTH, dx: float = 100.0, dy: float = 100.0,
                  xrange: tuple[float, float] | None = None,
-                 open_xy: tuple[bool, bool] = (False, False)) -> np.ndarray:
+                 open_xy: tuple[bool, bool] = (False, False),
+                 terrain: np.ndarray | None = None) -> np.ndarray:
     d = np.load(path)
     qc = d["qc"].astype(np.float32) * 1e3                 # g/kg
     qr = d["qr"].astype(np.float32)
@@ -135,6 +136,8 @@ def render_frame(path: str, k_range: tuple[int, int], zexp: float, mode: str,
     if xrange is not None:
         i0, i1 = int(round(xrange[0] * 1e3 / dx)), int(round(xrange[1] * 1e3 / dx))
         qc, rgb = qc[i0:i1], rgb[i0:i1]
+        if terrain is not None:
+            terrain = terrain[i0:i1 + 1]
     nx, ny, _ = qc.shape
     Lx, Ly = nx * dx, ny * dy
 
@@ -153,9 +156,17 @@ def render_frame(path: str, k_range: tuple[int, int], zexp: float, mode: str,
 
     # Ground with shadows and rain
     gx, gy = np.meshgrid(np.arange(nx + 1) * dx, np.arange(ny + 1) * dy, indexing="ij")
-    ground = pv.StructuredGrid(gx, gy, np.zeros_like(gx))
+    gz = np.zeros_like(gx) if terrain is None else terrain * zexp
+    ground = pv.StructuredGrid(gx, gy, gz)
     ground.cell_data["rgb"] = (rgb.reshape(-1, 3, order="F") * 255).astype(np.uint8)
     pl.add_mesh(ground, scalars="rgb", rgb=True, ambient=0.45, diffuse=0.6, specular=0.0)
+    if terrain is not None and terrain.max() > 0:            # height contours every 100 m
+        ground.point_data["h"] = terrain.ravel(order="F")
+        levels = np.arange(100.0, terrain.max(), 100.0)
+        if len(levels):
+            lines = ground.contour(isosurfaces=levels, scalars="h")
+            lines.points[:, 2] += 5.0 * zexp                    # lift off the surface (no z-fighting)
+            pl.add_mesh(lines, color="#3b3220", line_width=2, lighting=False)
 
     # Clouds: cropped to the cloud layer, smoothed (wrap-around only in periodic directions)
     k0, k1 = k_range
@@ -191,17 +202,63 @@ def render_frame(path: str, k_range: tuple[int, int], zexp: float, mode: str,
 
     pl.add_text(_caption(d, z), position="upper_left", font_size=11, color="white", shadow=True)
 
-    # Camera: oblique view from the south-west, looking at the cloud layer
-    focal = (Lx / 2, Ly / 2, 0.35 * zz[-1])
-    dist = 1.25 * max(Lx, Ly)
-    pl.camera.focal_point = focal
-    pl.camera.position = (Lx / 2 - 0.75 * dist, Ly / 2 - 0.95 * dist, 0.55 * dist)
+    # Camera: oblique view from the south-west, pulled back until the ground and the highest cloud level
+    # of the whole run (zz[-1], the same for every frame) fit in the frame
+    top = zz[-1]
+    focal = np.array([Lx / 2, Ly / 2, 0.4 * top])
+    direction = np.array([-0.75, -0.95, 0.55])
+    dist = _fit_distance(focal, direction, (Lx, Ly, top), view_angle=32.0,
+                         aspect=WINDOW[0] / WINDOW[1])
+    pl.camera.focal_point = tuple(focal)
+    pl.camera.position = tuple(focal + direction / np.linalg.norm(direction) * dist)
     pl.camera.up = (0, 0, 1)
     pl.camera.view_angle = 32
 
     img = pl.screenshot(return_img=True)
     pl.close()
     return img
+
+
+def _terrain_nodes(eff: str, nx: int, ny: int, dx: float, dy: float) -> np.ndarray | None:
+    """Ground height (nx+1, ny+1) at the cell corners from the run's TERRAIN_* settings
+    (analytic shapes centred in the domain, as terrain.py builds them); None for flat or unknown."""
+    if not os.path.exists(eff):
+        return None
+    cfg = {}
+    for line in open(eff):
+        key, _, val = line.partition(" = ")
+        if key.startswith("TERRAIN_"):
+            cfg[key] = val.strip().strip("'\"")
+    kind = cfg.get("TERRAIN_TYPE", "flat")
+    if kind == "flat":
+        return None
+    h0, s = float(cfg.get("TERRAIN_H_MAX", 0)), float(cfg.get("TERRAIN_SIGMA", 1))
+    X, Y = np.meshgrid(np.arange(nx + 1) * dx - nx * dx / 2, np.arange(ny + 1) * dy - ny * dy / 2,
+                       indexing="ij")
+    if kind == "gaussian_hill":
+        return h0 * np.exp(-(X**2 + Y**2) / (2 * s**2))
+    if kind == "agnesi_ridge":
+        return h0 * s**2 / (X**2 + s**2)
+    print(f"TERRAIN_TYPE {kind!r}: not drawn (flat ground)")
+    return None
+
+
+def _fit_distance(focal, direction, box, view_angle: float, aspect: float, margin: float = 1.06) -> float:
+    """Smallest camera distance along `direction` from `focal` at which all corners of the box
+    [0, Lx] × [0, Ly] × [0, top] lie inside the view (vertical angle view_angle, width/height aspect)."""
+    Lx, Ly, top = box
+    d = np.asarray(direction, float) / np.linalg.norm(direction)       # focal → camera
+    fwd = -d
+    right = np.cross(fwd, (0.0, 0.0, 1.0)); right /= np.linalg.norm(right)
+    up = np.cross(right, fwd)
+    tan_v = np.tan(np.radians(view_angle / 2)) / margin
+    tan_h = tan_v * aspect
+    corners = np.array([(x, y, z) for x in (0, Lx) for y in (0, Ly) for z in (0, top)]) - focal
+    dist = 0.0
+    for c in corners:                       # each corner: depth along fwd grows with dist
+        a, h, v = c @ fwd, abs(c @ right), abs(c @ up)
+        dist = max(dist, h / tan_h - a, v / tan_v - a)
+    return dist
 
 
 def _render_one(args):
@@ -248,13 +305,14 @@ def main() -> None:
     else:
         print("No effective_config.txt: assuming dx = dy = 100 m")
     xr = tuple(a.xrange) if a.xrange else None
+    terrain = _terrain_nodes(eff, len(np.load(paths[0])["qc"]), np.load(paths[0])["qc"].shape[1], dx, dy)
 
     if a.single is not None:
         times = np.array([float(np.load(p)["t"]) for p in paths])
         p = paths[int(np.argmin(np.abs(times - a.single)))]
         t0 = time.time()
         imageio.imwrite(a.out, render_frame(p, k_range, a.zexp, a.mode, a.smooth, dx, dy, xr,
-                                              tuple(open_xy)))
+                                              tuple(open_xy), terrain))
         print(f"Saved {a.out} ({time.time() - t0:.1f} s)")
         return
 
@@ -264,7 +322,7 @@ def main() -> None:
     print(f"Rendering {len(paths)} frames ({a.mode}, smooth={a.smooth}, "
           f"levels {k_range[0]}–{k_range[1]}) → {a.out}", flush=True)
     t0 = time.time()
-    jobs = [(p, k_range, a.zexp, a.mode, a.smooth, dx, dy, xr, tuple(open_xy)) for p in paths]
+    jobs = [(p, k_range, a.zexp, a.mode, a.smooth, dx, dy, xr, tuple(open_xy), terrain) for p in paths]
     if a.jobs > 1:
         with ProcessPoolExecutor(a.jobs) as ex:
             imgs = list(ex.map(_render_one, jobs))

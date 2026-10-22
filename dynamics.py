@@ -258,8 +258,12 @@ def _smag_K(s: State, g: Grid):
     VC = halo.pad_c(s.v_at_cell())
     WC = halo.pad_c(s.w_at_cell())
 
+    # Terrain: no K in solid cells, and one-sided du/dz, dv/dz at each column's first fluid cell
+    # (a centred difference would see the solid cell's u = 0 as no-slip shear on a free-slip ground)
+    kb = np.zeros((nx, ny), dtype=np.int64) if g.terrain is None else g.terrain.k_sfc.astype(np.int64)
+
     if _numba():
-        K_M = kernels.smag_KM(UC, VC, WC, s.w, g.z, dx, dy, g.dz_face, cfg.CS)
+        K_M = kernels.smag_KM(UC, VC, WC, s.w, g.z, dx, dy, g.dz_face, cfg.CS, kb)
         return K_M, K_M / cfg.PR_T
 
     X, Y = slice(H, H + nx), slice(H, H + ny)
@@ -283,6 +287,13 @@ def _smag_K(s: State, g: Grid):
     # du/dz, dv/dz — centred differences, handles non-uniform spacing
     dudz = np.gradient(u_cen, g.z, axis=2)
     dvdz = np.gradient(v_cen, g.z, axis=2)
+    if g.terrain is not None:
+        I, J = np.meshgrid(np.arange(nx), np.arange(ny), indexing='ij')
+        top = kb < g.nz - 1
+        I, J, k0 = I[top], J[top], kb[top]
+        h1 = g.z[k0 + 1] - g.z[k0]
+        dudz[I, J, k0] = (u_cen[I, J, k0 + 1] - u_cen[I, J, k0]) / h1
+        dvdz[I, J, k0] = (v_cen[I, J, k0 + 1] - v_cen[I, J, k0]) / h1
 
     # strain-rate magnitude squared: 2 S_ij S_ij
     S2 = (2*(dudx**2 + dvdy**2 + dwdz**2)
@@ -292,6 +303,8 @@ def _smag_K(s: State, g: Grid):
 
     Delta = (dx * dy * g.dz_face[np.newaxis, np.newaxis, :])**(1/3)
     K_M   = (cfg.CS * Delta)**2 * np.sqrt(np.maximum(S2, 0.0))
+    if g.terrain is not None:
+        K_M[np.arange(g.nz)[np.newaxis, np.newaxis, :] < kb[:, :, np.newaxis]] = 0.0
     K_H   = K_M / cfg.PR_T
     return K_M, K_H
 

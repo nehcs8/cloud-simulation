@@ -189,7 +189,46 @@ def apply_entrainment(s: State, g: Grid, dt: float) -> None:
 # Autoconversion and accretion parameters (now from config)
 # _K1 and _QC0 moved to config.py as AUTOCONV_RATE and AUTOCONV_THRESHOLD
 _K2    = 2.2     # accretion coefficient  (Kessler 1969, SI units)
-_K_EVP = 2.0e-4  # rain evaporation coefficient (lower → rain penetrates deeper)
+_K_EVP = 2.0e-4  # legacy rain evaporation coefficient (RAIN_EVAP = "legacy")
+
+# Seifert & Beheng (2001), mass densities L = ρq [kg/m³]
+_SB_KC    = 9.44e9    # m³ kg⁻² s⁻¹, autoconversion kernel constant
+_SB_KR    = 5.78      # m³ kg⁻¹ s⁻¹, accretion kernel constant
+_SB_XSTAR = 2.6e-10   # kg, drop mass separating cloud from rain (r ≈ 40 µm)
+_SB_NU    = 1.0       # cloud droplet size-distribution shape parameter
+_SB_AU    = _SB_KC / (20.0 * _SB_XSTAR) * (_SB_NU + 2) * (_SB_NU + 4) / (_SB_NU + 1) ** 2
+
+
+def _flags():
+    """Integer switches for the kernels: (scheme 1 = sb2001 / 0 = kessler, evap 1 = kw78 / 0 = legacy)."""
+    scheme = {"sb2001": 1, "kessler": 0}[cfg.RAIN_SCHEME]
+    evap = {"kw78": 1, "legacy": 0}[cfg.RAIN_EVAP]
+    return scheme, evap
+
+
+def _rain_rates(qc, qr, rho):
+    """Autoconversion + accretion rate [kg/kg/s] of the selected scheme."""
+    if cfg.RAIN_SCHEME == "kessler":
+        return (np.maximum(0.0, cfg.AUTOCONV_RATE * (qc - cfg.AUTOCONV_THRESHOLD))
+                + _K2 * qc * qr ** 0.875)
+    qt = qc + qr
+    tau = np.clip(np.where(qt > 0, qr / np.maximum(qt, 1e-30), 0.0), 0.0, 0.9999)
+    Lc, Lr = rho * qc, rho * qr
+    xc = np.minimum(Lc / cfg.CLOUD_NC, _SB_XSTAR)                     # mean cloud droplet mass
+    t68 = tau ** 0.68
+    au = _SB_AU * Lc**2 * xc**2 * (1.0 + 600.0 * t68 * (1.0 - t68)**3 / (1.0 - tau)**2)
+    ac = _SB_KR * Lc * Lr * (tau / (tau + 5e-4))**4
+    return (au + ac) / rho
+
+
+def _evap_rate(qr, qv, q_s, rho, p):
+    """Rain evaporation rate [kg/kg/s] (≥ 0, only where sub-saturated)."""
+    deficit = np.maximum(0.0, q_s - qv)
+    if cfg.RAIN_EVAP == "legacy":
+        return _K_EVP * deficit * qr ** 0.525
+    rq = rho * 1e-3 * qr                                    # g/cm³
+    C = 1.6 + 124.9 * rq ** 0.2046                          # ventilation
+    return (deficit / q_s) * C * rq ** 0.525 / ((5.4e5 + 2.55e6 / (p * 1e-2 * q_s)) * rho * 1e-3)
 
 
 def warm_rain(s: State, g: Grid, dt: float) -> None:
@@ -200,30 +239,30 @@ def warm_rain(s: State, g: Grid, dt: float) -> None:
         theta0, pi0_1d, p = _profiles(s)
         s.theta, s.qv, s.qc, s.qr = (np.array(a, dtype=np.float64)
                                      for a in (s.theta, s.qv, s.qc, s.qr))
-        kernels.warm_rain(s.theta, s.qv, s.qc, s.qr, theta0, pi0_1d, p, cfg.EPS, dt,
-                          cfg.AUTOCONV_RATE, cfg.AUTOCONV_THRESHOLD, _K2, _K_EVP,
-                          cfg.LV / cfg.CP)
+        scheme, evap = _flags()
+        kernels.warm_rain(s.theta, s.qv, s.qc, s.qr, theta0, pi0_1d, p,
+                          np.asarray(s.rho0, dtype=np.float64), cfg.EPS, dt,
+                          scheme, evap, cfg.AUTOCONV_RATE, cfg.AUTOCONV_THRESHOLD, _K2, _K_EVP,
+                          cfg.CLOUD_NC, _SB_AU, _SB_KR, _SB_XSTAR, cfg.LV / cfg.CP)
         return
     pi0 = s._pi0()
     theta_abs = s.theta + s.theta0[np.newaxis, np.newaxis, :]
     T   = theta_abs * pi0
     q_s = _q_sat(T, pi0)
 
-    # Autoconversion: cloud → rain (use config parameters)
-    auto = np.maximum(0.0, cfg.AUTOCONV_RATE * (s.qc - cfg.AUTOCONV_THRESHOLD)) * dt
-    auto = np.minimum(auto, s.qc)
+    rho = s.rho0[np.newaxis, np.newaxis, :]
+    p = cfg.P00 * pi0 ** (cfg.CP / cfg.RD)
 
-    # Accretion: rain sweeps up cloud water
-    accr = _K2 * s.qc * s.qr ** 0.875 * dt
-    accr = np.minimum(accr, s.qc)
+    # Autoconversion + accretion: cloud → rain
+    conv = np.minimum(_rain_rates(s.qc, s.qr, rho) * dt, s.qc)
+    s.qc -= conv
+    s.qr += conv
 
-    s.qc -= (auto + accr)
-    s.qr += (auto + accr)
-
-    # Rain evaporation (only where sub-saturated and rain exists)
-    deficit = np.maximum(0.0, q_s - s.qv)
-    evap    = _K_EVP * deficit * s.qr ** 0.525 * dt
-    evap    = np.minimum(evap, s.qr)
+    # Rain evaporation (only where sub-saturated; never beyond saturation)
+    evap = _evap_rate(s.qr, s.qv, q_s, rho, p) * dt
+    if cfg.RAIN_EVAP == "kw78":
+        evap = np.minimum(evap, np.maximum(0.0, q_s - s.qv))
+    evap = np.minimum(evap, s.qr)
 
     s.qr   -= evap
     s.qv   += evap

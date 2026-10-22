@@ -4,6 +4,8 @@ How to reproduce the land_cu runs of 2026-10-11 … 10-14. The code state they u
 `249a909` ("Add land_cu case, numba kernels, …"). After that commit the runner was
 generalised to `run_case.py CASE[:VARIANT] …`. `run_land_cu.py` is kept as a wrapper and is
 identical to `run_case.py land_cu …`, so every command below still works unchanged.
+Since 2026-10-19 the default warm rain is Seifert–Beheng with Klemp–Wilhelmson evaporation: add
+`RAIN_SCHEME="'kessler'" RAIN_EVAP="'legacy'"` (bash quoting) to reproduce these runs' microphysics.
 For the exact code, `git checkout 249a909`. Each run folder also keeps its `config.py` copy and
 `effective_config.txt`, which holds the full set of values after overrides.
 

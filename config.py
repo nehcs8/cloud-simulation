@@ -200,8 +200,16 @@ CLOUD_EXTINCTION: float = 200.0  # m²/kg, strong
 MIN_TRANSMITTANCE: float = 0.1
 
 # ── Microphysics parameters ────────────────────────────────────────────────────
+# RAIN_SCHEME: "sb2001" = Seifert & Beheng (2001) autoconversion + accretion, which depend on the cloud
+# droplet number CLOUD_NC (continental ~200–1000 cm⁻³ rains late, maritime ~50–100 cm⁻³ early);
+# "kessler" = the threshold scheme used before 2026-10-19 (rain within ~1 min of qc > AUTOCONV_THRESHOLD).
+RAIN_SCHEME: str = "sb2001"
+CLOUD_NC: float = 300.0e6        # m⁻³, cloud droplet number (sb2001)
 AUTOCONV_RATE: float = 1e-3      # s^-1, autoconversion rate (K1 in Kessler)
 AUTOCONV_THRESHOLD: float = 0.5e-3  # kg/kg, cloud water threshold for autoconversion (QC0)
+# Rain evaporation: "kw78" = Klemp & Wilhelmson (1978) as in CM1/WRF Kessler; "legacy" = the
+# K_EVP·deficit·qr^0.525 form used before 2026-10-19 (70–100× weaker: almost no cold pools)
+RAIN_EVAP: str = "kw78"
 
 # ── Terrain (Phase 2) ──────────────────────────────────────────────────────────
 TERRAIN_TYPE: str = "flat"       # "flat", "gaussian_hill", "sine_ridge", "agnesi_ridge", "random", "dem"

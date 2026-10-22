@@ -1,0 +1,20 @@
+[mwK12p DZ_UNIFORM=12.5 Z_UNIFORM_TOP=1500.0 N_STRETCH=70 TERRAIN_PARTIAL_CELLS=True] Agnesi ridge h0 200 m, a 5 km, U 10 m/s, N 0.0100 1/s, t = 2.5 h
+theory M = −(π/4) ρ₀ N U h₀² = -3612.6 N/m
+time evolution of M / M_theory at 1, 2, 4, 6 km:
+  t 0.25 h:  0.56   0.28   0.10   0.05
+  t 0.50 h:  1.03   0.68   0.30   0.13
+  t 0.75 h:  1.29   0.96   0.51   0.29
+  t 1.00 h:  1.43   1.18   0.75   0.45
+  t 1.25 h:  1.43   1.27   0.92   0.59
+  t 1.50 h:  1.43   1.31   0.99   0.70
+  t 1.75 h:  1.34   1.31   1.06   0.82
+  t 2.00 h:  1.22   1.19   1.20   0.92
+  t 2.25 h:  1.22   1.13   1.12   1.06
+  t 2.50 h:  1.25   1.22   1.11   1.00
+  z   1 km: M  -4461.6 N/m  (ratio 1.23)
+  z   2 km: M  -4254.0 N/m  (ratio 1.18)
+  z   3 km: M  -4127.8 N/m  (ratio 1.14)
+  z   4 km: M  -4033.1 N/m  (ratio 1.12)
+  z   6 km: M  -3734.6 N/m  (ratio 1.03)
+w pattern vs theory (|x| < 15 km, 0.5–6 km): correlation 0.865, rms amplitude ratio 1.05, max |w| model 0.533 theory 0.502 m/s
+PASS
