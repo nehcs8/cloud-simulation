@@ -319,6 +319,15 @@ through the downwind (east) edge, carried by the 4 m/s wind at 4–5 km (export 
 graupel within 1 km of the edges at 120 min): slow (1.7–2.4 m/s) graupel/snow drifts downstream in the anvil for > 25 min
 before melting. With the spot at the centre there are only 6.4 km of fetch downwind: put the spot upwind (`SHF_SPOT_X0`) and run
 ≥ 3 h to close the precipitation budget.
+**Upwind spot, 3 h (2026-10-22, `runs/*_styria128up_{warm,graupel}`, 128², `SHF_SPOT_X0=3500.0` → 9.3 km downwind, 2 threads
+each side by side, 102/111 wall-min per simulated hour, budget residual 0; `outputs/logs/compare_styria128up.txt`):** the first
+cell now rains out inside the domain (no surface rain after ~130 min); a second cell starts at ~150 min in both runs (cut off at
+3 h). Cell 1 (0–150 min): ground rain from 90 min in both; peak local rain 54 (warm) vs 32 mm/h (graupel), cold pool −3.2 vs
+−3.1 K, tops 7.1 vs 7.7 km, w_max 25 in both. Rain + graupel aloft peak 33 kt (warm) vs 46 kt (24 rain + 23 graupel) at 105 min,
+but surface precipitation 23.9 kt (0.146 mm) vs 14.1 kt (0.086 mm), plus ≈ 4.8 kt of rain + graupel exported through the east
+edge (≈ 0 warm). So with graupel ~40 % more precipitation forms aloft but ~40 % less reaches the ground: the rest sublimates in
+the dry (RH ~0.55) 4–5 km anvil air or evaporates after melting. Whether that is realistic (virga) or a too-strong sublimation
+needs process-rate diagnostics (not yet in the model).
 
 ### land_cu run
 Reproduction of every past land_cu run (exact overrides): `docs/RUNNING_LAND_CU.md`.
