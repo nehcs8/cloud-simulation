@@ -328,6 +328,15 @@ but surface precipitation 23.9 kt (0.146 mm) vs 14.1 kt (0.086 mm), plus ≈ 4.8
 edge (≈ 0 warm). So with graupel ~40 % more precipitation forms aloft but ~40 % less reaches the ground: the rest sublimates in
 the dry (RH ~0.55) 4–5 km anvil air or evaporates after melting. Whether that is realistic (virga) or a too-strong sublimation
 needs process-rate diagnostics (not yet in the model).
+**Process budget of that case (2026-10-23, `runs/*_styria128b_{warm,graupel}`, rerun of `styria128up_*` with micro_budget.npz and
+1-min snapshots → identical fields; GIFs `cloud_gifs/20261023_single_cu_styria128b_*_0-180min.gif`; `outputs/logs/compare_styria128b.txt`),
+cell 1, 0–150 min:** warm — 87.8 kt cloud → rain (mean height 4.5 km), 63.9 kt rain evaporates (mean height 1.7 km), 23.9 kt at the
+ground: precipitation efficiency 27 %. Graupel — 122 kt precipitation formed (46.4 cloud → rain, 56.6 riming, 15.3 ice autoconversion,
+3.7 ice collection; plus 11.6 kt rain frozen to graupel), 61.8 kt melts (3.4 km), 82.1 kt rain evaporates (1.9 km), 21.7 kt graupel
+sublimates (4.2 km), 14.1 kt at the ground, ≈ 4.8 kt exported: efficiency 12 %. So the loss is **sub-cloud rain evaporation** in both
+(67–73 % of what forms), not anvil sublimation (18 %). Graupel forms more precipitation (riming) but spreads it wider and later, so the
+melted rain arrives lighter and evaporates more. Suspects: the dry, deep sub-cloud layer (LCL 1.7 km) and single-moment rain with a fixed
+Marshall–Palmer N0 — light rain then has small mean drops and evaporates too fast (known bias; a two-moment rain N_r fixes it).
 
 ### land_cu run
 Reproduction of every past land_cu run (exact overrides): `docs/RUNNING_LAND_CU.md`.
