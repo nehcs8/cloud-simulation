@@ -94,6 +94,7 @@ class Simulation:
         self.cloud_persistence_window = 1200.0  # 20 minutes in seconds
 
         # Profile storage (saved every PROFILE_EVERY)
+        self.micro_times, self.micro_rows = [], []
         self.profile_times = []
         self.profile_data = {
             'theta': [],
@@ -654,6 +655,17 @@ class Simulation:
         self.profile_data['u'].append(u_prof.astype(np.float32))
         self.profile_data['v'].append(v_prof.astype(np.float32))
         self.profile_data['w_var'].append(w_var_prof.astype(np.float32))
+        self._write_micro_budget()
+
+    def _write_micro_budget(self) -> None:
+        """Cumulative microphysics process budget [kg per level] at each profile time → micro_budget.npz
+        (rewritten every time, so it survives a crash). Processes: microphysics.PROCESSES."""
+        import microphysics
+        self.micro_times.append(self.t)
+        self.micro_rows.append(microphysics.budget_kg(self.state, self.grid))
+        np.savez_compressed(f"{OUTPUT_DIR}/micro_budget.npz", times=np.array(self.micro_times),
+                            z=self.grid.z, processes=np.array(microphysics.PROCESSES),
+                            cumulative_kg=np.array(self.micro_rows))       # (n_times, nz, n_proc)
 
     def _write_profiles(self) -> None:
         """Write collected profiles to profiles.npz."""

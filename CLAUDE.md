@@ -398,6 +398,11 @@ MPLBACKEND=Agg nohup ./venv/bin/python3 main_nested.py > outputs/logs/nested_sim
 
 ## Diagnostics (`diag.csv`)
 
+`micro_budget.npz` (since 2026-10-23, every PROFILE_EVERY): cumulative mass [kg] per level converted by each process of
+`microphysics.PROCESSES` (cloud→rain, rain evaporation, ice autoconversion/collection, riming, shedding, rain freezing,
+melting, graupel sublimation; surface rain/graupel at level 0). Accumulated in the kernels (`s.micro_acc`, Σ over y per
+x and level); cloud condensation is not in it. Read with `scripts/compare_microphysics.py RUN … --budget T0 T1`.
+
 - `cloud_frac` — column cloud cover (qc > 1e-5 kg/kg); land_cu target 0.05–0.20
 - `CB`, `CT` — domain extremes: lowest / highest level with any qc > 0 (use
   `analyze_land_cu.py` for column-median base/top)

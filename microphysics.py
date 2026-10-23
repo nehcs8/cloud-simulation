@@ -209,6 +209,31 @@ _SB_NU    = 1.0       # cloud droplet size-distribution shape parameter
 _SB_AU    = _SB_KC / (20.0 * _SB_XSTAR) * (_SB_NU + 2) * (_SB_NU + 4) / (_SB_NU + 1) ** 2
 
 
+# ── Process budget ───────────────────────────────────────────────────────────
+# Mass converted by each process, accumulated over the run in s.micro_acc (nx, nz, n): Σ_y Δq [kg/kg] per (x, level);
+# the two surface entries hold Σ_y (precip · dt) [kg/m²] at level 0. budget_kg() turns it into kg per level.
+# Cloud condensation/evaporation is not listed: with θ_l/q_t it happens implicitly at every diagnosis.
+PROCESSES = ('cloud_to_rain', 'rain_evap', 'ice_autoconv', 'ice_collect', 'riming', 'shedding',
+             'rain_freeze', 'melting', 'graupel_subl', 'rain_sfc', 'graupel_sfc')
+_SFC = (PROCESSES.index('rain_sfc'), PROCESSES.index('graupel_sfc'))
+
+
+def _acc(s: State) -> np.ndarray:
+    a = getattr(s, 'micro_acc', None)
+    nx, nz = s.qc.shape[0], s.qc.shape[2]
+    if a is None or a.shape != (nx, nz, len(PROCESSES)):
+        s.micro_acc = a = np.zeros((nx, nz, len(PROCESSES)))
+    return a
+
+
+def budget_kg(s: State, g: Grid) -> np.ndarray:
+    """Cumulative mass per process and level [kg], shape (nz, len(PROCESSES)) (surface entries at level 0)."""
+    a = _acc(s).sum(axis=0)
+    out = a * (s.rho0 * g.dx * g.dy * g.dz_face)[:, None]
+    out[:, list(_SFC)] = a[:, list(_SFC)] * g.dx * g.dy
+    return out
+
+
 def _flags():
     """Integer switches for the kernels: (scheme 1 = sb2001 / 0 = kessler, evap 1 = kw78 / 0 = legacy)."""
     scheme = {"sb2001": 1, "kessler": 0}[cfg.RAIN_SCHEME]
@@ -259,7 +284,7 @@ def warm_rain(s: State, g: Grid, dt: float) -> None:
                           np.asarray(s.rho0, dtype=np.float64), cfg.EPS, dt,
                           scheme, evap, cfg.AUTOCONV_RATE, cfg.AUTOCONV_THRESHOLD, _K2, _K_EVP,
                           cfg.CLOUD_NC, _SB_AU, _SB_KR, _SB_XSTAR, cfg.LV / cfg.CP,
-                          _lf_cp(), cfg.T_ICE_0, cfg.T_ICE_00, int(thermodynamics._graupel()))
+                          _lf_cp(), cfg.T_ICE_0, cfg.T_ICE_00, int(thermodynamics._graupel()), _acc(s))
         return
     pi0 = s._pi0()
     theta_abs = s.theta + s.theta0[np.newaxis, np.newaxis, :]
@@ -286,6 +311,9 @@ def warm_rain(s: State, g: Grid, dt: float) -> None:
 
     s.qr   -= evap
     s.qv   += evap
+    acc = _acc(s)
+    acc[:, :, 0] += conv.sum(axis=1)
+    acc[:, :, 1] += evap.sum(axis=1)
     s.theta -= (cfg.LV / cfg.CP) * evap / pi0
 
 
@@ -397,10 +425,13 @@ def _sediment(q: np.ndarray, s: State, g: Grid, dt: float, a_vt: float, b_vt: fl
 
 def sedimentation(s: State, g: Grid, dt: float) -> None:
     """Rain (and graupel, ICE_SCHEME "graupel") fall-out; s.surface_precip_flux = their sum [mm/h]."""
+    acc = _acc(s)
     s.qr, sfc = _sediment(s.qr, s, g, dt, _A_VT, _B_VT)
+    acc[:, 0, _SFC[0]] += sfc.sum(axis=1) * dt / 3600.0          # mm/h → kg/m² per step
     if thermodynamics._graupel():
         a_vt, b_vt = _graupel_vt()
         s.qg, sfc_g = _sediment(s.qg, s, g, dt, a_vt, b_vt)
+        acc[:, 0, _SFC[1]] += sfc_g.sum(axis=1) * dt / 3600.0
         sfc = sfc + sfc_g
     s.surface_precip_flux = sfc
 
@@ -447,7 +478,7 @@ def ice_graupel(s: State, g: Grid, dt: float) -> None:
                             np.asarray(s.rho0, dtype=np.float64), cfg.EPS, dt, lv_cp, lf_cp,
                             cfg.T_ICE_0, cfg.T_ICE_00, cfg.GR_N0, cfg.GR_RHO, cfg.GR_A, cfg.GR_B,
                             cfg.GR_E_ICE, cfg.ICE_AUTO_QI0, c_coll, c_vent, _KA, _NU, _SC, _PSI,
-                            cfg.RV, cfg.CP)
+                            cfg.RV, cfg.CP, _acc(s))
         return
     pi0 = s._pi0()
     p = cfg.P00 * pi0 ** (cfg.CP / cfg.RD)
@@ -495,6 +526,11 @@ def ice_graupel(s: State, g: Grid, dt: float) -> None:
     s.qv = qv + d_s
     d_ice = (1.0 - a) * (-d_i - d_l) + to_g
     s.theta = s.theta + (-lv_cp * d_s + lf_cp * d_ice) / pi0
+    acc = _acc(s)
+    tot = np.where(d_i > 0, aut + gaci, 1.0)
+    for idx, x in ((2, d_i * aut / tot), (3, d_i * gaci / tot), (4, np.where(cold, d_l, 0.0)),
+                   (5, np.where(cold, 0.0, d_l)), (6, d_r), (7, d_m), (8, d_s)):
+        acc[:, :, idx] += x.sum(axis=1)
 
 
 # ── Main microphysics driver ──────────────────────────────────────────────────

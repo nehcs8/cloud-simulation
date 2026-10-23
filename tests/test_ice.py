@@ -186,6 +186,14 @@ def graupel_checks():
         start = {k: getattr(s, k).copy() for k in ('qc', 'qr', 'qg')}
         mp.ice_graupel(s, None, 5.0)
         out[numba] = s
+        # process budget: Σ_y Δq_g = autoconv + ice collection + riming + rain freezing − melting − sublimation
+        A = s.micro_acc
+        dg = (s.qg - start['qg']).sum(axis=1)
+        db = A[..., 2] + A[..., 3] + A[..., 4] + A[..., 6] - A[..., 7] - A[..., 8]
+        dr = (s.qr - start['qr']).sum(axis=1) - (A[..., 5] + A[..., 7] - A[..., 6])
+        eb = max(np.abs(dg - db).max(), np.abs(dr).max())
+        print(f"   process budget vs field change ({'numba' if numba else 'numpy'}): max |diff| {eb:.1e}")
+        ok &= eb < 1e-15
         dW = np.abs(s.qv + s.qc + s.qr + s.qg - W0).max()
         dE = np.abs(inv(s) - E0).max()
         neg = min(s.qc.min(), s.qr.min(), s.qg.min(), s.qv.min())
@@ -195,7 +203,8 @@ def graupel_checks():
         print(f"6. ice_graupel ({'numba' if numba else 'numpy'}): |Δ total water| {dW:.1e}, |Δ energy invariant| {dE:.1e} K, "
               f"min field {neg:.1e}, warm cells melting {melted.sum()} (coldest after {under:+.3f} °C)")
         ok &= dW < 1e-15 and dE < 1e-10 and neg >= 0 and under >= -1e-9
-    d = max(np.abs(getattr(out[True], k) - getattr(out[False], k)).max() for k in ('theta', 'qv', 'qc', 'qr', 'qg'))
+    d = max(np.abs(getattr(out[True], k) - getattr(out[False], k)).max()
+            for k in ('theta', 'qv', 'qc', 'qr', 'qg', 'micro_acc'))
     print(f"   numba vs numpy max diff {d:.1e}")
     ok &= d < 1e-12
 

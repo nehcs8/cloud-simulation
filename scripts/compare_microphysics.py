@@ -7,7 +7,11 @@ from the α(T) split of q_c, rain, graupel), graupel mean height, export of rain
 lateral edges (cell-centred u, v of the edge cells — an estimate), cloud cover above 5 km, coldest
 lowest-level θ′ (cold pool) and peak local surface rain (rain only, ρ q_r V_t at the lowest level).
 
-Run: ./venv/bin/python3 scripts/compare_microphysics.py RUN_DIR [RUN_DIR ...] [--t0 60] [--every 15]
+With micro_budget.npz (runs from 2026-10-23 on), --budget T0 T1 [min] adds the process budget of that window:
+mass converted by each process [kt], its mass-weighted mean height, and the fractions of the precipitation
+formed (cloud → rain + cloud ice/liquid → graupel) lost to evaporation/sublimation and reaching the ground.
+
+Run: ./venv/bin/python3 scripts/compare_microphysics.py RUN_DIR [RUN_DIR ...] [--t0 60] [--every 15] [--budget 0 150]
 """
 import argparse
 import glob
@@ -83,14 +87,44 @@ def snapshots(run, t0, every):
               f"                    | {hi:5.1f}%    | {d['theta'][:, :, 0].min():+6.2f} K  | {rain:5.1f} mm/h")
 
 
+def budget(run, t0, t1):
+    f = os.path.join(run, 'micro_budget.npz')
+    if not os.path.exists(f):
+        print(f"{os.path.basename(run)}: no micro_budget.npz")
+        return
+    b = np.load(f)
+    t = b['times'] / 60
+    i0, i1 = np.argmin(abs(t - t0)), np.argmin(abs(t - t1))
+    c = b['cumulative_kg'][i1] - b['cumulative_kg'][i0]          # (nz, n_proc)
+    P = list(b['processes'])
+    tot = c.sum(0) / 1e6
+    zbar = (c * b['z'][:, None]).sum(0) / np.where(c.sum(0) > 0, c.sum(0), 1)
+    print(f"\n{os.path.basename(run)} process budget {t[i0]:.0f}–{t[i1]:.0f} min [kt, mean height m]:")
+    for p, v, zz in zip(P, tot, zbar):
+        if v > 0:
+            print(f"  {p:14s} {v:8.2f}  {zz:5.0f}" if not p.endswith('_sfc') else f"  {p:14s} {v:8.2f}")
+    v = dict(zip(P, tot))
+    formed = v['cloud_to_rain'] + v['ice_autoconv'] + v['ice_collect'] + v['riming']
+    lost = v['rain_evap'] + v['graupel_subl']
+    sfc = v['rain_sfc'] + v['graupel_sfc']
+    if formed > 0:
+        print(f"  precipitation formed {formed:.2f} kt: evaporated/sublimated {lost / formed * 100:.0f} %"
+              f" (rain evap {v['rain_evap'] / formed * 100:.0f} %, graupel subl {v['graupel_subl'] / formed * 100:.0f} %),"
+              f" at the ground {sfc / formed * 100:.0f} %")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('runs', nargs='+')
     ap.add_argument('--t0', type=float, default=60.0)
     ap.add_argument('--every', type=int, default=15)
+    ap.add_argument('--budget', type=float, nargs=2, metavar=('T0', 'T1'))
     a = ap.parse_args()
     for r in a.runs:
         summary(r)
+    if a.budget:
+        for r in a.runs:
+            budget(r, *a.budget)
     for r in a.runs:
         print(f"\n{os.path.basename(r)}")
         snapshots(r, a.t0, a.every)

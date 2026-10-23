@@ -563,8 +563,9 @@ def saturation_adjustment(theta, qv, qc, theta0, pi0, p, L_cp, lv, rv, eps_rd):
 @njit(parallel=True, cache=True)
 def warm_rain(theta, qv, qc, qr, theta0, pi0, p, rho0, eps_rd, dt, scheme, evap_kw,
               auto_rate, auto_thresh, k2, k_evp, nc, sb_au, sb_kr, sb_xstar, L_cp, lf_cp, t0, t00,
-              liq_only):
+              liq_only, acc):
     """In-place autoconversion, accretion and rain evaporation, as microphysics.warm_rain.
+    acc (nx, nz, n_proc): process budget, += converted q per cell (summed over y), see microphysics.PROCESSES.
     scheme 1 = Seifert–Beheng 2001, 0 = Kessler; evap_kw 1 = Klemp–Wilhelmson 1978, 0 = legacy.
     lf_cp > 0 (mixed phase): q_c keeps its liquid fraction α(T), so removing Δ as rain relabels (1 − α)Δ
     of the remaining condensate from liquid to ice … i.e. takes L_f (1 − α) Δ back. liq_only = 1
@@ -605,12 +606,14 @@ def warm_rain(theta, qv, qc, qr, theta0, pi0, p, rho0, eps_rd, dt, scheme, evap_
                 qc[i, j, k] = c
                 qr[i, j, k] = r - evap
                 qv[i, j, k] += evap
+                acc[i, k, 0] += conv
+                acc[i, k, 1] += evap
                 theta[i, j, k] -= L_cp * evap / pi0[k]
 
 
 @njit(parallel=True, cache=True)
 def ice_graupel(theta, qv, qc, qr, qg, theta0, pi0, p, rho0, eps_rd, dt, lv_cp, lf_cp, t0, t00,
-                n0, rho_g, a_g, b_g, e_ice, qi0, c_coll, c_vent, ka, nu, sc, psi, rv, cp):
+                n0, rho_g, a_g, b_g, e_ice, qi0, c_coll, c_vent, ka, nu, sc, psi, rv, cp, acc):
     """In-place graupel processes, as microphysics.ice_graupel (one category of precipitating ice q_g).
     c_coll = π/4 n0 a Γ(3+b), c_vent = 0.31 Sc^(1/3) Γ((b+5)/2) √(a/ν) (constants of the rates)."""
     nx, ny, nz = theta.shape
@@ -665,6 +668,16 @@ def ice_graupel(theta, qv, qc, qr, qg, theta0, pi0, p, rho0, eps_rd, dt, lv_cp, 
                 qv[i, j, k] += d_s
                 d_ice = (1.0 - a) * (-d_i - d_l) + to_g      # ice = (1 − α) q_c + q_g, α fixed
                 theta[i, j, k] += (-lv_cp * d_s + lf_cp * d_ice) / pi0[k]
+                if d_i > 0.0:
+                    acc[i, k, 2] += d_i * aut / (aut + gaci)
+                    acc[i, k, 3] += d_i * gaci / (aut + gaci)
+                if Tc < 0.0:
+                    acc[i, k, 4] += d_l
+                else:
+                    acc[i, k, 5] += d_l
+                acc[i, k, 6] += d_r
+                acc[i, k, 7] += d_m
+                acc[i, k, 8] += d_s
 
 
 @njit(parallel=True, cache=True)

@@ -59,7 +59,7 @@ Grid(32×32×160, dx=100.0m, dz=50.0–652.7m, z_top=12000m)
   dt=3.0s, t_end=2400.0s, output every 60.0s
   Snapshot interval: 600.0s
   NaN guard: enabled
-  Output directory: runs/20261022_1055_single_cu_bubble_40min_graupel_smoke
+  Output directory: runs/20261023_0904_single_cu_bubble_40min_graupel_smoke
 t=     0s  step=    1  w_max= 0.00m/s  w99=0.00m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=13.35g/kg
 t=    60s  step=   21  w_max= 1.65m/s  w99=0.66m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=13.33g/kg
 t=   120s  step=   41  w_max= 3.32m/s  w99=1.32m/s  qc_max=0.00g/kg  cov= 0.0%  N=  0  CB=0m  CT=0m  prec=0.00mm/h  qv_bl=13.25g/kg
@@ -101,10 +101,10 @@ t=  2220s  step=  872  w_max= 2.98m/s  w99=1.90m/s  qc_max=0.27g/kg  cov=19.1%  
 t=  2280s  step=  892  w_max= 2.96m/s  w99=1.96m/s  qc_max=0.29g/kg  cov=20.0%  N=  3  CB=4675m  CT=6325m  prec=0.00mm/h  qv_bl=12.90g/kg
 t=  2340s  step=  912  w_max= 3.35m/s  w99=2.10m/s  qc_max=0.28g/kg  cov=21.9%  N=  2  CB=5025m  CT=6225m  prec=0.00mm/h  qv_bl=12.88g/kg
 t=  2400s  step=  932  w_max= 3.84m/s  w99=2.13m/s  qc_max=0.27g/kg  cov=22.5%  N=  1  CB=5025m  CT=6175m  prec=0.00mm/h  qv_bl=12.87g/kg
-Saved 5 profiles to runs/20261022_1055_single_cu_bubble_40min_graupel_smoke/profiles.npz
+Saved 5 profiles to runs/20261023_0904_single_cu_bubble_40min_graupel_smoke/profiles.npz
 
 Steps: 932  mean dt = 2.58 s  (min 0.00, max 3.00; output-aligned steps included)
-Wall time: 2.7 min  (0.18 s/step, 4.1 wall-min per simulated hour)
+Wall time: 3.1 min  (0.20 s/step, 4.7 wall-min per simulated hour)
 
 ======================================================================
 single_cu_bubble_40min_graupel_smoke RUN COMPLETED
