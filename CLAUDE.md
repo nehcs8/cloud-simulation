@@ -366,6 +366,10 @@ Variants without editing the case: `run_land_cu.py 10800 SHF=110.0 W_SUBS=0.005 
 (overrides are recorded in the run's `effective_config.txt`).
 
 ### Visualize
+Every finished run gets a GIF from **1-minute snapshots** (`SNAPSHOT_EVERY=60.0`; 5-min frames are too coarse). Afterwards
+the snapshots may be thinned: `scripts/finish_run.py RUN --out cloud_gifs/YYYYMMDD_<desc>.gif` renders (`--smooth 0 --zexp 1.0`),
+checks one frame per snapshot and only then keeps multiples of `--keep-every` (300 s, what the analysis scripts use).
+The 2026-10-22 Styria ice runs (`styria_c14_*`, `styria128_*`, `styria128up_*`) only have 5-min snapshots, so their GIFs are 5-min.
 ```bash
 VTK_DEFAULT_OPENGL_WINDOW=vtkEGLRenderWindow ./venv/bin/python3 scripts/visualize/render_clouds.py \
     runs/<run_dir> --out cloud_gifs/YYYYMMDD_<description>.gif --fps 2 --smooth 0 --jobs 4
