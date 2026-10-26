@@ -331,6 +331,7 @@ def apply_sponge(s: State, g: Grid, dt: float) -> None:
     s.qc    += (0.0 - s.qc) * relax              # → 0 (no clouds in sponge)
     s.qr    += (0.0 - s.qr) * relax              # → 0 (no rain in sponge)
     s.qg    += (0.0 - s.qg) * relax              # → 0
+    s.nr    += (0.0 - s.nr) * relax              # → 0
 
     # w on faces: interpolate alpha to faces
     alpha_face = np.zeros(g.nz + 1)

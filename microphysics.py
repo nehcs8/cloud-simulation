@@ -271,6 +271,134 @@ def _lf_cp() -> float:
     return cfg.LF / cfg.CP if thermodynamics._mixed() else 0.0
 
 
+def _two_mom() -> bool:
+    return getattr(cfg, 'RAIN_MOMENTS', 1) == 2
+
+
+# ── Two-moment rain (RAIN_MOMENTS = 2) ───────────────────────────────────────
+# Exponential drop sizes from (q_r, n_r): mean mass x = q_r/n_r (clipped to RAIN_XMIN … RAIN_XMAX), λ = (π ρ_w / x)^⅓.
+# Evaporation uses the Lin-type ventilated formula with V = 842 D^0.8 (as for graupel); sedimentation uses the
+# Atlas et al. (1973) V(D) moments. The numba twins are kernels.rain_2m / sediment_2m.
+_X_SHED = 5.2e-7                                     # kg, mass of a 1 mm drop (shed meltwater)
+_RAIN_A, _RAIN_B = 842.0, 0.8
+
+
+def _c_vent_rain():
+    return 0.31 * _SC ** (1.0 / 3.0) * math.gamma(0.5 * (_RAIN_B + 5.0)) * np.sqrt(_RAIN_A / _NU)
+
+
+def _rain_lambda(q, n):
+    x = np.clip(q / np.where(n > 0, n, 1.0), cfg.RAIN_XMIN, cfg.RAIN_XMAX)
+    return (np.pi * 1000.0 / x) ** (1.0 / 3.0), x
+
+
+def _clip_nr(q, n):
+    return np.where(q <= 1e-15, 0.0, np.clip(n, q / cfg.RAIN_XMAX, q / cfg.RAIN_XMIN))
+
+
+def rain_2m(s: State, g: Grid, dt: float) -> None:
+    """Two-moment warm rain: SB2001 autoconversion (adds drops of mass x*) and accretion, SB2006 self-collection
+    and breakup (mean diameter → RAIN_DEQ), evaporation of the exponential (q_r, n_r) distribution with the
+    number lost in proportion. Updates θ′, q_v, q_c, q_r, n_r in place."""
+    lf = _lf_cp(); liq = int(thermodynamics._graupel())
+    if _numba():
+        theta0, pi0_1d, p = _profiles(s)
+        s.theta, s.qv, s.qc, s.qr, s.nr = (np.array(a, dtype=np.float64)
+                                           for a in (s.theta, s.qv, s.qc, s.qr, s.nr))
+        kernels.rain_2m(s.theta, s.qv, s.qc, s.qr, s.nr, theta0, pi0_1d, p,
+                        np.asarray(s.rho0, dtype=np.float64), cfg.EPS, dt, cfg.CLOUD_NC, _SB_AU, _SB_KR,
+                        _SB_XSTAR, cfg.LV / cfg.CP, lf, cfg.T_ICE_0, cfg.T_ICE_00, liq, cfg.RAIN_KRR,
+                        cfg.RAIN_DEQ, cfg.RAIN_XMIN, cfg.RAIN_XMAX, _c_vent_rain(), _KA, _PSI, cfg.RV, cfg.CP,
+                        _acc(s))
+        return
+    pi0 = s._pi0()
+    p = cfg.P00 * pi0 ** (cfg.CP / cfg.RD)
+    rho = s.rho0[np.newaxis, np.newaxis, :]
+    rfac = np.sqrt(s.rho0[0] / rho)
+    T = (s.theta + s.theta0[np.newaxis, np.newaxis, :]) * pi0
+    q_s = _q_sat(T, pi0)
+    L_cp = cfg.LV / cfg.CP; lv = cfg.LV
+    a = thermodynamics.liquid_fraction(T)[0] if lf > 0.0 else 1.0
+    c, r, n = s.qc, s.qr, s.nr
+    cl = a * c if liq else c
+    qt = cl + r
+    tau = np.clip(np.where(qt > 0, r / np.where(qt > 0, qt, 1.0), 0.0), 0.0, 0.9999)
+    Lc, Lr = rho * cl, rho * r
+    xc = np.minimum(Lc / cfg.CLOUD_NC, _SB_XSTAR)
+    t68 = tau ** 0.68
+    au = _SB_AU * Lc * Lc * xc * xc * (1.0 + 600.0 * t68 * (1.0 - t68) ** 3 / (1.0 - tau) ** 2) / rho
+    ac = _SB_KR * Lc * Lr * (tau / (tau + 5e-4)) ** 4 / rho
+    conv = np.minimum((au + ac) * dt, cl)
+    d_au = np.where(conv > 0, conv * au / np.where(au + ac > 0, au + ac, 1.0), 0.0)
+    c = c - conv; r = r + conv; n = n + d_au / _SB_XSTAR
+    if lf > 0.0:
+        s.theta = s.theta - lf * (1.0 - a) * conv / pi0
+    act = (r > 1e-12) & (n > 0)
+    lam, x = _rain_lambda(r, n)
+    dm = (6.0 * x / (np.pi * 1000.0)) ** (1.0 / 3.0)
+    sc = cfg.RAIN_KRR * n * rho * r * rfac
+    phi = np.where(dm < 0.35e-3, 0.0, np.where(dm <= cfg.RAIN_DEQ, 1.0 + 1000.0 * (dm - cfg.RAIN_DEQ),
+                                               2.0 * np.exp(2300.0 * (dm - cfg.RAIN_DEQ)) - 1.0))
+    n_sc = np.maximum(n + (phi - 1.0) * sc * dt / (1.0 + sc * dt / np.where(n > 0, n, 1.0)),
+                      r / cfg.RAIN_XMAX)
+    n = np.where(act, n_sc, n)
+    deficit = q_s - s.qv
+    ev = act & (deficit > 0)
+    lam, x = _rain_lambda(r, n)
+    abw = lv * lv / (_KA * cfg.RV * T * T) + 1.0 / (rho * q_s * _PSI)
+    vent = 0.78 / lam**2 + _c_vent_rain() * np.sqrt(rfac) * lam ** (-0.5 * (_RAIN_B + 5.0))
+    e = 2.0 * np.pi * rho * n * lam * (deficit / q_s) * vent / (rho * abw)
+    evap = np.where(ev, np.minimum(np.minimum(e * dt, deficit / (1.0 + L_cp * q_s * lv / (cfg.RV * T * T))), r), 0.0)
+    n = n - np.where(ev, n * evap / np.where(r > 0, r, 1.0), 0.0)
+    r = r - evap
+    s.qc, s.qr, s.nr = c, r, _clip_nr(r, n)
+    s.qv = s.qv + evap
+    s.theta = s.theta - L_cp * evap / pi0
+    acc = _acc(s)
+    acc[:, :, 0] += conv.sum(axis=1)
+    acc[:, :, 1] += evap.sum(axis=1)
+
+
+def _sediment_2m(s: State, g: Grid, dt: float):
+    """Two-moment rain sedimentation (Atlas V(D) moments); returns surface rain [mm/h]. Updates s.qr, s.nr."""
+    nx, ny, nz = s.qr.shape
+    if g.terrain is None:
+        kb = np.zeros((nx, ny), dtype=np.int64)
+        dzb = np.full((nx, ny), float(g.dz_face[0]))
+    else:
+        kb = g.terrain.k_sfc.astype(np.int64)
+        dzb = np.take_along_axis(g.terrain.hc, kb[:, :, None], axis=2)[:, :, 0] * g.dz_face[kb]
+    rho0 = np.asarray(s.rho0, dtype=np.float64)
+    if _numba():
+        s.qr, s.nr = np.array(s.qr, dtype=np.float64), np.array(s.nr, dtype=np.float64)
+        sfc = kernels.sediment_2m(s.qr, s.nr, rho0, np.asarray(g.dz_face, dtype=np.float64), dt,
+                                  np.ascontiguousarray(kb), np.ascontiguousarray(dzb, dtype=np.float64),
+                                  cfg.RAIN_XMIN, cfg.RAIN_XMAX)
+        return sfc * 3600.0
+    q, n = np.maximum(s.qr, 0.0), np.maximum(s.nr, 0.0)
+    Fq = np.zeros((nx, ny)); Fn = np.zeros((nx, ny))
+    for k in range(nz - 1, -1, -1):
+        on = k >= kb
+        if not on.any():
+            break
+        qk, nk = q[:, :, k], n[:, :, k]
+        live = (qk > 1e-12) & (nk > 0)
+        lam, _ = _rain_lambda(qk, nk)
+        f = lam / (lam + 600.0)
+        rf = np.sqrt(rho0[0] / rho0[k])
+        vq = np.where(live, np.maximum(9.65 - 10.3 * f**4, 0.1) * rf, 0.0)
+        vn = np.where(live, np.maximum(9.65 - 10.3 * f, 0.1) * rf, 0.0)
+        dzk = np.where(kb == k, dzb, g.dz_face[k])
+        qn = np.maximum((qk + (dt / dzk) * (Fq / rho0[k])) / (1.0 + vq * dt / dzk), 0.0)
+        nn = np.maximum((nk + (dt / dzk) * (Fn / rho0[k])) / (1.0 + vn * dt / dzk), 0.0)
+        Fq = np.where(on, vq * rho0[k] * qn, Fq)
+        Fn = np.where(on, vn * rho0[k] * nn, Fn)
+        q[:, :, k] = np.where(on, qn, qk)
+        n[:, :, k] = np.where(on, _clip_nr(qn, nn), nk)
+    s.qr, s.nr = q, n
+    return Fq * 3600.0
+
+
 def warm_rain(s: State, g: Grid, dt: float) -> None:
     """
     Autoconversion, accretion, rain evaporation.  Updates qc, qr, theta in-place.
@@ -426,7 +554,10 @@ def _sediment(q: np.ndarray, s: State, g: Grid, dt: float, a_vt: float, b_vt: fl
 def sedimentation(s: State, g: Grid, dt: float) -> None:
     """Rain (and graupel, ICE_SCHEME "graupel") fall-out; s.surface_precip_flux = their sum [mm/h]."""
     acc = _acc(s)
-    s.qr, sfc = _sediment(s.qr, s, g, dt, _A_VT, _B_VT)
+    if _two_mom():
+        sfc = _sediment_2m(s, g, dt)
+    else:
+        s.qr, sfc = _sediment(s.qr, s, g, dt, _A_VT, _B_VT)
     acc[:, 0, _SFC[0]] += sfc.sum(axis=1) * dt / 3600.0          # mm/h → kg/m² per step
     if thermodynamics._graupel():
         a_vt, b_vt = _graupel_vt()
@@ -472,13 +603,13 @@ def ice_graupel(s: State, g: Grid, dt: float) -> None:
     c_coll, c_vent = _graupel_consts()
     if _numba():
         theta0, pi0_1d, p = _profiles(s)
-        s.theta, s.qv, s.qc, s.qr, s.qg = (np.array(a, dtype=np.float64)
-                                           for a in (s.theta, s.qv, s.qc, s.qr, s.qg))
+        s.theta, s.qv, s.qc, s.qr, s.qg, s.nr = (np.array(a, dtype=np.float64)
+                                                 for a in (s.theta, s.qv, s.qc, s.qr, s.qg, s.nr))
         kernels.ice_graupel(s.theta, s.qv, s.qc, s.qr, s.qg, theta0, pi0_1d, p,
                             np.asarray(s.rho0, dtype=np.float64), cfg.EPS, dt, lv_cp, lf_cp,
                             cfg.T_ICE_0, cfg.T_ICE_00, cfg.GR_N0, cfg.GR_RHO, cfg.GR_A, cfg.GR_B,
                             cfg.GR_E_ICE, cfg.ICE_AUTO_QI0, c_coll, c_vent, _KA, _NU, _SC, _PSI,
-                            cfg.RV, cfg.CP, _acc(s))
+                            cfg.RV, cfg.CP, _acc(s), s.nr, int(_two_mom()), _X_SHED)
         return
     pi0 = s._pi0()
     p = cfg.P00 * pi0 ** (cfg.CP / cfg.RD)
@@ -520,6 +651,11 @@ def ice_graupel(s: State, g: Grid, dt: float) -> None:
     d_s = np.minimum(sub * dt, gq - d_m)
     to_g = d_i + d_r - d_m - d_s + np.where(cold, d_l, 0.0)
     to_r = d_m - d_r + np.where(cold, 0.0, d_l)
+    if _two_mom():
+        n = s.nr - np.where(d_r > 0, s.nr * d_r / np.where(r > 0, r, 1.0), 0.0)
+        n = n + np.where(d_m > 0, d_m * cfg.GR_N0 / (lam * rho * np.where(has_g, gq, 1.0)), 0.0)
+        n = n + np.where(~cold & (d_l > 0), d_l / _X_SHED, 0.0)
+        s.nr = np.maximum(n, 0.0)
     s.qc = c - d_i - d_l
     s.qg = gq + to_g
     s.qr = r + to_r
@@ -552,7 +688,11 @@ def apply_microphysics(s: State, g: Grid, dt: float) -> None:
         # (diluted qc may evaporate, creating cooling)
         saturation_adjustment(s, dt)
 
-    warm_rain(s, g, dt)
+    if _two_mom():
+        s.nr = _clip_nr(np.maximum(s.qr, 0.0), np.maximum(s.nr, 0.0))   # after advection: mean mass in bounds
+        rain_2m(s, g, dt)
+    else:
+        warm_rain(s, g, dt)
     if thermodynamics._graupel():
         ice_graupel(s, g, dt)
     sedimentation(s, g, dt)

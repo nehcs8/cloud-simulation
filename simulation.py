@@ -61,6 +61,7 @@ _DIAG_FIELDS = [
     "centroid_x", "centroid_y",        # cloud mass centroid (km)
     "centroid_speed",                  # speed of centroid movement (m/s)
     "qg_max",                          # graupel/snow (ICE_SCHEME "graupel"; 0 otherwise), g/kg
+    "Dr_mm",                           # q_r-weighted mean-mass drop diameter where q_r > 0.01 g/kg (RAIN_MOMENTS 2), mm
 ]
 
 
@@ -289,6 +290,7 @@ class Simulation:
             ('qt', s.qt),
             ('qr', s.qr),
             ('qg', s.qg),
+            ('nr', s.nr),
         ]
 
         for name, field in fields_to_check:
@@ -332,6 +334,7 @@ class Simulation:
             qt=s.qt,
             qr=s.qr,
             qg=s.qg,
+            nr=s.nr,
             # Diagnostic fields
             theta=s.theta,
             qv=s.qv,
@@ -562,7 +565,16 @@ class Simulation:
             centroid_x=centroid_x, centroid_y=centroid_y,
             centroid_speed=centroid_speed,
             qg_max=s.qg.max() * 1e3,
+            Dr_mm=self._drop_diameter_mm(),
         )
+
+    def _drop_diameter_mm(self) -> float:
+        s = self.state
+        m = (s.qr > 1e-5) & (s.nr > 0)
+        if not m.any():
+            return 0.0
+        d = (6.0 * s.qr[m] / (np.pi * 1000.0 * s.nr[m])) ** (1.0 / 3.0)
+        return float((d * s.qr[m]).sum() / s.qr[m].sum() * 1e3)
 
     def _report(self, d: dict) -> None:
         print(
@@ -597,6 +609,7 @@ class Simulation:
             qc      = s.qc.astype(np.float32),
             qr      = s.qr.astype(np.float32),
             qg      = s.qg.astype(np.float32),
+            nr      = s.nr.astype(np.float32),
             qv      = s.qv.astype(np.float32),
             w       = (0.5 * (s.w[:,:,:-1] + s.w[:,:,1:])).astype(np.float32),
             theta   = s.theta.astype(np.float32),

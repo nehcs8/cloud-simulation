@@ -119,6 +119,14 @@ Rules:
   1.7–2.4 m/s mass-weighted; it sediments with the rain scheme's implicit sweep (`_sediment`), and surface precip =
   rain + graupel. Heating Δθ = [L_v(−Δq_v) + L_f Δ(ice)]/(c_p π), ice = (1 − α)q_c + q_g, so the T-diagnosed
   liquid/ice split stays energy-consistent (the step-1 "melt" term is the same relabelling). Warm rain uses α q_c only
+  `RAIN_MOMENTS=2` (2026-10-26, default 1): prognostic rain drop number `s.nr` [1/kg] (transported, boundaries, sponge,
+  snapshots `nr`, diag `Dr_mm`), Seifert & Beheng 2006 warm rain (`rain_2m`, numba twin `kernels.rain_2m`): autoconversion
+  adds drops of mass x* = 2.6e-10 kg, self-collection (`RAIN_KRR` 4.33) + breakup toward `RAIN_DEQ` 1.1 mm, evaporation of
+  the exponential (q_r, n_r) distribution (Lin-type ventilation, number lost in proportion), two-moment sedimentation
+  (`_sediment_2m`/`kernels.sediment_2m`, Atlas V(D): mass at V_q, number at V_n → size sorting), mean mass clipped to
+  `RAIN_XMIN`…`RAIN_XMAX`; graupel freezing removes drops in proportion, melting makes one drop per graupel particle, shed
+  water 1 mm drops. At RH 0.7 the evaporation of 0.2 g/kg is 29/h (0.2 mm drops) … 3.2/h (1 mm) vs 13.5/h one-moment KW78
+  (`tests/test_rain2m.py`). One-moment runs (warm and graupel) are bitwise unchanged
 - `surface_layer.py` — M-O surface layer, optional cloud shading
 - `lateral_bc.py` — `LATERAL_BC = "fringe"`: inflow/outflow in x on the periodic grid. The last
   FRINGE_WIDTH is relaxed toward a copy of the strip upstream of RECYCLE_X ([0, RECYCLE_X) = homogeneous

@@ -613,9 +613,12 @@ def warm_rain(theta, qv, qc, qr, theta0, pi0, p, rho0, eps_rd, dt, scheme, evap_
 
 @njit(parallel=True, cache=True)
 def ice_graupel(theta, qv, qc, qr, qg, theta0, pi0, p, rho0, eps_rd, dt, lv_cp, lf_cp, t0, t00,
-                n0, rho_g, a_g, b_g, e_ice, qi0, c_coll, c_vent, ka, nu, sc, psi, rv, cp, acc):
+                n0, rho_g, a_g, b_g, e_ice, qi0, c_coll, c_vent, ka, nu, sc, psi, rv, cp, acc,
+                nr, two_mom, x_shed):
     """In-place graupel processes, as microphysics.ice_graupel (one category of precipitating ice q_g).
-    c_coll = π/4 n0 a Γ(3+b), c_vent = 0.31 Sc^(1/3) Γ((b+5)/2) √(a/ν) (constants of the rates)."""
+    c_coll = π/4 n0 a Γ(3+b), c_vent = 0.31 Sc^(1/3) Γ((b+5)/2) √(a/ν) (constants of the rates).
+    two_mom = 1: rain number nr follows — frozen rain removes drops in proportion, melting graupel makes as many
+    drops as graupel particles melt, shed water makes drops of mass x_shed."""
     nx, ny, nz = theta.shape
     ls = (lv_cp + lf_cp) * cp
     for i in prange(nx):
@@ -629,6 +632,7 @@ def ice_graupel(theta, qv, qc, qr, qg, theta0, pi0, p, rho0, eps_rd, dt, lv_cp, 
                 c = qc[i, j, k]; ql = a * c; qi = c - ql
                 g = qg[i, j, k]; r = qr[i, j, k]
                 aut = 0.0; gaci = 0.0; gacw = 0.0; gacr = 0.0; gfr = 0.0; melt = 0.0; sub = 0.0
+                lam = 1.0
                 if Tc < 0.0 and qi > qi0:
                     aut = 1e-3 * np.exp(0.025 * Tc) * (qi - qi0)
                 if Tc < 0.0 and r > 1e-12:                                  # Bigg (1953) freezing
@@ -678,6 +682,127 @@ def ice_graupel(theta, qv, qc, qr, qg, theta0, pi0, p, rho0, eps_rd, dt, lv_cp, 
                 acc[i, k, 6] += d_r
                 acc[i, k, 7] += d_m
                 acc[i, k, 8] += d_s
+                if two_mom == 1:
+                    n = nr[i, j, k]
+                    if d_r > 0.0:
+                        n -= n * d_r / r
+                    if d_m > 0.0:
+                        n += d_m * n0 / (lam * rho * g)       # graupel number per kg × melted fraction
+                    if Tc >= 0.0 and d_l > 0.0:
+                        n += d_l / x_shed
+                    nr[i, j, k] = max(n, 0.0)
+
+
+# ══ Two-moment rain (RAIN_MOMENTS = 2, microphysics.rain_2m / sedimentation) ═══════════════
+# Exponential size distribution from (L_r = ρ q_r, N = ρ n_r): λ = (π ρ_w / x)^(1/3), x = q_r / n_r mean mass.
+
+@njit(inline='always')
+def _rain_lambda(q, n, xmin, xmax):
+    x = min(max(q / n, xmin), xmax)
+    return (np.pi * 1000.0 / x) ** (1.0 / 3.0), x
+
+
+@njit(parallel=True, cache=True)
+def rain_2m(theta, qv, qc, qr, nr, theta0, pi0, p, rho0, eps_rd, dt, nc, sb_au, sb_kr, sb_xstar,
+            L_cp, lf_cp, t0, t00, liq_only, krr, d_eq, xmin, xmax, c_vent_r, ka, psi, rv, cp, acc):
+    """In-place two-moment warm rain, as microphysics.rain_2m: SB2001 autoconversion (+ drops of mass x*) and
+    accretion, SB2006 self-collection/breakup of the drop number, evaporation of the exponential distribution
+    (ventilated, Lin-type) with the number lost in proportion. Budget acc[…, 0] (cloud → rain), acc[…, 1] (evaporation)."""
+    nx, ny, nz = theta.shape
+    lv = L_cp * cp
+    for i in prange(nx):
+        for j in range(ny):
+            for k in range(nz):
+                T = (theta[i, j, k] + theta0[k]) * pi0[k]
+                q_s = _qsat_buck(T, p[k], eps_rd)
+                c = qc[i, j, k]; r = qr[i, j, k]; n = nr[i, j, k]; rho = rho0[k]
+                rfac = np.sqrt(rho0[0] / rho)
+                a = _liquid_fraction(T, t0, t00) if lf_cp > 0.0 else 1.0
+                cl = a * c if liq_only == 1 else c
+                # autoconversion + accretion (mass as SB2001; autoconversion adds drops of mass x*)
+                qt = cl + r
+                tau = min(max(r / qt if qt > 0.0 else 0.0, 0.0), 0.9999)
+                Lc = rho * cl; Lr = rho * r
+                xc = min(Lc / nc, sb_xstar)
+                t68 = tau ** 0.68
+                au = sb_au * Lc * Lc * xc * xc * (1.0 + 600.0 * t68 * (1.0 - t68) ** 3 / (1.0 - tau) ** 2) / rho
+                ac = sb_kr * Lc * Lr * (tau / (tau + 5e-4)) ** 4 / rho
+                conv = min((au + ac) * dt, cl)
+                d_au = conv * au / (au + ac) if conv > 0.0 else 0.0
+                c -= conv
+                r += conv
+                n += d_au / sb_xstar
+                if lf_cp > 0.0 and conv > 0.0:
+                    theta[i, j, k] -= lf_cp * (1.0 - a) * conv / pi0[k]
+                evap = 0.0
+                if r > 1e-12 and n > 0.0:
+                    lam, x = _rain_lambda(r, n, xmin, xmax)
+                    # self-collection and breakup (SB2006): dn/dt = (φ − 1) k_rr n L_r rfac, φ → 1 at D_eq
+                    dm = (6.0 * x / (np.pi * 1000.0)) ** (1.0 / 3.0)
+                    sc = krr * n * rho * r * rfac
+                    if dm < 0.35e-3:
+                        phi = 0.0
+                    elif dm <= d_eq:
+                        phi = 1.0 + 1000.0 * (dm - d_eq)
+                    else:
+                        phi = 2.0 * np.exp(2300.0 * (dm - d_eq)) - 1.0
+                    n = max(n + (phi - 1.0) * sc * dt / (1.0 + sc * dt / n), r / xmax)
+                    # evaporation of the exponential distribution, N0 = ρ n λ
+                    deficit = q_s - qv[i, j, k]
+                    if deficit > 0.0:
+                        lam, x = _rain_lambda(r, n, xmin, xmax)
+                        abw = lv * lv / (ka * rv * T * T) + 1.0 / (rho * q_s * psi)
+                        vent = 0.78 / lam**2 + c_vent_r * np.sqrt(rfac) * lam ** (-0.5 * (0.8 + 5.0))
+                        e = 2.0 * np.pi * rho * n * lam * (deficit / q_s) * vent / (rho * abw)
+                        evap = min(e * dt, deficit / (1.0 + L_cp * q_s * lv / (rv * T * T)), r)
+                        n -= n * evap / r
+                        r -= evap
+                if r <= 1e-15:
+                    n = 0.0
+                else:
+                    n = min(max(n, r / xmax), r / xmin)
+                qc[i, j, k] = c
+                qr[i, j, k] = r
+                nr[i, j, k] = n
+                qv[i, j, k] += evap
+                acc[i, k, 0] += conv
+                acc[i, k, 1] += evap
+                theta[i, j, k] -= L_cp * evap / pi0[k]
+
+
+@njit(parallel=True, cache=True)
+def sediment_2m(qr, nr, rho0, dz_face, dt, kb, dzb, xmin, xmax):
+    """Implicit top-down two-moment rain sedimentation (as microphysics._sediment_2m): mass with the
+    mass-weighted, number with the number-weighted speed of the exponential distribution and Atlas et al.
+    V(D) = 9.65 − 10.3 e^(−600 D) [m/s] × √(ρ_sfc/ρ): V_q = 9.65 − 10.3 (λ/(λ+600))⁴, V_n = 9.65 − 10.3 λ/(λ+600).
+    Each column ends at its ground level kb (fluid thickness dzb); returns the surface mass flux [kg/m²/s]."""
+    nx, ny, nz = qr.shape
+    sfc = np.empty((nx, ny))
+    for i in prange(nx):
+        for j in range(ny):
+            Fq = 0.0; Fn = 0.0
+            for k in range(nz - 1, kb[i, j] - 1, -1):
+                q = max(qr[i, j, k], 0.0); n = max(nr[i, j, k], 0.0)
+                vq = 0.0; vn = 0.0
+                if q > 1e-12 and n > 0.0:
+                    lam, x = _rain_lambda(q, n, xmin, xmax)
+                    f = lam / (lam + 600.0)
+                    rf = np.sqrt(rho0[0] / rho0[k])
+                    vq = max(9.65 - 10.3 * f**4, 0.1) * rf
+                    vn = max(9.65 - 10.3 * f, 0.1) * rf
+                dzk = dzb[i, j] if k == kb[i, j] else dz_face[k]
+                q = max((q + (dt / dzk) * (Fq / rho0[k])) / (1.0 + vq * dt / dzk), 0.0)
+                n = max((n + (dt / dzk) * (Fn / rho0[k])) / (1.0 + vn * dt / dzk), 0.0)
+                Fq = vq * rho0[k] * q
+                Fn = vn * rho0[k] * n
+                if q <= 1e-15:
+                    n = 0.0
+                else:
+                    n = min(max(n, q / xmax), q / xmin)
+                qr[i, j, k] = q
+                nr[i, j, k] = n
+            sfc[i, j] = Fq
+    return sfc
 
 
 @njit(parallel=True, cache=True)

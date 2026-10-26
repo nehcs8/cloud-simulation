@@ -72,6 +72,8 @@ def rk3_step(s: State, g: Grid, dt: float,
         s.qv = np.maximum(s.qv, 0.0)
         if 'qg' in tend:
             s.qg = np.maximum(s.qg, 0.0)
+        if 'nr' in tend:
+            s.nr = np.maximum(s.nr, 0.0)
 
         # Pressure projection after each stage (maintains divergence-free)
         project(s.u, s.v, s.w, g, dt, rho0=s.rho0)
@@ -159,6 +161,8 @@ def _copy_state(s: State) -> dict:
     }
     if getattr(cfg, 'ICE_SCHEME', 'none') == 'graupel':
         out['qg'] = s.qg.copy()
+    if getattr(cfg, 'RAIN_MOMENTS', 1) == 2:
+        out['nr'] = s.nr.copy()
     return out
 
 
@@ -182,6 +186,8 @@ def _update_state(s: State, s0: dict, tend: dict, dt_eff: float) -> None:
     s.qr[:]      = s0['qr']      + dt_eff * tend['qr']
     if 'qg' in tend:
         s.qg[:]  = s0['qg']      + dt_eff * tend['qg']
+    if 'nr' in tend:
+        s.nr[:]  = s0['nr']      + dt_eff * tend['nr']
 
     # Update diagnostic variables (θ, qv, qc) from conserved (θ_l, qt)
     s._update_diagnostic_variables()
@@ -220,6 +226,7 @@ def _apply_boundary_conditions(s: State, g: Grid) -> None:
     s.qt = np.maximum(s.qt, 0.0)
     s.qr = np.maximum(s.qr, 0.0)
     s.qg = np.maximum(s.qg, 0.0)
+    s.nr = np.maximum(s.nr, 0.0)
 
     # Terrain masking (if terrain is present)
     if g.terrain is not None:
@@ -232,6 +239,7 @@ def _apply_boundary_conditions(s: State, g: Grid) -> None:
         s.qt[mask] = qt0_full[mask]
         s.qr[mask] = 0.0
         s.qg[mask] = 0.0
+        s.nr[mask] = 0.0
 
         # Update diagnostics after terrain masking
         s._update_diagnostic_variables()

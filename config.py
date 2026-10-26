@@ -222,7 +222,14 @@ T_ICE_00: float = 253.15         # K, all condensate ice at and below
 # V = GR_A·D^GR_B): cloud-ice autoconversion (Lin 1983, rate 1e-3·exp(0.025 T_c) s⁻¹ above ICE_AUTO_QI0),
 # collection of cloud ice (GR_E_ICE), cloud liquid (riming) and rain (T < 0 °C) by graupel, Bigg rain freezing,
 # melting (T > 0 °C), sublimation; warm rain acts on the liquid part of q_c only.
-GR_N0: float = 4.0e6             # m⁻⁴, intercept (Rutledge & Hobbs 1984 graupel)
+RAIN_MOMENTS: int = 1            # 1 = rain mass only (fixed Marshall–Palmer N0); 2 = + prognostic drop number s.nr
+# (2026-10-26, Seifert & Beheng 2006: autoconversion drops of mass x*, self-collection/breakup toward D_eq 1.1 mm,
+# evaporation from the exponential size distribution of (q_r, N_r), two-moment sedimentation with Atlas V(D))
+RAIN_KRR: float = 4.33           # m³ kg⁻¹ s⁻¹, rain self-collection (SB2006)
+RAIN_DEQ: float = 1.1e-3         # m, breakup equilibrium diameter
+RAIN_XMIN: float = 2.6e-10       # kg, mean drop mass bounds (D ≈ 0.08–1.8 mm)
+RAIN_XMAX: float = 3.0e-6
+GR_N0: float = 4.0e6            # m⁻⁴, intercept (Rutledge & Hobbs 1984 graupel)
 GR_RHO: float = 400.0            # kg/m³, particle density
 GR_A: float = 19.3               # m^(1−b)/s, fall speed V = a D^b (Locatelli & Hobbs lump graupel)
 GR_B: float = 0.37

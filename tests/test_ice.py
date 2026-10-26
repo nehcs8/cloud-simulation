@@ -165,6 +165,7 @@ def graupel_state(seed=2):
     s.theta, s.qv, s.qc, _ = th.convert_from_theta_l_qt(theta_l, qt, np.zeros_like(qt), theta0, pi3)
     s.qr = rng.uniform(0, 2e-3, qt.shape) * (rng.random(qt.shape) < 0.6)
     s.qg = rng.uniform(0, 3e-3, qt.shape) * (rng.random(qt.shape) < 0.6)
+    s.nr = np.zeros_like(qt)                                 # one-moment rain here
     s.qv = s.qv * rng.uniform(0.85, 1.0, qt.shape)          # some sub-saturated cells (sublimation)
     s.theta0 = theta0
     s.rho0 = cfg.P00 * pi0 ** (cfg.CP / cfg.RD - 1) / (cfg.RD * theta0)

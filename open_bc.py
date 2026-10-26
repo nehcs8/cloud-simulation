@@ -33,7 +33,7 @@ def any_open() -> bool:
 def references(s) -> dict:
     """Reference (nz,) profiles of the prognostic fields."""
     nz = s.theta_l.shape[2]
-    return dict(theta_l=np.zeros(nz), qt=np.asarray(s.qv0, dtype=float), qr=np.zeros(nz), qg=np.zeros(nz),
+    return dict(theta_l=np.zeros(nz), qt=np.asarray(s.qv0, dtype=float), qr=np.zeros(nz), qg=np.zeros(nz), nr=np.zeros(nz),
                 u=np.asarray(s.u_g, dtype=float), v=np.full(nz, cfg.V_GEO))
 
 
@@ -142,6 +142,7 @@ def apply_relaxation(s, g, dt: float) -> None:
         s.qc[sel] += (0.0 - s.qc[sel]) * r
         s.qr[sel] += (0.0 - s.qr[sel]) * r
         s.qg[sel] += (0.0 - s.qg[sel]) * r
+        s.nr[sel] += (0.0 - s.nr[sel]) * r
         w_c = s.w[sel]                                           # w levels 0…nz-1 of these cells
         r_w = np.concatenate([r, r[..., -1:]], axis=-1)          # (…, nz+1)
         s.w[sel] = w_c + (0.0 - w_c) * r_w

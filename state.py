@@ -52,6 +52,7 @@ class State:
         self.qt      = np.zeros(shape)    # Total water mixing ratio
         self.qr      = np.zeros(shape)    # Rain water
         self.qg      = np.zeros(shape)    # Graupel/snow (ICE_SCHEME "graupel"; stays 0 otherwise)
+        self.nr      = np.zeros(shape)    # Rain drop number per kg of air (RAIN_MOMENTS = 2; stays 0 otherwise)
 
         # Diagnostic fields (derived from theta_l, qt)
         self.theta = np.zeros(shape)      # θ′  (perturbation) - diagnostic
@@ -223,6 +224,8 @@ class State:
         self.qr = data['qr'].astype(float)
         if 'qg' in data:
             self.qg = data['qg'].astype(float)
+        if 'nr' in data:
+            self.nr = data['nr'].astype(float)
         self.qv = data['qv'].astype(float)
         self.theta = data['theta'].astype(float)
 
