@@ -92,7 +92,13 @@ Rules:
   radiation (u_n ± c*, `OPEN_C_STAR` = 10 m/s) + weak relaxation to u_g (`OPEN_TAU_NORMAL`); Davies inflow
   relaxation zone (`OPEN_RELAX_WIDTH` 4 cells, `OPEN_RELAX_TAU` 60 s); dt also limited by c*; water crossing
   the boundaries → `s.boundary_water_out` and the `boundary_outflow_pct` column of water_budget.csv
-  (budget residual exactly 0 in an open/open congestus run). Run with `"BC_X='open'" "BC_Y='open'"`
+  (budget residual exactly 0 in an open/open congestus run). Run with `"BC_X='open'" "BC_Y='open'"`.
+  Inflow state (2026-10-27): `OPEN_INFLOW_REF` "sounding" (default, all earlier runs: inflow BL never heated) or "mean"
+  (θ_l′, q_t of the ghosts/relaxation follow the clear-column mean — no hydrometeors, no cold pools — filtered over
+  `OPEN_REF_TAU` 600 s, full below `OPEN_REF_Z1` 2 km, tapered to the sounding at `OPEN_REF_Z2` 3 km; profiles in the
+  snapshots as `open_ref_*`); winds stay u_g / V_GEO. `OPEN_CPM_AMP` > 0 (default 0): cell perturbation method
+  (Muñoz-Esparza 2014/15) — random θ offsets ±amp in `OPEN_CPM_CELL`² column × 1 level blocks, `OPEN_CPM_BANDS` rows
+  of blocks from each inflow face, below `OPEN_CPM_ZTOP`, renewed every cell length / wind speed
 - `kernels.py` — numba versions of WENO-3, momentum advection, SGS diffusion/K_M, saturation
   adjustment, Kessler microphysics, tridiagonal pressure solve. The numpy originals stay in
   `dynamics.py` / `thermodynamics.py` / `microphysics.py` / `pressure.py` as the reference
@@ -183,6 +189,8 @@ from before the θ_l/qt switch).
 - `compare_microphysics.py RUN_DIR [RUN_DIR …] [--t0 60] [--every 15]` — warm/ice runs side by side: rain timing, peaks,
   surface total; per snapshot cloud liquid/ice (α(T) split), rain, graupel masses [kt], graupel height, export of rain + graupel
   through the edges (estimate), cover above 5 km, cold pool, local surface rain
+- `analyze_inflow.py RUN_DIR [RUN_DIR …] [--t0 60 --t1 180 --bin 800]` — inflow quality for a mean wind along +x: per x-bin
+  mixed-layer θ′/q_v, w′² at 600 m, cloud frequency/base (15-min sampling); spin-up fetch of w′², up/downstream cloud
 - `visualize/render_clouds.py` — fast lit iso-surface renderer → GIF (see Visualize)
 - `visualize/visualize3d.py` — older volume renderer (slow without a GPU)
 - `find_cloud.py`, `track_cloud.py`, `setup_nested.py`, `archive_current_nested.py`,
@@ -304,7 +312,9 @@ so the mixed layer warms along x (θ′ below 600 m 0.06 K at the inflow edge, 0
 the downstream half (x > 6.4 km). The hill doesn't trigger cloud over its summit; it adds a cloud street in its lee (cloud
 frequency in the y-band through the hill at the last 1.6 km: 20 % vs 8 % flat, off-band ~10 % in both). Domain-mean θ_bl
 stalls at +0.22 K after 75 min because the BL air is replaced every ~70 min. Real days need an inflow BL that is heated too
-(time-varying boundary state, or a recycled/precursor inflow).
+(time-varying boundary state, or a recycled/precursor inflow). `scripts/analyze_inflow.py` (60–180 min,
+`outputs/logs/analyze_inflow_real_flat.txt`): the inflow is also laminar — w′² at 600 m 0.01–0.03 m²/s² in the first 2.8 km vs
+~2 downstream, 80 % of the downstream value only at x ≈ 6 km, no cloud in the upstream half (0.0 vs 3.9 %).
 **Ice step 1 (2026-10-22, `runs/*_styria_c14_ice`, = `styria_c14` + `"ICE_SCHEME='mixed'"`, 72², 2 h, 44 wall-min on 4
 threads; log `outputs/logs/styria_c14_ice.runner.log`):** small effect, as expected for a congestus whose coldest cloud is
 −17 °C (ice ≤ 34 % of the condensate). Tops +100–400 m (max 7.33 vs 7.03 km), mean θ_v′ of w > 5 m/s cores at 4.5–6 km

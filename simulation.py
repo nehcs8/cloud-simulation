@@ -627,6 +627,9 @@ class Simulation:
             prof_qv    = s.qv.mean(axis=(0, 1)).astype(np.float32),
             prof_theta = s.theta.mean(axis=(0, 1)).astype(np.float32),
             prof_w     = (0.5 * (s.w[:,:,:-1] + s.w[:,:,1:])).mean(axis=(0, 1)).astype(np.float32),
+            # inflow reference of open boundaries (OPEN_INFLOW_REF = "mean"; sounding otherwise)
+            **({f'open_ref_{k}': v.astype(np.float32) for k, v in s.open_ref.items()}
+               if getattr(s, 'open_ref', None) is not None else {}),
         )
 
     def _save_profile(self) -> None:

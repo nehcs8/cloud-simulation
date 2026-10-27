@@ -106,6 +106,28 @@ OPEN_C_STAR: float = 10.0        # m/s (10 reflected least in the dry-bubble tes
 OPEN_TAU_NORMAL: float = 1800.0  # s (0 = off)
 OPEN_RELAX_WIDTH: int = 4        # cells
 OPEN_RELAX_TAU: float = 60.0     # s
+# Inflow reference state of θ_l′, q_t (ghost cells + relaxation zone; winds stay u_g / V_GEO):
+# "sounding": the initial sounding for the whole run (before 2026-10-27; the inflow BL is never heated).
+# "mean":     horizontal mean over clear columns (no hydrometeor > OPEN_REF_QMIN anywhere, lowest-level θ′ not
+#             more than OPEN_REF_COLD below the median: no cold pools), filtered with time scale OPEN_REF_TAU.
+#             The anomaly from the sounding is kept in full below OPEN_REF_Z1 and tapered linearly to 0 at
+#             OPEN_REF_Z2, so the heated BL flows in but convective subsidence warming aloft is not recycled.
+OPEN_INFLOW_REF: str = "sounding"
+OPEN_REF_TAU: float = 600.0      # s
+OPEN_REF_Z1: float = 2000.0      # m
+OPEN_REF_Z2: float = 3000.0      # m
+OPEN_REF_QMIN: float = 1e-6      # kg/kg
+OPEN_REF_COLD: float = 0.3       # K
+# Cell perturbation method (Muñoz-Esparza et al. 2014, 2015) at inflow faces, so the inflow is turbulent: every
+# OPEN_CPM_PERIOD s (0 = one cell length / mean wind speed below OPEN_CPM_ZTOP) θ in cells of OPEN_CPM_CELL ×
+# OPEN_CPM_CELL columns × 1 level gets a uniform random offset in [−OPEN_CPM_AMP, OPEN_CPM_AMP], in the first
+# OPEN_CPM_BANDS rows of cells along each inflow face, below OPEN_CPM_ZTOP. Only θ: no water or momentum added.
+OPEN_CPM_AMP: float = 0.0        # K (0 = off)
+OPEN_CPM_CELL: int = 8           # grid columns per cell side
+OPEN_CPM_BANDS: int = 3          # rows of cells from the boundary
+OPEN_CPM_ZTOP: float = 1000.0    # m
+OPEN_CPM_PERIOD: float = 0.0     # s
+OPEN_CPM_SEED: int = 12345
 FRINGE_WIDTH: float = 1600.0   # m, relaxation zone at the downstream end of x
 FRINGE_TAU: float = 20.0       # s, relaxation time where the fringe is at full strength
 RECYCLE_X: float = 4800.0      # m, recycling plane = length of the homogeneous fetch
