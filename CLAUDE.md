@@ -100,6 +100,13 @@ Rules:
   (Muñoz-Esparza 2014/15) — random θ offsets ±amp in `OPEN_CPM_CELL`² column × 1 level blocks, `OPEN_CPM_BANDS` rows
   of blocks from each inflow face, below `OPEN_CPM_ZTOP`, renewed every cell length / wind speed. `OPEN_RELAX_W=False`
   stops relaxing w → 0 in the inflow zone (default True)
+- `precursor.py` — `OPEN_INFLOW_REF='precursor'` (2026-10-27): concurrent periodic precursor LES (`PRECURSOR_NX` × NY columns, same
+  vertical grid/sounding, uniform SHF/LHF, no spot/bubble, mean wind held at u_g with `OPEN_TAU_NORMAL`) advanced with the same dt
+  before each main step; feeds the west boundary: scalar ghosts = precursor cells, boundary-face u relaxed to the precursor's
+  (`PRECURSOR_TAU_U` 10 s), relaxation zone cell d → precursor column d (all fields incl. w); east face uses its mean profiles.
+  Needs `"BC_X='open'" "BC_Y='periodic'"` and wind along +x. Not in the water budget (`is_precursor`); no restart support.
+  40-min check (48×32 + 16): w′² at 600 m 2.2–2.5 m²/s² everywhere from x = 0 (precursor 2.36), corr(w) with the precursor 0.91–0.99
+  in the first cells
 - `kernels.py` — numba versions of WENO-3, momentum advection, SGS diffusion/K_M, saturation
   adjustment, Kessler microphysics, tridiagonal pressure solve. The numpy originals stay in
   `dynamics.py` / `thermodynamics.py` / `microphysics.py` / `pressure.py` as the reference
@@ -334,6 +341,12 @@ the 5–7 km overshoot is gone with 1.0 K. Side effects grow with the amplitude:
 cause: heat and moisture mixed above OPEN_REF_Z1 are flushed by sounding inflow (the reference is pinned to the sounding at 2–3 km),
 more so the deeper the convection near the edge. The CPM alone can't make the first ~1.5 km turbulent at 3 m/s (eddy turnover
 ~10 min ≈ 2 km of fetch) → concurrent precursor.
+**Concurrent precursor (2026-10-27, `runs/20261027_1926_*_inflow_precursor`, 128×64 + 32×64 precursor, `"OPEN_INFLOW_REF='precursor'"
+"BC_Y='periodic'"`; GIF + mp4 `cloud_gifs/20261027_single_cu_real_flat_inflow_precursor_0-180min.*`; `outputs/logs/analyze_inflow_precursor.txt`):**
+solves the inflow. Turbulent from x = 0: w′² at 600 m 2.02 at 0.4 km (downstream 2.02, periodic 2.05); cloud upstream/downstream
+half 9.9 / 10.5 % (periodic 9.3 / 10.3); no overshoot. Matches the periodic control in the mean too: ML θ′ 60–180 min +0.86 K
+(periodic +0.855; cpm1p0 +0.43), q_v 11.53 vs 11.55 g/kg; at 180 min reference +1.36 K = domain mean, cover 16.4 % vs 15.9 %
+(cpm1p0 24.6 %). Δθ′ along x +0.006 K. Budget residual 0; 30 wall-min per simulated hour alone on 4 threads (90 min total).
 **Ice step 1 (2026-10-22, `runs/*_styria_c14_ice`, = `styria_c14` + `"ICE_SCHEME='mixed'"`, 72², 2 h, 44 wall-min on 4
 threads; log `outputs/logs/styria_c14_ice.runner.log`):** small effect, as expected for a congestus whose coldest cloud is
 −17 °C (ice ≤ 34 % of the condensate). Tops +100–400 m (max 7.33 vs 7.03 km), mean θ_v′ of w > 5 m/s cores at 4.5–6 km
