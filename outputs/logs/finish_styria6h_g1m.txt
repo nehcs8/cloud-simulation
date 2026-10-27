@@ -1,0 +1,6 @@
+Open lateral boundaries (x True, y True): no wrap-around of shadows/smoothing
+Rendering 361 frames (iso, smooth=0.0, levels 29–151) → cloud_gifs/20261026_single_cu_styria6h_g1m_0-360min.gif
+Saved cloud_gifs/20261026_single_cu_styria6h_g1m_0-360min.gif: 361 frames in 70 s
+/home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/venv/bin/python3 /home/simone/Documents/Python/Python i guess/Clouds/cloud-simulation/scripts/visualize/render_clouds.py runs/20261026_1234_single_cu_congestus_360min_styria6h_g1m --out cloud_gifs/20261026_single_cu_styria6h_g1m_0-360min.gif --jobs 2 --fps 2 --smooth 0 --zexp 1.0
+cloud_gifs/20261026_single_cu_styria6h_g1m_0-360min.gif: 361 frames for 361 snapshots
+thinned: removed 288 snapshots, kept 73 (every 300 s)

@@ -1,0 +1,60 @@
+20261026_1234_single_cu_congestus_360min_styria6h_g1m
+  rain aloft (q_r > 0.1 g/kg) 66 min, at the ground 90 min | w_max 28.3 m/s, top 7824 m, q_r 6.03, q_g 3.52 g/kg | precip peak 0.41 mm/h (domain mean) at 103 min, total 0.207 mm
+20261026_1234_single_cu_congestus_360min_styria6h_g2m
+  rain aloft (q_r > 0.1 g/kg) 66 min, at the ground 78 min | w_max 28.8 m/s, top 8406 m, q_r 6.08, q_g 4.15 g/kg | precip peak 0.89 mm/h (domain mean) at 108 min, total 1.270 mm
+
+20261026_1234_single_cu_congestus_360min_styria6h_g1m process budget 0–360 min [kt, mean height m]:
+  cloud_to_rain    121.70   4014
+  rain_evap        241.61   1896
+  ice_autoconv      47.74   5514
+  ice_collect       12.09   5502
+  riming           187.64   5224
+  shedding           2.03   3754
+  rain_freeze       30.99   4864
+  melting          188.23   3440
+  graupel_subl      67.99   4178
+  rain_sfc          33.88
+  graupel_sfc        0.00
+  precipitation formed 369.16 kt: evaporated/sublimated 84 % (rain evap 65 %, graupel subl 18 %), at the ground 9 %
+
+20261026_1234_single_cu_congestus_360min_styria6h_g2m process budget 0–360 min [kt, mean height m]:
+  cloud_to_rain    236.88   4347
+  rain_evap        279.79   2232
+  ice_autoconv      72.25   5544
+  ice_collect       19.37   5546
+  riming           300.16   5208
+  shedding           3.66   3733
+  rain_freeze      103.63   4935
+  melting          363.85   3430
+  graupel_subl     109.02   4133
+  rain_sfc         208.11
+  graupel_sfc        0.00
+  precipitation formed 628.66 kt: evaporated/sublimated 62 % (rain evap 45 %, graupel subl 17 %), at the ground 33 %
+
+20261026_1234_single_cu_congestus_360min_styria6h_g1m
+   t | cloud liq  ice   rain graupel [kt] | z_g [m] | edge export r+g [kt/5min] | cover>5km | θ′_sfc min | local rain
+  60 |     7.5    1.2    0.0    0.2 |  5008 |   0.00                    |   1.3%    |  +0.02 K  |   0.0 mm/h
+  90 |    27.0   11.8   13.0   22.1 |  4650 |   0.16                    |  34.9%    |  -0.66 K  |   1.4 mm/h
+ 120 |     4.0    3.3    5.4    7.5 |  4250 |   0.54                    |  32.9%    |  -1.84 K  |   1.7 mm/h
+ 150 |     7.7    0.2    0.0    0.0 |  4669 |   0.00                    |   0.3%    |  -0.34 K  |   0.0 mm/h
+ 180 |    21.4   11.4   16.8   36.5 |  4632 |   0.04                    |  45.2%    |  -0.13 K  |   1.4 mm/h
+ 210 |     2.4    2.3    2.1    2.7 |  4281 |   0.29                    |  35.6%    |  -1.62 K  |   0.4 mm/h
+ 240 |    10.1    0.8    0.0    0.1 |  5100 |   0.00                    |   0.9%    |  -0.33 K  |   0.0 mm/h
+ 270 |    25.3    9.3   20.6   26.5 |  4548 |   0.01                    |  44.8%    |  -1.95 K  |  22.1 mm/h
+ 300 |     2.9    2.8    2.8    3.3 |  4324 |   0.57                    |  34.5%    |  -1.67 K  |   0.2 mm/h
+ 330 |     4.6    0.1    0.0    0.0 |  4231 |   0.00                    |   0.0%    |  -0.19 K  |   0.0 mm/h
+ 360 |    28.0   12.4    4.2   14.4 |  5098 |   0.00                    |  17.9%    |  +0.02 K  |   0.0 mm/h
+
+20261026_1234_single_cu_congestus_360min_styria6h_g2m
+   t | cloud liq  ice   rain graupel [kt] | z_g [m] | edge export r+g [kt/5min] | cover>5km | θ′_sfc min | local rain
+  60 |     7.5    1.2    0.0    0.2 |  5008 |   0.00                    |   1.3%    |  +0.02 K  |   0.0 mm/h
+  90 |    28.1   12.2   12.7   22.5 |  4652 |   0.17                    |  34.9%    |  +0.02 K  |   3.5 mm/h
+ 120 |     8.7    4.0   14.2   11.9 |  4371 |   0.66                    |  35.1%    |  -1.35 K  |   9.3 mm/h
+ 150 |    20.3    4.5    0.0    0.7 |  5072 |   0.00                    |   4.2%    |  -0.27 K  |   0.0 mm/h
+ 180 |    33.6   17.4   19.8   34.5 |  4606 |   0.23                    |  45.4%    |  -0.29 K  |   9.0 mm/h
+ 210 |    23.9    8.9   30.8   26.8 |  4587 |   1.25                    |  43.7%    |  -1.07 K  |  13.9 mm/h
+ 240 |    10.6    6.6   13.0    9.9 |  4783 |   0.68                    |  29.9%    |  -0.99 K  |  13.3 mm/h
+ 270 |     8.5    0.6    0.2    0.6 |  4381 |   0.09                    |   4.1%    |  -0.23 K  |   0.2 mm/h
+ 300 |    43.3   18.7   12.5   22.9 |  4736 |   0.03                    |  32.0%    |  -0.02 K  |   2.3 mm/h
+ 330 |    22.4   10.7   26.5   28.7 |  4639 |   1.80                    |  50.8%    |  -1.29 K  |   9.6 mm/h
+ 360 |     9.8    3.7    3.6    4.1 |  4470 |   0.61                    |  26.0%    |  -0.76 K  |   1.0 mm/h

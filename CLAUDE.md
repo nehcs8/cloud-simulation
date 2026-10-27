@@ -345,6 +345,15 @@ sublimates (4.2 km), 14.1 kt at the ground, ≈ 4.8 kt exported: efficiency 12 %
 (67–73 % of what forms), not anvil sublimation (18 %). Graupel forms more precipitation (riming) but spreads it wider and later, so the
 melted rain arrives lighter and evaporates more. Suspects: the dry, deep sub-cloud layer (LCL 1.7 km) and single-moment rain with a fixed
 Marshall–Palmer N0 — light rain then has small mean drops and evaporates too fast (known bias; a two-moment rain N_r fixes it).
+**6-h test: graupel + one- vs two-moment rain (2026-10-26, `runs/*_styria6h_{g1m,g2m}`, upwind-spot Styria setup, 128², 2 threads each
+side by side, 114 / 136 wall-min per simulated hour, budget residual 0; GIFs `cloud_gifs/20261026_single_cu_styria6h_{g1m,g2m}_0-360min.gif`
+from 1-min snapshots; `outputs/logs/compare_styria6h.txt`):** both keep making cells over the spot for 6 h. One-moment: a strict ~90-min
+cycle (tops 7.4–7.8 km at 90, 180, 270, 360 min), each cell rains for < 30 min; precipitation formed 369 kt, rain evaporation 65 %, graupel
+sublimation 18 %, at the ground 9 % (0.21 mm domain mean). Two-moment: rain from 78 min (vs 90), mass-weighted mean drop diameter 0.5–0.75 mm
+in the shafts, precipitation lasts 60–90 min per cycle (180–240, 300–360 min), tops up to 8.4 km, cold pools weaker (lowest-level θ′ −1.0 …
+−1.35 K vs −1.6 … −1.95); precipitation formed 629 kt, rain evaporation 45 %, sublimation 17 %, at the ground **33 %** (1.27 mm, 6× more).
+Observed precipitation efficiencies of continental congestus/thunderstorms are ~20–50 %, so two-moment rain moves the model into range;
+the one-moment fixed-N0 rain was the main cause of the low efficiency. Two-moment rain costs ~20 % more per step.
 
 ### land_cu run
 Reproduction of every past land_cu run (exact overrides): `docs/RUNNING_LAND_CU.md`.
