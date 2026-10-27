@@ -44,7 +44,7 @@ Rules:
 ## Environment
 
 - Python: `./venv/bin/python3` (local venv); run from the repo root.
-- Packages: numpy, scipy, numba, matplotlib, pyvista (VTK 9.7), imageio, pyyaml, cdsapi.
+- Packages: numpy, scipy, numba, matplotlib, pyvista (VTK 9.7), imageio, imageio-ffmpeg (mp4), pyyaml, cdsapi.
 - i7-6700: 4 physical cores / 8 threads, NVIDIA GTX 1080 (unused by the model).
 - Hot loops run as numba kernels (`kernels.py`, `cfg.USE_NUMBA = True`) on 4 threads — one per
   physical core; hyperthreads make them slower. Override with `NUMBA_NUM_THREADS`. The first run
@@ -411,9 +411,11 @@ Variants without editing the case: `run_land_cu.py 10800 SHF=110.0 W_SUBS=0.005 
 (overrides are recorded in the run's `effective_config.txt`).
 
 ### Visualize
-Every finished run gets a GIF from **1-minute snapshots** (`SNAPSHOT_EVERY=60.0`; 5-min frames are too coarse). Afterwards
-the snapshots may be thinned: `scripts/finish_run.py RUN --out cloud_gifs/YYYYMMDD_<desc>.gif` renders (`--smooth 0 --zexp 1.0`),
-checks one frame per snapshot and only then keeps multiples of `--keep-every` (300 s, what the analysis scripts use).
+Every finished run gets a GIF **and an .mp4** (same frames, 3 fps; since 2026-10-27) from **1-minute snapshots** (`SNAPSHOT_EVERY=60.0`;
+5-min frames are too coarse). Afterwards the snapshots may be thinned: `scripts/finish_run.py RUN --out cloud_gifs/YYYYMMDD_<desc>.gif`
+renders (`--fps 3 --smooth 0 --zexp 1.0`), checks one frame per snapshot, writes the mp4, and only then keeps multiples of
+`--keep-every` (300 s, what the analysis scripts use). `scripts/visualize/reencode.py X.gif [--fps 3] [--no-gif]` turns an existing GIF
+into an mp4 (and rewrites the GIF at the new fps) without re-rendering — works after thinning. mp4 needs `imageio-ffmpeg` in the venv.
 The 2026-10-22 Styria ice runs (`styria_c14_*`, `styria128_*`, `styria128up_*`) only have 5-min snapshots, so their GIFs are 5-min.
 ```bash
 VTK_DEFAULT_OPENGL_WINDOW=vtkEGLRenderWindow ./venv/bin/python3 scripts/visualize/render_clouds.py \
