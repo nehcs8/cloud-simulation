@@ -315,6 +315,15 @@ stalls at +0.22 K after 75 min because the BL air is replaced every ~70 min. Rea
 (time-varying boundary state, or a recycled/precursor inflow). `scripts/analyze_inflow.py` (60–180 min,
 `outputs/logs/analyze_inflow_real_flat.txt`): the inflow is also laminar — w′² at 600 m 0.01–0.03 m²/s² in the first 2.8 km vs
 ~2 downstream, 80 % of the downstream value only at x ≈ 6 km, no cloud in the upstream half (0.0 vs 3.9 %).
+**Inflow fix test (2026-10-27, `runs/*_inflow_{mean,meancpm,periodic}`, = `real_flat` + 1-min snapshots; GIFs
+`cloud_gifs/20261027_single_cu_real_flat_inflow_*_0-180min.gif`; `outputs/logs/analyze_inflow.txt`, 60–180 min):** `OPEN_INFLOW_REF='mean'`
+removes the mean drift (Δθ′ ML along x +0.35 → +0.05 K; reference tracks the domain mean within 0.04–0.05 K), cloud cover 60–180 min
+1.9 → 6.4 % (periodic control 9.7 %). The open runs warm less than the periodic box (ML θ′ +1.0 vs +1.35 K at 180 min) and stay moister
+(no recycling of subsidence warming / cloud drying). The inflow stays laminar: w′² at 600 m 0.02 in the first 0.8 km and 80 % of the
+downstream value only at 3.6 km; `OPEN_CPM_AMP=0.25` (`meancpm`) barely helps (0.02 / 0.15 at 0.4 / 1.2 km; 80 % at 2.8 km over 60–180
+min, 3.6 km over 120–180) although cover reaches the periodic value (9.7 %, but 4.3 % upstream vs 14.8 % downstream half, periodic 9.3 /
+10.3). Where turbulence first matures (x 5–7 km) w′² overshoots (3.3 vs 2) and cloud peaks (13–18 %): the laminar layer stores heat and
+releases it at once. Budget residual 0 in all; mean mode 77 wall-min/h with 2 threads side by side, meancpm 63 (partly alone).
 **Ice step 1 (2026-10-22, `runs/*_styria_c14_ice`, = `styria_c14` + `"ICE_SCHEME='mixed'"`, 72², 2 h, 44 wall-min on 4
 threads; log `outputs/logs/styria_c14_ice.runner.log`):** small effect, as expected for a congestus whose coldest cloud is
 −17 °C (ice ≤ 34 % of the condensate). Tops +100–400 m (max 7.33 vs 7.03 km), mean θ_v′ of w > 5 m/s cores at 4.5–6 km
