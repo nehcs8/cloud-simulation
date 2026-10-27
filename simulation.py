@@ -81,6 +81,11 @@ class Simulation:
         self.grid  = Grid(terrain=terrain)
         self.state = State(self.grid, restart_file=cfg.RESTART_FROM)
         self.shf_map, self.lhf_map = build_flux_map(self.grid)
+        self.precursor = None
+        if getattr(cfg, 'OPEN_INFLOW_REF', 'sounding') == 'precursor':
+            from precursor import Precursor
+            self.precursor = Precursor(self.grid)
+            self.state.precursor = self.precursor
         self.flux_pattern = FluxPattern(self.grid) if cfg.ENABLE_FLUX_PATTERN else None
         self.t     = 0.0
         self.step  = 0
@@ -216,7 +221,7 @@ class Simulation:
         return terrain
 
     # ── CFL-limited time step ─────────────────────────────────────────────────
-    def _cfl_dt(self) -> float:
+    def _cfl_dt(self, s=None, g=None) -> float:
         """
         Compute CFL and diffusion-limited timestep.
 
@@ -225,7 +230,10 @@ class Simulation:
 
         Also checks diffusive stability: K·Δt/Δz² < 0.5 for explicit diffusion.
         """
-        s, g = self.state, self.grid
+        if s is None:
+            s, g = self.state, self.grid
+            if self.precursor is not None:                 # both domains advance with the same dt
+                return min(self._cfl_dt(s, g), self.precursor.dt_limit(self._cfl_dt))
 
         # Advective CFL limit
         if cfg.CFL_SUM:
@@ -270,6 +278,8 @@ class Simulation:
         if self.flux_pattern is not None:
             self.flux_pattern.update(self.t)
             self.shf_map, self.lhf_map = self.flux_pattern.maps()
+        if self.precursor is not None:                     # precursor first: the inflow at t + dt
+            self.precursor.step(dt, self.t)
         rk3_step(self.state, self.grid, dt, self.shf_map, self.lhf_map, t=self.t)
 
     def _check_for_nans(self) -> bool:

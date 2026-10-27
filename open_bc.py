@@ -6,7 +6,8 @@ Used for every direction with cfg.BC_X / BC_Y = "open". Reference ("environment"
 With OPEN_INFLOW_REF = "mean" (update_reference, once per step) θ_l′, q_t (and θ′, q_v for the relaxation)
 follow the time-filtered mean of the clear columns below OPEN_REF_Z1, tapered to the sounding at OPEN_REF_Z2:
 the inflow boundary layer is heated and moistened like the domain's. OPEN_CPM_AMP > 0 adds the cell
-perturbation method (apply_cell_perturbations) so the inflow is turbulent too.
+perturbation method (apply_cell_perturbations) so the inflow is turbulent too. OPEN_INFLOW_REF = "precursor":
+the west boundary takes the planes of a concurrent periodic precursor run (precursor.py).
 
 1. Inflow / outflow per boundary face (ny × nz for x-boundaries, nx × nz for y-boundaries),
    from the sign of the normal velocity on that face.
@@ -57,6 +58,9 @@ def clear_columns(s, g) -> np.ndarray:
 
 def update_reference(s, g, dt: float) -> None:
     """OPEN_INFLOW_REF = "mean": update s.open_ref (θ′, θ_l′, q_v, q_t) toward the clear-column mean."""
+    if getattr(s, 'precursor', None) is not None:
+        s.open_ref = s.precursor.mean_profiles()
+        return
     if getattr(cfg, 'OPEN_INFLOW_REF', 'sounding') != 'mean' or not any_open():
         return
     qv0 = np.asarray(s.qv0, dtype=float)
@@ -92,13 +96,14 @@ def inflow_masks(s) -> dict:
     return m
 
 
-def inflow_ghosts(P: np.ndarray, ref: np.ndarray, masks: dict) -> np.ndarray:
-    """Set the ghost cells of a halo-padded cell-centred scalar to ref(z) on inflow faces."""
+def inflow_ghosts(P: np.ndarray, ref: np.ndarray, masks: dict, west=None) -> np.ndarray:
+    """Set the ghost cells of a halo-padded cell-centred scalar to ref(z) on inflow faces
+    (west: optional (H, ny, nz) precursor plane for the west ghosts instead of ref)."""
     nx, ny = P.shape[0] - 2*H, P.shape[1] - 2*H
     Y, X = slice(H, H + ny), slice(H, H + nx)
     if 'w' in masks:
         for g in range(H):
-            P[g, Y] = np.where(masks['w'], ref, P[g, Y])
+            P[g, Y] = np.where(masks['w'], ref if west is None else west[g], P[g, Y])
             P[H + nx + g, Y] = np.where(masks['e'], ref, P[H + nx + g, Y])
     if 's' in masks:
         for g in range(H):
@@ -120,6 +125,9 @@ def radiation_tendency(tend_u: np.ndarray, tend_v: np.ndarray, s, g) -> None:
         ce = np.maximum(u[-1] + c, 0.0)                # outgoing (+x) at the east face
         tend_u[0] = -cw * (u[1] - u[0]) / g.dx + relax_w
         tend_u[-1] = -ce * (u[-1] - u[-2]) / g.dx + relax_e
+        pre = getattr(s, 'precursor', None)
+        if pre is not None:                            # west face follows the precursor's u
+            tend_u[0] = (pre.column('u', 0) - u[0]) / cfg.PRECURSOR_TAU_U
     if open_y():
         v = s.v
         ref = cfg.V_GEO
@@ -177,33 +185,38 @@ def apply_relaxation(s, g, dt: float) -> None:
     a = 1.0 - np.exp(-dt / cfg.OPEN_RELAX_TAU)
     wts = a * ((W - np.arange(W)) / W) ** 2                     # d = 0 … W−1
     ref = references(s)
-    th_ref, qv_ref = ref['theta'], ref['qv']
+    profiles = dict(theta=ref['theta'], qv=ref['qv'], qc=0.0, qr=0.0, qg=0.0, nr=0.0, w=0.0)
+    pre = getattr(s, 'precursor', None)
 
-    def relax_cells(sel, m, wt):
-        """Relax cell-centred fields at index tuple sel where inflow mask m (…, nz)."""
+    def relax_cells(sel, m, wt, tgt=profiles, relax_w=getattr(cfg, 'OPEN_RELAX_W', True)):
+        """Relax cell-centred fields at index tuple sel where inflow mask m (…, nz) toward tgt."""
         r = wt * m
-        s.theta[sel] += (th_ref - s.theta[sel]) * r
-        s.qv[sel] += (qv_ref - s.qv[sel]) * r
-        s.qc[sel] += (0.0 - s.qc[sel]) * r
-        s.qr[sel] += (0.0 - s.qr[sel]) * r
-        s.qg[sel] += (0.0 - s.qg[sel]) * r
-        s.nr[sel] += (0.0 - s.nr[sel]) * r
-        if getattr(cfg, 'OPEN_RELAX_W', True):                    # False: inflow thermals keep their w
+        for k in ('theta', 'qv', 'qc', 'qr', 'qg', 'nr'):
+            f = getattr(s, k)
+            f[sel] += (tgt[k] - f[sel]) * r
+        if relax_w:                                              # False: inflow thermals keep their w
             w_c = s.w[sel]                                       # w levels 0…nz-1 of these cells
             r_w = np.concatenate([r, r[..., -1:]], axis=-1)      # (…, nz+1)
-            s.w[sel] = w_c + (0.0 - w_c) * r_w
+            s.w[sel] = w_c + (tgt['w'] - w_c) * r_w
 
     nx, ny = g.nx, g.ny
     if open_x():
         for d in range(min(W, nx // 2)):
             for i, key in ((d, 'w'), (nx - 1 - d, 'e')):
                 m = masks[key].astype(float)                     # (ny, nz)
+                mv = np.concatenate([m, m[-1:]], axis=0)
+                if pre is not None and key == 'w':               # west zone: the precursor columns
+                    tgt = {k: pre.column(k, d) for k in ('theta', 'qv', 'qc', 'qr', 'qg', 'nr', 'w')}
+                    relax_cells((i,), m, wts[d], tgt, relax_w=True)
+                    s.v[i] += (pre.column('v', d) - s.v[i]) * wts[d] * mv
+                    continue
                 relax_cells((i,), m, wts[d])
-                s.v[i] += (ref['v'] - s.v[i]) * wts[d] * np.concatenate([m, m[-1:]], axis=0)
+                s.v[i] += (ref['v'] - s.v[i]) * wts[d] * mv
             # interior u faces next to the boundary (the boundary faces follow the radiation BC)
             for f, key in ((d + 1, 'w'), (nx - 1 - d, 'e')):
                 m = masks[key].astype(float)
-                s.u[f] += (ref['u'] - s.u[f]) * wts[d] * m
+                u_ref = pre.column('u', f) if pre is not None and key == 'w' else ref['u']
+                s.u[f] += (u_ref - s.u[f]) * wts[d] * m
     if open_y():
         for d in range(min(W, ny // 2)):
             for j, key in ((d, 's'), (ny - 1 - d, 'n')):

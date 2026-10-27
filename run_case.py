@@ -70,6 +70,8 @@ def total_water(s, g):
 def _wrap(name):
     fn = getattr(timestepping, name)
     def wrapped(s, g, *args, **kw):
+        if getattr(s, 'is_precursor', False):          # the precursor's water is not in the budget
+            return fn(s, g, *args, **kw)
         w0 = total_water(s, g)
         out = fn(s, g, *args, **kw)
         budget[name] += total_water(s, g) - w0

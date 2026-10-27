@@ -113,7 +113,11 @@ OPEN_RELAX_W: bool = True        # also relax w → 0 in the inflow zone (False 
 #             more than OPEN_REF_COLD below the median: no cold pools), filtered with time scale OPEN_REF_TAU.
 #             The anomaly from the sounding is kept in full below OPEN_REF_Z1 and tapered linearly to 0 at
 #             OPEN_REF_Z2, so the heated BL flows in but convective subsidence warming aloft is not recycled.
+# "precursor": a concurrent periodic precursor LES (precursor.py, PRECURSOR_NX × NY columns, uniform SHF/LHF) feeds
+#             the west boundary (ghosts, u face, relaxation zone); needs BC_X = "open", BC_Y = "periodic", wind along +x.
 OPEN_INFLOW_REF: str = "sounding"
+PRECURSOR_NX: int = 32
+PRECURSOR_TAU_U: float = 10.0    # s, relaxation of the west boundary-face u to the precursor's
 OPEN_REF_TAU: float = 600.0      # s
 OPEN_REF_Z1: float = 2000.0      # m
 OPEN_REF_Z2: float = 3000.0      # m

@@ -446,9 +446,10 @@ def compute_tendencies(s: State, g: Grid) -> dict:
     if open_x or open_y:
         # inflow faces see the environment (sounding) in the ghost cells; outflow keeps zero gradient
         masks, ref = open_bc.inflow_masks(s), open_bc.references(s)
+        pre = getattr(s, 'precursor', None)                       # west ghosts from the precursor
         for P, key in ((P_thl, 'theta_l'), (P_qt, 'qt'), (P_qr, 'qr'), (P_qg, 'qg'), (P_nr, 'nr')):
             if P is not None:
-                open_bc.inflow_ghosts(P, ref[key], masks)
+                open_bc.inflow_ghosts(P, ref[key], masks, None if pre is None else pre.ghost_plane(key, halo.H))
 
     # ── Scalar advection ──────────────────────────────────────────────────────
     # CONSISTENT WENO-3 for all scalars (Phase 1.3)
