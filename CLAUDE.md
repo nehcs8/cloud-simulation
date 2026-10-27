@@ -98,7 +98,8 @@ Rules:
   `OPEN_REF_TAU` 600 s, full below `OPEN_REF_Z1` 2 km, tapered to the sounding at `OPEN_REF_Z2` 3 km; profiles in the
   snapshots as `open_ref_*`); winds stay u_g / V_GEO. `OPEN_CPM_AMP` > 0 (default 0): cell perturbation method
   (Muñoz-Esparza 2014/15) — random θ offsets ±amp in `OPEN_CPM_CELL`² column × 1 level blocks, `OPEN_CPM_BANDS` rows
-  of blocks from each inflow face, below `OPEN_CPM_ZTOP`, renewed every cell length / wind speed
+  of blocks from each inflow face, below `OPEN_CPM_ZTOP`, renewed every cell length / wind speed. `OPEN_RELAX_W=False`
+  stops relaxing w → 0 in the inflow zone (default True)
 - `kernels.py` — numba versions of WENO-3, momentum advection, SGS diffusion/K_M, saturation
   adjustment, Kessler microphysics, tridiagonal pressure solve. The numpy originals stay in
   `dynamics.py` / `thermodynamics.py` / `microphysics.py` / `pressure.py` as the reference
@@ -324,6 +325,15 @@ downstream value only at 3.6 km; `OPEN_CPM_AMP=0.25` (`meancpm`) barely helps (0
 min, 3.6 km over 120–180) although cover reaches the periodic value (9.7 %, but 4.3 % upstream vs 14.8 % downstream half, periodic 9.3 /
 10.3). Where turbulence first matures (x 5–7 km) w′² overshoots (3.3 vs 2) and cloud peaks (13–18 %): the laminar layer stores heat and
 releases it at once. Budget residual 0 in all; mean mode 77 wall-min/h with 2 threads side by side, meancpm 63 (partly alone).
+**Stronger perturbations (2026-10-27, `runs/*_inflow_cpm{0p5,1p0}`, 128×64, mean reference, `OPEN_CPM_ZTOP=1200.0
+OPEN_RELAX_W=False`, `OPEN_CPM_AMP` 0.5 / 1.0; GIF + mp4 `cloud_gifs/20261027_single_cu_real_flat_inflow_cpm*`; `outputs/logs/analyze_inflow_cpm.txt`):**
+w′² at 600 m at x 0.4 / 1.2 km 0.08 / 0.40 (0.5 K) and 0.18 / 0.91 (1.0 K) vs 0.02 / 0.15 (0.25 K) and ~2 periodic; 80 % of the
+downstream w′² at 2.8 / 2.0 km; first cloud at x ≈ 2.8 / 2.0 km (no cloud in the first 1.2–2 km, so no seeds-triggered edge cloud);
+the 5–7 km overshoot is gone with 1.0 K. Side effects grow with the amplitude: ML θ′ at 180 min +0.86 / +0.69 K vs +1.01 (0.25 K) and
++1.35 periodic, cloud cover 11.9 / 14.4 % vs 9.7 % periodic (downstream half 18–28 %), ML q_v 11.7 vs 11.35 g/kg periodic. Likely
+cause: heat and moisture mixed above OPEN_REF_Z1 are flushed by sounding inflow (the reference is pinned to the sounding at 2–3 km),
+more so the deeper the convection near the edge. The CPM alone can't make the first ~1.5 km turbulent at 3 m/s (eddy turnover
+~10 min ≈ 2 km of fetch) → concurrent precursor.
 **Ice step 1 (2026-10-22, `runs/*_styria_c14_ice`, = `styria_c14` + `"ICE_SCHEME='mixed'"`, 72², 2 h, 44 wall-min on 4
 threads; log `outputs/logs/styria_c14_ice.runner.log`):** small effect, as expected for a congestus whose coldest cloud is
 −17 °C (ice ≤ 34 % of the condensate). Tops +100–400 m (max 7.33 vs 7.03 km), mean θ_v′ of w > 5 m/s cores at 4.5–6 km

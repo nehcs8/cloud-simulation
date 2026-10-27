@@ -188,9 +188,10 @@ def apply_relaxation(s, g, dt: float) -> None:
         s.qr[sel] += (0.0 - s.qr[sel]) * r
         s.qg[sel] += (0.0 - s.qg[sel]) * r
         s.nr[sel] += (0.0 - s.nr[sel]) * r
-        w_c = s.w[sel]                                           # w levels 0…nz-1 of these cells
-        r_w = np.concatenate([r, r[..., -1:]], axis=-1)          # (…, nz+1)
-        s.w[sel] = w_c + (0.0 - w_c) * r_w
+        if getattr(cfg, 'OPEN_RELAX_W', True):                    # False: inflow thermals keep their w
+            w_c = s.w[sel]                                       # w levels 0…nz-1 of these cells
+            r_w = np.concatenate([r, r[..., -1:]], axis=-1)      # (…, nz+1)
+            s.w[sel] = w_c + (0.0 - w_c) * r_w
 
     nx, ny = g.nx, g.ny
     if open_x():

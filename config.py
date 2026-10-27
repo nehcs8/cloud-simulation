@@ -106,6 +106,7 @@ OPEN_C_STAR: float = 10.0        # m/s (10 reflected least in the dry-bubble tes
 OPEN_TAU_NORMAL: float = 1800.0  # s (0 = off)
 OPEN_RELAX_WIDTH: int = 4        # cells
 OPEN_RELAX_TAU: float = 60.0     # s
+OPEN_RELAX_W: bool = True        # also relax w → 0 in the inflow zone (False lets perturbation-driven thermals through)
 # Inflow reference state of θ_l′, q_t (ghost cells + relaxation zone; winds stay u_g / V_GEO):
 # "sounding": the initial sounding for the whole run (before 2026-10-27; the inflow BL is never heated).
 # "mean":     horizontal mean over clear columns (no hydrometeor > OPEN_REF_QMIN anywhere, lowest-level θ′ not
