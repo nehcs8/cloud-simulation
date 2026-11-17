@@ -25,3 +25,6 @@ venv/
 .cdsapirc
 ~.?cdsapirc
 venv/
+
+# External input data (DEMs etc.)
+data/
