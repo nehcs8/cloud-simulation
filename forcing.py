@@ -241,6 +241,105 @@ def apply_radiative_cooling(s: State, g: Grid, dt: float) -> None:
     s.theta += dt * (cfg.RAD_COOLING / 86400.0) * taper[np.newaxis, np.newaxis, :]
 
 
+_SIGMA_SB = 5.67e-8
+
+
+def cloud_radiation_heating(s: State, g: Grid) -> np.ndarray:
+    """
+    θ tendency [K/s] of RAD_SCHEME "cloud_lw" (see config): per column, grey LW fluxes on the cloud optical
+    path. Cell k with optical depth b_k loses F0 e^(−Σ_{j>k} b_j)(1 − e^(−b_k)) and gains
+    F1(T_k) e^(−Σ_{j<k} b_j)(1 − e^(−b_k)); heating = (gain − loss) / (ρ₀ c_p Δz π₀). Clear air: 0.
+    """
+    from thermodynamics import liquid_fraction, _mixed
+    pi0 = s._pi0()
+    T = (s.theta0[np.newaxis, np.newaxis, :] + s.theta) * pi0
+    alpha = liquid_fraction(T)[0] if _mixed() else 1.0
+    kappa = cfg.RAD_KAPPA_LIQ * alpha + cfg.RAD_KAPPA_ICE * (1.0 - alpha)
+    rho_dz = (s.rho0 * g.dz_face)[np.newaxis, np.newaxis, :]
+    b = kappa * np.maximum(s.qc, 0.0) * rho_dz
+    total = b.sum(axis=2, keepdims=True)
+    below = np.cumsum(b, axis=2) - b
+    above = total - below - b
+    t_sfc = s.theta0[0] * pi0[0, 0, 0]
+    f0 = cfg.RAD_F0
+    f1 = cfg.RAD_F1_EPS * _SIGMA_SB * np.maximum(t_sfc ** 4 - T ** 4, 0.0)
+    absorbed = 1.0 - np.exp(-b)
+    net = (f1 * np.exp(-below) - f0 * np.exp(-above)) * absorbed                # W/m² gained by the cell
+    return net / (rho_dz * cfg.CP * pi0)
+
+
+def apply_cloud_radiation(s: State, g: Grid, dt: float) -> None:
+    """Cloud-top LW cooling / cloud-base warming on θ (RAD_SCHEME "cloud_lw"); no-op otherwise."""
+    if getattr(cfg, 'RAD_SCHEME', None) != 'cloud_lw':
+        return
+    s.theta += dt * cloud_radiation_heating(s, g)
+
+
+_LS_CACHE = {}
+
+
+def _ls_table(g: Grid):
+    """LS_FORCING on the model levels: (t (nt,), w, thl_adv, qt_adv (nt, nz)), cached per spec and grid."""
+    spec = cfg.LS_FORCING
+    key = (spec if isinstance(spec, str) else id(spec), g.nz, float(g.z[-1]))
+    if key not in _LS_CACHE:
+        if isinstance(spec, dict):
+            tab = spec
+        elif spec == "case":
+            import cases
+            tab = cases.get(cfg.CASE).ls_forcing()
+        else:
+            tab = dict(np.load(spec))
+        zt = np.asarray(tab['z'], dtype=float)
+        on_z = lambda f: np.array([np.interp(g.z, zt, row) for row in np.atleast_2d(np.asarray(f, dtype=float))])
+        nt = len(tab['t'])
+        fields = [on_z(tab[k]) if k in tab else np.zeros((nt, g.nz)) for k in ('w', 'thl_adv', 'qt_adv')]
+        _LS_CACHE[key] = (np.asarray(tab['t'], dtype=float), *fields)
+    return _LS_CACHE[key]
+
+
+def large_scale_profiles(g: Grid, t: float):
+    """w_ls [m/s], θ_l and q_t advective tendencies [K/s, kg/kg/s] on the model levels at time t."""
+    tt, *fields = _ls_table(g)
+    i = int(np.clip(np.searchsorted(tt, t) - 1, 0, max(len(tt) - 2, 0)))
+    if len(tt) == 1:
+        return tuple(f[0] for f in fields)
+    a = float(np.clip((t - tt[i]) / (tt[i + 1] - tt[i]), 0.0, 1.0))
+    return tuple((1.0 - a) * f[i] + a * f[i + 1] for f in fields)
+
+
+def _upwind_mean_gradient(phi: np.ndarray, w: np.ndarray, g: Grid) -> np.ndarray:
+    """dφ/dz upwind for w_ls (from below where w > 0, from above where w < 0); one-sided zero at the ends."""
+    d = np.diff(phi) / g.dz_cen
+    below = np.concatenate([[0.0], d])
+    above = np.concatenate([d, [0.0]])
+    return np.where(w > 0.0, below, above)
+
+
+def apply_large_scale_forcing(s: State, g: Grid, dt: float, t: float) -> None:
+    """
+    Time- and height-dependent large-scale forcing from the LS_FORCING table (no-op when None):
+      ∂θ_l/∂t = −w_ls ∂⟨θ_l⟩/∂z + (∂θ_l/∂t)_adv,   ∂q_t/∂t = −w_ls ∂⟨q_v + q_c⟩/∂z + (∂q_t/∂t)_adv
+    ⟨·⟩ = current horizontal mean (upwind in z), applied uniformly in x, y. Ascent (w_ls > 0) lifts θ_l and
+    q_t, so moist layers cool and moisten toward saturation; condensation follows from the θ_l/q_t → q_c
+    diagnosis. Works on the conserved variables and re-diagnoses θ, q_v, q_c.
+
+    LS_FORCING: dict(t (nt,) [s], z (nz_tab,) [m], w, thl_adv, qt_adv (nt, nz_tab); missing tendencies = 0),
+    a path to an .npz with those arrays, or "case" (the case module's ls_forcing()). Linear in t and z,
+    held constant beyond the ends of the table.
+    """
+    if cfg.LS_FORCING is None:
+        return
+    w, thl_adv, qt_adv = large_scale_profiles(g, t)
+    thl_bar = s.theta0 + s.theta_l.mean(axis=(0, 1))
+    qw_bar = (s.qv + s.qc).mean(axis=(0, 1))
+    dthl = -w * _upwind_mean_gradient(thl_bar, w, g) + thl_adv
+    dqt = -w * _upwind_mean_gradient(qw_bar, w, g) + qt_adv
+    s.theta_l += dt * dthl[np.newaxis, np.newaxis, :]
+    s.qt = np.maximum(s.qt + dt * dqt[np.newaxis, np.newaxis, :], 0.0)
+    s._update_diagnostic_variables()
+
+
 def apply_profile_nudging(s: State, g: Grid, dt: float) -> None:
     """
     Remove domain-mean drift of θ′ and qv toward their reference profiles.

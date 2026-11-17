@@ -102,9 +102,15 @@ Rules:
   stops relaxing w → 0 in the inflow zone (default True)
 - `precursor.py` — `OPEN_INFLOW_REF='precursor'` (2026-10-27): concurrent periodic precursor LES (`PRECURSOR_NX` × NY columns, same
   vertical grid/sounding, uniform SHF/LHF, no spot/bubble, mean wind held at u_g with `OPEN_TAU_NORMAL`) advanced with the same dt
-  before each main step; feeds the west boundary: scalar ghosts = precursor cells, boundary-face u relaxed to the precursor's
-  (`PRECURSOR_TAU_U` 10 s), relaxation zone cell d → precursor column d (all fields incl. w); east face uses its mean profiles.
-  Needs `"BC_X='open'" "BC_Y='periodic'"` and wind along +x. Not in the water budget (`is_precursor`); no restart support.
+  before each main step. Since 2026-10-28 the main domain lies on the periodic tiling of the precursor (`PRECURSOR_NX` ×
+  `PRECURSOR_NY`, 0 = main NY): main cell (i, j), ghosts included, sits over precursor cell (i mod NX_pre, j mod NY_pre), and every
+  open face feeds it at the main domain's inflow points (`open_bc.inflow_masks`): scalar ghosts = precursor cells, boundary-face
+  normal velocity = radiation + relaxation of its deviation from the face mean toward the precursor's deviation
+  (`PRECURSOR_TAU_U` 10 s; the face mean follows radiation, see "Validation with precursor"), relaxation zones → precursor cells (all fields incl. w);
+  outflow points keep radiation + zero-gradient ghosts (cold-pool outflow leaves freely). Any wind direction, `BC_Y` open or periodic
+  (periodic directions must be multiples of the precursor size); the tile repeats along an edge every NX_pre / NY_pre cells.
+  Before 2026-10-28: west face only, `BC_Y='periodic'`, wind along +x, whole west face u forced (that setup is bitwise unchanged:
+  checked on 40 steps). `tests/test_precursor.py`. Not in the water budget (`is_precursor`); no restart support.
   40-min check (48×32 + 16): w′² at 600 m 2.2–2.5 m²/s² everywhere from x = 0 (precursor 2.36), corr(w) with the precursor 0.91–0.99
   in the first cells
 - `kernels.py` — numba versions of WENO-3, momentum advection, SGS diffusion/K_M, saturation
@@ -140,14 +146,24 @@ Rules:
   (`_sediment_2m`/`kernels.sediment_2m`, Atlas V(D): mass at V_q, number at V_n → size sorting), mean mass clipped to
   `RAIN_XMIN`…`RAIN_XMAX`; graupel freezing removes drops in proportion, melting makes one drop per graupel particle, shed
   water 1 mm drops. At RH 0.7 the evaporation of 0.2 g/kg is 29/h (0.2 mm drops) … 3.2/h (1 mm) vs 13.5/h one-moment KW78
-  (`tests/test_rain2m.py`). One-moment runs (warm and graupel) are bitwise unchanged
+  (`tests/test_rain2m.py`). One-moment runs (warm and graupel) are bitwise unchanged.
+  `ICE_SEDIMENT=True` (2026-11-04, off by default; needs ICE_SCHEME): the ice part (1 − α(T)) q_c falls (`_sediment_cloud_ice`,
+  implicit sweep, V = `ICE_VT_A` (ρq)^`ICE_VT_B` √(ρ_sfc/ρ) ≈ Heymsfield–Donner 1990, ~0.5 m/s for cirrus); θ kept, so it sublimates
+  in sub-saturated air at the next adjustment (fall streaks); ice at the ground → graupel_sfc
 - `surface_layer.py` — M-O surface layer, optional cloud shading
 - `lateral_bc.py` — `LATERAL_BC = "fringe"`: inflow/outflow in x on the periodic grid. The last
   FRINGE_WIDTH is relaxed toward a copy of the strip upstream of RECYCLE_X ([0, RECYCLE_X) = homogeneous
   fetch acting as its own precursor); flux patterns are confined to the test region in between
   (`hetero_window`). Needs mean wind along +x. Default `"periodic"` is unchanged
 - `forcing.py` — flux maps (+ warm stripe `SHF_STRIPE_*`, hot spot `SHF_SPOT_*`) / evolving flux
-  pattern, subsidence, nudging, radiative cooling, sponge
+  pattern, subsidence, nudging, radiative cooling, sponge; `apply_large_scale_forcing` (2026-11-01): `LS_FORCING` table
+  (dict / .npz / `"case"` → the case's `ls_forcing()`) of w_ls(z, t) and θ_l / q_t advective tendencies, linear in t and z;
+  −w_ls ∂⟨·⟩/∂z (upwind) on θ_l′ and q_t from the current horizontal means of θ₀ + θ_l′ and q_v + q_c, then re-diagnoses
+  θ, q_v, q_c (ascent saturates layers). Called after radiative cooling, so the precursor gets it too; water-budget column
+  `apply_large_scale_forcing_pct`. Off (None) by default — every earlier run is unchanged.
+  `apply_cloud_radiation` (2026-11-04, `"RAD_SCHEME='cloud_lw'"`, off by default): grey DYCOMS-II-type cloud LW on θ — per column,
+  optical depth b = κ ρ₀ q_c Δz (κ 85 liquid / 50 ice by α(T)); a cell loses `RAD_F0` e^(−Q above)(1 − e^(−b)) and gains
+  `RAD_F1_EPS` σ(T_sfc⁴ − T⁴) e^(−Q below)(1 − e^(−b)). Ac slab top −3 K/h, base +2 K/h; thin cirrus top −2 K/day, base +10 K/day
 - `forcing_nested.py`, `boundary_conditions.py`, `terrain.py`
 
 ### Cases (`cases/`)
@@ -164,6 +180,27 @@ presets). Register it in `cases.CASES`; `Simulation`/`State` dispatch via `cases
   and `bubble` (+2 K, RH 0.85, centre 500 m, 3 km × 1 km, no hot spot).
 - `land_cu.py` — continental Cu sounding + `configure()` (64² at 100 m, fluxes, sheared u_g,
   forcing, 40 m grid to 3 km, sponge 3.2 km, dt cap 5 s).
+- `layered_day.py` (2026-11-01) — multi-layer day: tabulated sounding `LD_THETA` / `LD_RH` (RH over the model's own
+  saturation, i.e. over ice when cold), θ 299 K mixed layer to 900 m, moist layer A 3.8–4.7 km (RH 0.92, −3…−7 °C,
+  altocumulus), dry slot 4.9–8.3 km (RH 0.40), moist layer C 8.5–10 km (RH 0.92 over ice, −33…−44 °C, cirrus), tropopause
+  11 km; surface parcel CAPE ≈ 780 J/kg, LCL 1.35 km, LFC 2.1 km, EL 9.5 km. u_g 2 → 20 m/s at 10 km, V_GEO 3 (SW → W).
+  128² at 150 m, 100 m levels to 11 km + 12 stretched to 14 km (122 levels), sponge 12 km, open + 64² precursor,
+  SHF 150 / LHF 250, graupel + 2-moment rain. Variants `trough` (default: `LS_FORCING="case"`, ascent sin-shaped over
+  1–11 km peaking at 6 km, 0 → `LD_W_MAX` 4 cm/s between 1 and 4 h) and `baseline` (no forcing). Forcing alone
+  (tests/test_ls_forcing.py) saturates layer A at 3.3 h, C at 3.5 h. 64² smoke: 0.74 s/step, dt 3 s.
+  First runs 2026-11-01 (`runs/20261101_1311_layered_day_{baseline,trough}_*_first`): trough → cirrus a uniform laminar 100 % deck
+  9.1–10.2 km from 4.5 h (IWP 7–14 g/m², τ ≈ 0.5, cloud ice could not fall), see docs/PLAN_layered_day2.md.
+  Variants `turb` / `turb_jet` (2026-11-04): thinner, drier cirrus layer (8.8–9.6 km, RH 0.88), zero-mean RH patches σ 0.04 ~2 km
+  across in the moist layers (`LD_RH_PATCH`, `LD_PATCH_SCALE`), θ noise 0.1 K there, SHF 200 / LHF 320, `LD_W_MAX` 3 cm/s;
+  `turb_jet` + jet 8 m/s at 4.6–5.6 km (`LD_JET_DU/_Z/_W`). Campaign of 14 runs: `scripts/campaign_layered_day2.py` (plan doc).
+  Campaign results (2026-11-04…06, `runs/*_ld2*`, `scripts/analyze_layered_day.py`): ice fall halves cirrus τ (0.6 → 0.3) and breaks
+  the deck into streaks; cloud LW barely matters within hours; cirrus stays laminar (w′ 0.05 m/s); jet Ri_min 0.8 (no KH); every run
+  turns into deep convection (w 15–44 m/s, tops 10–12 km) after 4.5–6 h whose anvils overcast everything by 7.5–8 h.
+  Caveat: with winds of 10–20 m/s aloft the mid/high clouds of these runs are tiled copies of the precursor (tile-shift correlation
+  0.7–0.99) — a small precursor repeats along every inflow edge and dominates everything above the BL in a 19 km domain
+  Full 128² precursor (2026-11-10, `runs/*_ld3P{1,2}`, 157 wall-min/h side by side): tiling gone (shift corr ≈ 0), but less mid/high
+  cloud than the tiled runs because an open-domain mean-w mode (−2…−5 cm/s subsidence at 3–10 km, +0.13 K vs the precursor) offsets the
+  trough ascent; the same mode is in the old runs with a different phase (docs/PLAN_layered_day2.md, results 2026-11-17)
 - `bomex.py` — BOMEX profiles and forcings (used by `run_bomex.py`)
 
 ### Tests (`tests/`)
@@ -174,6 +211,7 @@ Run as scripts: `./venv/bin/python3 tests/test_projection.py`.
 `tests/test_halo.py` checks the halo stencils with open BCs (numba = numpy, uniform scalar unchanged,
 flux-form conservation = boundary flux, interior identical to periodic away from the edges).
 `tests/test_open_bc.py` checks inflow/outflow ghosts, radiation, relaxation and the boundary water flux.
+`tests/test_precursor.py` checks the precursor tiling on all four open faces (ghosts, normal velocity, relaxation zones, inflow only).
 `tests/test_terrain_physics.py` checks surface fluxes, stress and sedimentation on the terrain.
 `tests/test_terrain_stencils.py` checks the terrain-aware stencils (conservation, walls, numba = numpy).
 `tests/test_pressure_terrain.py` checks the terrain projection (divergence, no flow through solids, CG count).
@@ -181,6 +219,10 @@ flux-form conservation = boundary flux, interior identical to periodic away from
 velocities kept, idempotence, uniform through-flow) on numba and numpy paths.
 `tests/test_single_cu.py` checks the single_cu state and prints parcel LCL/LFC/EL/CAPE (target
 500–1500 J/kg); run it after any sounding change.
+`tests/test_ls_forcing.py` checks the large-scale forcing (no-op when off, t/z interpolation, upwind advection, layered_day
+trough saturating its layers).
+`tests/test_cloud_rad_ice.py` checks the cloud LW radiation (no-op off, Ac / cirrus slab rates, flux budget), cloud-ice fall (speed,
+mass, numba = numpy, liquid stays) and the layered_day `turb` RH patches.
 `tests/test_ice.py` checks the mixed-phase thermodynamics (warm limit, numba = numpy, round trip, q_v = q_s over the
 mix, L_f of the ice → rain conversion, parcel warming vs warm).
 `tests/test_kernels.py [snap.npz]` checks numba vs numpy (agreement to round-off) and times both.
@@ -197,9 +239,13 @@ from before the θ_l/qt switch).
 - `compare_microphysics.py RUN_DIR [RUN_DIR …] [--t0 60] [--every 15]` — warm/ice runs side by side: rain timing, peaks,
   surface total; per snapshot cloud liquid/ice (α(T) split), rain, graupel masses [kt], graupel height, export of rain + graupel
   through the edges (estimate), cover above 5 km, cold pool, local surface rain
-- `analyze_inflow.py RUN_DIR [RUN_DIR …] [--t0 60 --t1 180 --bin 800]` — inflow quality for a mean wind along +x: per x-bin
+- `analyze_inflow.py RUN_DIR [RUN_DIR …] [--t0 60 --t1 180 --bin 800]` — inflow quality: per fetch bin (distance from the upwind
+  open edges along the mean wind at 600 m; x for wind along +x, x for periodic runs)
   mixed-layer θ′/q_v, w′² at 600 m, cloud frequency/base (15-min sampling); spin-up fetch of w′², up/downstream cloud
-- `visualize/render_clouds.py` — fast lit iso-surface renderer → GIF (see Visualize)
+- `visualize/render_clouds.py` — fast lit renderer (liquid iso-surface + ice extinction volume) → mp4 (see Visualize)
+- `finish_run.py RUN --out cloud_gifs/X.mp4` — mp4 from all 1-min snapshots, then thinning
+- `campaign_layered_day2.py start|status|run` — unattended 4-day layered_day campaign (systemd user unit `ld2-campaign`,
+  resumable state in `outputs/logs/campaign_ld2/state.json`); plan and job table in `docs/PLAN_layered_day2.md`
 - `visualize/visualize3d.py` — older volume renderer (slow without a GPU)
 - `find_cloud.py`, `track_cloud.py`, `setup_nested.py`, `archive_current_nested.py`,
   `run_experiment.py`, `run_manager.py`, `debug_theta_l.py`, parameter-sweep scripts
@@ -347,6 +393,31 @@ solves the inflow. Turbulent from x = 0: w′² at 600 m 2.02 at 0.4 km (downstr
 half 9.9 / 10.5 % (periodic 9.3 / 10.3); no overshoot. Matches the periodic control in the mean too: ML θ′ 60–180 min +0.86 K
 (periodic +0.855; cpm1p0 +0.43), q_v 11.53 vs 11.55 g/kg; at 180 min reference +1.36 K = domain mean, cover 16.4 % vs 15.9 %
 (cpm1p0 24.6 %). Δθ′ along x +0.006 K. Budget residual 0; 30 wall-min per simulated hour alone on 4 threads (90 min total).
+**Precursor on any edge (2026-10-28, `runs/20261028_0935_*_diag_{precursor,periodic}`, `real_flat` forcing with a diagonal wind
+U = V = 3 m/s, 64² open/open + 32² precursor vs 64² periodic, 2 h, 2 threads each side by side, 21 / 18 wall-min per simulated hour;
+GIF + mp4 `cloud_gifs/20261028_single_cu_real_flat_diag_*_0-120min.*`; `outputs/logs/analyze_inflow_diag.txt`, 60–120 min):** turbulence
+enters through both inflow faces: w′² at 600 m in the 4 cells next to the west / south edge 2.19 / 2.25 vs interior 2.22 (periodic
+2.27 / 2.03 / 2.14); 80 % of the downstream w′² already in the first 0.4 km of fetch; ML θ′ +0.61 K in every fetch bin (periodic +0.62),
+reference = domain mean within 0.002 K. Outflow side slightly damped: east / north edge 1.90 / 2.03, the corner where both outflow faces
+meet 1.34 (last 800 m; zero-gradient ghosts + radiation on two faces). Budget residual 0 (boundary import +0.5 % of the water in 2 h).
+**Validation with precursor (2026-10-28, Styria 6-h graupel + 2-moment setup `styria6h_g2m` + `"OPEN_INFLOW_REF='precursor'"
+PRECURSOR_NX=64 PRECURSOR_NY=64`; launchers `outputs/logs/launch/styria6h_g2m_pre*.sh`; `outputs/logs/compare_styria6h_pre{,2}.txt`):**
+1. `runs/20261028_1017_*_styria6h_g2m_pre` (84 wall-min per simulated hour) still relaxed the whole boundary-face u_n at inflow
+   points to the precursor's, which imposed the precursor's mean (≈ 0 below 1 km, calm shear profile) and blocked the spot's
+   mesoscale inflow: mean inward u_n below 1 km −0.04 / −0.03 / +0.03 m/s at 60 / 75 / 90 min vs +0.29 / +0.41 / +0.43 in
+   `styria6h_g2m`. Fix: relax only the deviation from the face mean (`open_bc._pert_relax`). Recheck `diag_precursor2`
+   (`runs/20261028_1851_*`, `outputs/logs/analyze_inflow_diag2.txt`): w′² at 600 m west / south / east / north edge 1.87 / 2.05 /
+   1.81 / 2.03 vs interior 2.23, NE corner 1.78; 80 % of the downstream w′² at 0.4 km fetch; reference +0.872 vs domain +0.855 K.
+2. `runs/20261028_1920_*_styria6h_g2m_pre2` (fixed; GIF + mp4 `cloud_gifs/20261028_single_cu_styria6h_g2m_precursor2_0-360min.*`):
+   nearly the same as run 1, so the BC bug was not the cause. Surface rain 0.195 mm (pre 0.204, g2m 1.270), formed 111 kt (116 / 629),
+   29 % at the ground; rain aloft 102 min, at the ground 117 min (pre 65 / 85, g2m 66 / 78); w_max 26.2, top 7.33 km; one rainy
+   episode at 120–150 min (cold pool to −0.27 K) and one at 225–255 min, then no cloud after ~285 min. Budget residual 0 (relaxation
+   +4.3 %, boundary −9.5 %). Mean inward u_n below 1 km −0.27 / −0.16 / +0.37 / +0.10 at 60 / 75 / 90 / 120 min.
+   Cause: the environment. With sounding inflow, ML θ at the 3 outer cells stays +0.01 K over the initial state while the
+   interior warms +0.14–0.18 K: the whole domain becomes a heat low fed by unheated air from every edge (an artefact, since the
+   surroundings are heated at the same 50 W/m²). With the precursor, edges warm with the interior (+0.12 → +0.42 K at 60 → 180 min,
+   interior +0.19 → +0.45), so only the spot's own contrast drives convergence → much less rain. The precursor runs are the more
+   realistic baseline; the old `styria6h_g2m` rain totals were inflated by the boundary.
 **Ice step 1 (2026-10-22, `runs/*_styria_c14_ice`, = `styria_c14` + `"ICE_SCHEME='mixed'"`, 72², 2 h, 44 wall-min on 4
 threads; log `outputs/logs/styria_c14_ice.runner.log`):** small effect, as expected for a congestus whose coldest cloud is
 −17 °C (ice ≤ 34 % of the condensate). Tops +100–400 m (max 7.33 vs 7.03 km), mean θ_v′ of w > 5 m/s cores at 4.5–6 km
@@ -434,15 +505,15 @@ Variants without editing the case: `run_land_cu.py 10800 SHF=110.0 W_SUBS=0.005 
 (overrides are recorded in the run's `effective_config.txt`).
 
 ### Visualize
-Every finished run gets a GIF **and an .mp4** (same frames, 3 fps; since 2026-10-27) from **1-minute snapshots** (`SNAPSHOT_EVERY=60.0`;
-5-min frames are too coarse). Afterwards the snapshots may be thinned: `scripts/finish_run.py RUN --out cloud_gifs/YYYYMMDD_<desc>.gif`
-renders (`--fps 3 --smooth 0 --zexp 1.0`), checks one frame per snapshot, writes the mp4, and only then keeps multiples of
+Every finished run gets an **.mp4 only** (3 fps; no GIFs since 2026-11-04 — GIF + mp4 2026-10-27 … 11-01) from **1-minute snapshots**
+(`SNAPSHOT_EVERY=60.0`; 5-min frames are too coarse). Afterwards the snapshots may be thinned: `scripts/finish_run.py RUN --out
+cloud_gifs/YYYYMMDD_<desc>.mp4` renders (`--fps 3 --smooth 0 --zexp 1.0`), checks one frame per snapshot, and only then keeps multiples of
 `--keep-every` (300 s, what the analysis scripts use). `scripts/visualize/reencode.py X.gif [--fps 3] [--no-gif]` turns an existing GIF
 into an mp4 (and rewrites the GIF at the new fps) without re-rendering — works after thinning. mp4 needs `imageio-ffmpeg` in the venv.
 The 2026-10-22 Styria ice runs (`styria_c14_*`, `styria128_*`, `styria128up_*`) only have 5-min snapshots, so their GIFs are 5-min.
 ```bash
 VTK_DEFAULT_OPENGL_WINDOW=vtkEGLRenderWindow ./venv/bin/python3 scripts/visualize/render_clouds.py \
-    runs/<run_dir> --out cloud_gifs/YYYYMMDD_<description>.gif --fps 2 --smooth 0 --jobs 4
+    runs/<run_dir> --out cloud_gifs/YYYYMMDD_<description>.mp4 --fps 3 --smooth 0 --jobs 4
 # --single <t_s> --out outputs/plots/frame.png   one frame
 # --smooth 0 = raw qc field (no blur); 0.5 removes facets; 0.8 visibly bloats clouds
 # --zexp vertical exaggeration (1.5), --mode volume (soft, slower)
@@ -454,6 +525,14 @@ VTK_DEFAULT_OPENGL_WINDOW=vtkEGLRenderWindow ./venv/bin/python3 scripts/visualiz
 # don't wrap around (before 2026-10-18 they did, which drew a ghost sheet of outflowing cloud on the far edge).
 # Clouds cut by the domain edge are closed with a flat face there.
 # Terrain (gaussian_hill, agnesi_ridge from effective_config.txt) is drawn as the ground with 100 m contours.
+# Height axis (since 2026-11-04): ruler at the back-left corner in true km (ticks 0.5/1/2 km by the run's top, correct
+# under --zexp), faint km lines on the back walls; caption lists every cloud layer, highest first: base–top, phase
+# (liquid/mixed/ice by mass), cover, median optical depth of its cloudy columns, visible cover (columns with tau > 0.1).
+# Ice (since 2026-11-04): condensate split with the model's α(T) (T from θ₀ of profiles.npz + θ′; needs ICE_SCHEME and a
+# finished run, else all liquid). Liquid = opaque iso-surface, grey at the base of each layer; cloud ice + graupel/snow = white
+# volume with opacity 1 − exp(−β Δs), β = ρ₀(55 q_i + 8 q_g) m²/kg (liquid 150) — thin cirrus (τ ~0.5) is a see-through veil,
+# dense anvils stay opaque, falling snow/graupel shows as haze. Ground shadows use the same optical depth. Before: everything
+# was one opaque surface at q_c 0.01 g/kg (the 2026-11-01 layered_day cirrus looked like a solid slab).
 # Before 2026-10-14 the renderer assumed 100 m,
 # so earlier 50 m GIFs are stretched 2× horizontally (clouds look flatter/wider than they are).
 ```

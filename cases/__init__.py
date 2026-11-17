@@ -3,7 +3,7 @@ init_perturbations(s, g) and print_rh_profile(s, g); Simulation and State dispat
 
 import importlib
 
-CASES = ("land_cu", "single_cu")
+CASES = ("land_cu", "single_cu", "layered_day")
 
 
 def get(name: str):

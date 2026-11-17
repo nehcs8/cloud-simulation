@@ -564,7 +564,25 @@ def sedimentation(s: State, g: Grid, dt: float) -> None:
         s.qg, sfc_g = _sediment(s.qg, s, g, dt, a_vt, b_vt)
         acc[:, 0, _SFC[1]] += sfc_g.sum(axis=1) * dt / 3600.0
         sfc = sfc + sfc_g
+    if getattr(cfg, 'ICE_SEDIMENT', False) and thermodynamics._mixed():
+        sfc_i = _sediment_cloud_ice(s, g, dt)
+        acc[:, 0, _SFC[1]] += sfc_i.sum(axis=1) * dt / 3600.0          # ice at the ground counts as graupel_sfc
+        sfc = sfc + sfc_i
     s.surface_precip_flux = sfc
+
+
+def _sediment_cloud_ice(s: State, g: Grid, dt: float) -> np.ndarray:
+    """
+    Cloud-ice fall-out (ICE_SEDIMENT): the ice part q_i = (1 − α(T)) q_c falls with the implicit sweep of
+    _sediment at V = ICE_VT_A (ρq_i [g/cm³])^ICE_VT_B √(ρ_sfc/ρ) (Heymsfield & Donner 1990, ~0.5 m/s for cirrus).
+    Only q_c changes (θ is kept, so θ_l and q_t follow on the next conversion); ice that falls into sub-saturated
+    air sublimates at the next saturation adjustment (fall streaks). Returns the surface flux [mm/h].
+    """
+    T = (s.theta0[np.newaxis, np.newaxis, :] + s.theta) * s._pi0()
+    qi = (1.0 - thermodynamics.liquid_fraction(T)[0]) * np.maximum(s.qc, 0.0)
+    qi_new, sfc = _sediment(qi, s, g, dt, cfg.ICE_VT_A, cfg.ICE_VT_B)
+    s.qc = s.qc + (qi_new - qi)
+    return sfc
 
 
 # ── Graupel (ICE_SCHEME = "graupel") ─────────────────────────────────────────

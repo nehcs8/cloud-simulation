@@ -24,7 +24,8 @@ from dynamics import compute_tendencies
 from pressure import project
 from microphysics import apply_microphysics
 from forcing import (apply_subsidence, apply_profile_nudging, apply_cold_pool, apply_sponge,
-                     apply_radiative_cooling)
+                     apply_radiative_cooling, apply_large_scale_forcing,
+                     apply_cloud_radiation)
 from surface_layer import apply_surface_layer  # Phase 1.5: M-O surface layer
 from lateral_bc import apply_fringe
 from open_bc import apply_relaxation as apply_open_relaxation, any_open
@@ -119,7 +120,9 @@ def rk3_step(s: State, g: Grid, dt: float,
         apply_subsidence(s, g, dt)
         apply_profile_nudging(s, g, dt)
         apply_radiative_cooling(s, g, dt)
+        apply_cloud_radiation(s, g, dt)           # RAD_SCHEME "cloud_lw"
         s._update_conserved_variables()
+        apply_large_scale_forcing(s, g, dt, t)    # on θ_l, q_t; re-diagnoses θ, q_v, q_c
 
         # Sponge layer (upper boundary relaxation)
         apply_sponge(s, g, dt)

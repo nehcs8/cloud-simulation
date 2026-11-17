@@ -114,10 +114,12 @@ OPEN_RELAX_W: bool = True        # also relax w → 0 in the inflow zone (False 
 #             The anomaly from the sounding is kept in full below OPEN_REF_Z1 and tapered linearly to 0 at
 #             OPEN_REF_Z2, so the heated BL flows in but convective subsidence warming aloft is not recycled.
 # "precursor": a concurrent periodic precursor LES (precursor.py, PRECURSOR_NX × NY columns, uniform SHF/LHF) feeds
-#             the west boundary (ghosts, u face, relaxation zone); needs BC_X = "open", BC_Y = "periodic", wind along +x.
+#             the inflow points of every open face (ghosts, normal velocity, relaxation zone), tiled under the main
+#             domain, so any wind direction works (before 2026-10-28: west face only, BC_Y = "periodic", wind along +x).
 OPEN_INFLOW_REF: str = "sounding"
 PRECURSOR_NX: int = 32
-PRECURSOR_TAU_U: float = 10.0    # s, relaxation of the west boundary-face u to the precursor's
+PRECURSOR_NY: int = 0             # 0 = main NY; periodic main directions must be multiples of the precursor size
+PRECURSOR_TAU_U: float = 10.0    # s, relaxation of the boundary-face normal velocity to the precursor's (inflow points)
 OPEN_REF_TAU: float = 600.0      # s
 OPEN_REF_Z1: float = 2000.0      # m
 OPEN_REF_Z2: float = 3000.0      # m
@@ -174,6 +176,20 @@ SUBS_GRADIENT: str = "reference"
 RAD_COOLING: float = 0.0
 RAD_Z_TOP: float = 1900.0
 RAD_Z_ZERO: float = 2500.0
+# Cloud longwave radiation (forcing.apply_cloud_radiation, 2026-11-04): RAD_SCHEME "cloud_lw" or None (off).
+# DYCOMS-II-type grey fluxes on the cloud optical path Q = Σ κ ρ₀ q dz (κ = RAD_KAPPA_LIQ / _ICE for the α(T)
+# liquid / ice parts of q_c): each cell loses RAD_F0·e^(−Q above)·(1 − e^(−q_cell)) (cloud-top cooling; the net
+# LW loss of a cloud top to the drier, colder air above is ~70–90 W/m² at any height) and gains F1(T)·e^(−Q below)·(1 − e^(−q_cell)) (cloud-base warming by the warmer
+# surface, F1(T) = RAD_F1_EPS σ (T_sfc⁴ − T⁴)⁺; 22 W/m² for a cloud 11 K colder than the surface, ~80 W/m² for cirrus).
+RAD_SCHEME = None
+RAD_F0: float = 70.0             # W/m², cloud-top LW cooling flux (Stevens et al. 2005)
+RAD_F1_EPS: float = 0.35         # effective emissivity of the surface–cloud-base exchange
+RAD_KAPPA_LIQ: float = 85.0      # m²/kg, LW mass absorption of cloud liquid
+RAD_KAPPA_ICE: float = 50.0      # m²/kg, LW mass absorption of cloud ice (r_eff ~30 µm)
+# Time- and height-dependent large-scale forcing (forcing.apply_large_scale_forcing): ascent/descent w_ls(z, t)
+# acting on the horizontal-mean θ_l, q_v + q_c profiles, plus advective tendencies of θ_l, q_t. None = off;
+# a dict(t, z, w, thl_adv, qt_adv) table, an .npz path with those arrays, or "case" (case module's ls_forcing()).
+LS_FORCING = None
 
 TAU_NUDGE_T: float = 3600.0  # s, relaxation timescale for domain-mean θ′ (DISABLED in BL)
 TAU_NUDGE_Q: float = 5400.0  # s, relaxation timescale for domain-mean qv′ (DISABLED in BL)
@@ -262,6 +278,12 @@ GR_A: float = 19.3               # m^(1−b)/s, fall speed V = a D^b (Locatelli 
 GR_B: float = 0.37
 GR_E_ICE: float = 0.1            # collection efficiency graupel–cloud ice
 ICE_AUTO_QI0: float = 1.0e-4     # kg/kg, cloud-ice threshold for autoconversion to graupel
+# Cloud-ice sedimentation (2026-11-04, off by default): the ice part (1 − α(T)) q_c falls at
+# V = ICE_VT_A (ρq [g/cm³])^ICE_VT_B √(ρ_sfc/ρ) — Heymsfield & Donner (1990) V = 3.29 (ρq_i [kg/m³])^0.16 with
+# the √(ρ_sfc/ρ) of the shared sweep divided out at ~9.5 km (factor 1.65): 0.03 g/kg at 9.5 km → 0.54 m/s.
+ICE_SEDIMENT: bool = False
+ICE_VT_A: float = 6.0
+ICE_VT_B: float = 0.16
 
 # ── Terrain (Phase 2) ──────────────────────────────────────────────────────────
 TERRAIN_TYPE: str = "flat"       # "flat", "gaussian_hill", "sine_ridge", "agnesi_ridge", "random", "dem"

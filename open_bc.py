@@ -7,7 +7,8 @@ With OPEN_INFLOW_REF = "mean" (update_reference, once per step) θ_l′, q_t (an
 follow the time-filtered mean of the clear columns below OPEN_REF_Z1, tapered to the sounding at OPEN_REF_Z2:
 the inflow boundary layer is heated and moistened like the domain's. OPEN_CPM_AMP > 0 adds the cell
 perturbation method (apply_cell_perturbations) so the inflow is turbulent too. OPEN_INFLOW_REF = "precursor":
-the west boundary takes the planes of a concurrent periodic precursor run (precursor.py).
+the inflow points of every open face take the fields of a concurrent periodic precursor run tiled under the
+domain (precursor.py); outflow points keep the radiation condition and zero-gradient ghosts.
 
 1. Inflow / outflow per boundary face (ny × nz for x-boundaries, nx × nz for y-boundaries),
    from the sign of the normal velocity on that face.
@@ -96,19 +97,20 @@ def inflow_masks(s) -> dict:
     return m
 
 
-def inflow_ghosts(P: np.ndarray, ref: np.ndarray, masks: dict, west=None) -> np.ndarray:
+def inflow_ghosts(P: np.ndarray, ref: np.ndarray, masks: dict, planes=None) -> np.ndarray:
     """Set the ghost cells of a halo-padded cell-centred scalar to ref(z) on inflow faces
-    (west: optional (H, ny, nz) precursor plane for the west ghosts instead of ref)."""
+    (planes: optional precursor ghost cells per face, Precursor.ghost_planes, instead of ref)."""
     nx, ny = P.shape[0] - 2*H, P.shape[1] - 2*H
     Y, X = slice(H, H + ny), slice(H, H + nx)
+    planes = planes or {}
     if 'w' in masks:
         for g in range(H):
-            P[g, Y] = np.where(masks['w'], ref if west is None else west[g], P[g, Y])
-            P[H + nx + g, Y] = np.where(masks['e'], ref, P[H + nx + g, Y])
+            P[g, Y] = np.where(masks['w'], planes['w'][g] if 'w' in planes else ref, P[g, Y])
+            P[H + nx + g, Y] = np.where(masks['e'], planes['e'][g] if 'e' in planes else ref, P[H + nx + g, Y])
     if 's' in masks:
         for g in range(H):
-            P[X, g] = np.where(masks['s'], ref, P[X, g])
-            P[X, H + ny + g] = np.where(masks['n'], ref, P[X, H + ny + g])
+            P[X, g] = np.where(masks['s'], planes['s'][:, g] if 's' in planes else ref, P[X, g])
+            P[X, H + ny + g] = np.where(masks['n'], planes['n'][:, g] if 'n' in planes else ref, P[X, H + ny + g])
     return P
 
 
@@ -116,6 +118,7 @@ def radiation_tendency(tend_u: np.ndarray, tend_v: np.ndarray, s, g) -> None:
     """Replace the tendencies of the boundary-face normal velocities (in place)."""
     c = cfg.OPEN_C_STAR
     tau = cfg.OPEN_TAU_NORMAL
+    pre = getattr(s, 'precursor', None)
     if open_x():
         u = s.u
         ref = s.u_g[np.newaxis, :]
@@ -125,9 +128,10 @@ def radiation_tendency(tend_u: np.ndarray, tend_v: np.ndarray, s, g) -> None:
         ce = np.maximum(u[-1] + c, 0.0)                # outgoing (+x) at the east face
         tend_u[0] = -cw * (u[1] - u[0]) / g.dx + relax_w
         tend_u[-1] = -ce * (u[-1] - u[-2]) / g.dx + relax_e
-        pre = getattr(s, 'precursor', None)
-        if pre is not None:                            # west face follows the precursor's u
-            tend_u[0] = (pre.column('u', 0) - u[0]) / cfg.PRECURSOR_TAU_U
+        if pre is not None:                            # inflow points: turbulence of the precursor's u
+            J = np.arange(g.ny)
+            for f, inflow in ((0, u[0] > 0.0), (g.nx, u[-1] < 0.0)):
+                tend_u[f] += inflow * _pert_relax(pre.at('u', [f], J)[0], u[f])
     if open_y():
         v = s.v
         ref = cfg.V_GEO
@@ -137,6 +141,17 @@ def radiation_tendency(tend_u: np.ndarray, tend_v: np.ndarray, s, g) -> None:
         cn = np.maximum(v[:, -1] + c, 0.0)
         tend_v[:, 0] = -cs * (v[:, 1] - v[:, 0]) / g.dy + relax_s
         tend_v[:, -1] = -cn * (v[:, -1] - v[:, -2]) / g.dy + relax_n
+        if pre is not None:
+            I = np.arange(g.nx)
+            for f, inflow in ((0, v[:, 0] > 0.0), (g.ny, v[:, -1] < 0.0)):
+                tend_v[:, f] += inflow * _pert_relax(pre.at('v', I, [f])[:, 0], v[:, f])
+
+
+def _pert_relax(pre_f: np.ndarray, f: np.ndarray) -> np.ndarray:
+    """Relaxation of a boundary face's normal velocity (n_face, nz) toward the precursor's turbulence: deviations
+    from the face mean per level only, so the face mean keeps following the radiation condition (a hot spot's
+    low-level inflow is not blocked by the precursor's mean wind; full u_pre before 2026-10-28 evening)."""
+    return ((pre_f - pre_f.mean(axis=0)) - (f - f.mean(axis=0))) / cfg.PRECURSOR_TAU_U
 
 
 def _weno_face(P, sl_m2, sl_m1, sl_0, sl_p1, vel):
@@ -200,32 +215,41 @@ def apply_relaxation(s, g, dt: float) -> None:
             s.w[sel] = w_c + (tgt['w'] - w_c) * r_w
 
     nx, ny = g.nx, g.ny
+    I, J = np.arange(nx), np.arange(ny)
+    cell_keys = ('theta', 'qv', 'qc', 'qr', 'qg', 'nr', 'w')
     if open_x():
         for d in range(min(W, nx // 2)):
             for i, key in ((d, 'w'), (nx - 1 - d, 'e')):
                 m = masks[key].astype(float)                     # (ny, nz)
                 mv = np.concatenate([m, m[-1:]], axis=0)
-                if pre is not None and key == 'w':               # west zone: the precursor columns
-                    tgt = {k: pre.column(k, d) for k in ('theta', 'qv', 'qc', 'qr', 'qg', 'nr', 'w')}
+                if pre is not None:                              # the precursor cells under this column
+                    tgt = {k: pre.at(k, [i], J)[0] for k in cell_keys}
                     relax_cells((i,), m, wts[d], tgt, relax_w=True)
-                    s.v[i] += (pre.column('v', d) - s.v[i]) * wts[d] * mv
+                    s.v[i] += (pre.at('v', [i], np.arange(ny + 1))[0] - s.v[i]) * wts[d] * mv
                     continue
                 relax_cells((i,), m, wts[d])
                 s.v[i] += (ref['v'] - s.v[i]) * wts[d] * mv
             # interior u faces next to the boundary (the boundary faces follow the radiation BC)
             for f, key in ((d + 1, 'w'), (nx - 1 - d, 'e')):
                 m = masks[key].astype(float)
-                u_ref = pre.column('u', f) if pre is not None and key == 'w' else ref['u']
+                u_ref = pre.at('u', [f], J)[0] if pre is not None else ref['u']
                 s.u[f] += (u_ref - s.u[f]) * wts[d] * m
     if open_y():
         for d in range(min(W, ny // 2)):
             for j, key in ((d, 's'), (ny - 1 - d, 'n')):
                 m = masks[key].astype(float)                     # (nx, nz)
+                mu = np.concatenate([m, m[-1:]], axis=0)
+                if pre is not None:
+                    tgt = {k: pre.at(k, I, [j])[:, 0] for k in cell_keys}
+                    relax_cells((slice(None), j), m, wts[d], tgt, relax_w=True)
+                    s.u[:, j] += (pre.at('u', np.arange(nx + 1), [j])[:, 0] - s.u[:, j]) * wts[d] * mu
+                    continue
                 relax_cells((slice(None), j), m, wts[d])
-                s.u[:, j] += (ref['u'] - s.u[:, j]) * wts[d] * np.concatenate([m, m[-1:]], axis=0)
+                s.u[:, j] += (ref['u'] - s.u[:, j]) * wts[d] * mu
             for f, key in ((d + 1, 's'), (ny - 1 - d, 'n')):
                 m = masks[key].astype(float)
-                s.v[:, f] += (ref['v'] - s.v[:, f]) * wts[d] * m
+                v_ref = pre.at('v', I, [f])[:, 0] if pre is not None else ref['v']
+                s.v[:, f] += (v_ref - s.v[:, f]) * wts[d] * m
     s.w[:, :, 0] = 0.0
     s.w[:, :, -1] = 0.0
     apply_cell_perturbations(s, g, dt)

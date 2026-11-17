@@ -54,7 +54,7 @@ import simulation
 from simulation import Simulation
 
 PROCESSES = ['apply_surface_layer', 'apply_microphysics', 'apply_cold_pool',
-             'apply_subsidence', 'apply_profile_nudging', 'apply_radiative_cooling',
+             'apply_subsidence', 'apply_profile_nudging', 'apply_radiative_cooling', 'apply_large_scale_forcing',
              'apply_sponge', 'apply_fringe', 'apply_open_relaxation']
 budget = {p: 0.0 for p in PROCESSES}
 
