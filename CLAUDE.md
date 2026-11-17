@@ -25,6 +25,7 @@ has a home. Do not leave logs, text output, images, data or scratch scripts in t
 | Output of a test/diagnostic script                 | `outputs/logs/<name>.txt`                    |
 | Plots / figures                                    | `outputs/plots/`                             |
 | Animations                                         | `cloud_gifs/YYYYMMDD_<description>.gif` (date = run date) |
+| External input data (DEMs, …; not in git)          | `data/` — e.g. `data/dem/copernicus_glo30/`  |
 | Nested-run initial conditions                      | `nested_runs/ics/`                           |
 | Protected restart files                            | `restart_snapshots/` (immutable)             |
 | Documentation, plans, progress notes               | `docs/`                                      |
@@ -246,7 +247,29 @@ from before the θ_l/qt switch).
 - `finish_run.py RUN --out cloud_gifs/X.mp4` — mp4 from all 1-min snapshots, then thinning
 - `campaign_layered_day2.py start|status|run` — unattended 4-day layered_day campaign (systemd user unit `ld2-campaign`,
   resumable state in `outputs/logs/campaign_ld2/state.json`); plan and job table in `docs/PLAN_layered_day2.md`
+- `terrain_sun.py PLACE|lat,lon [--year] [--obs-height m] [--radius km]` — direct sun vs terrain shadow over a year:
+  horizon profile (GLO-30, 100 km, curvature + refraction) + NOAA sun position every minute → sun-path diagram,
+  daily sun hours, first/last sun (`outputs/plots/sun_<name>_<year>.png`, table in `outputs/logs/`). Validated on
+  Viganella (80 sunless days, 12 Nov–30 Jan; documented ~11 Nov–2 Feb). DSM: buildings/trees count as horizon,
+  and points at a slope foot are very sensitive (Rattenberg 54–141 sunless days within 100 m) — check `ground`
+  `--map [--size 12] [--stride n]`: same for every ~30 m point of a square (numba; 12 km = 218 k points in ~20 s
+  on 16 threads) → heatmaps of yearly sun hours and sunless days, `outputs/plots/sunmap_*.png` + `.npz`
+  `--map --from-tif data/sun/<run>/sun_alps_*.tif --size km`: crop the whole-domain result instead of computing.
+- `sun_alps.py run|status|assemble|tiles [--stride 3] [--year]` — the same map for the whole DEM domain, in 96
+  resumable strips (`data/sun/alps_<res>m_<year>/strips/`; rerun `run` to resume), progress + ETA per strip in
+  `progress.log` / `status`. Output: GeoTIFF (int16 bands hours, sunless days, ground; sea = -1), overview
+  `outputs/plots/sunmap_alps_*.png`, viewer overlay `viewer/`. 90 m (stride 3, 71 M land points) ≈ 2.3 h on 16
+  threads (2026-11-17); run it with `systemd-run --user --unit=sun-alps ...`. Edge strips within 60 km of the
+  domain border have a truncated horizon.
 - `visualize/visualize3d.py` — older volume renderer (slow without a GPU)
+- `visualize/terrain_explorer.py PLACE|lat,lon [--size km] [--compare DX] [--zexp] [--out png]` — 3-D view of the
+  Copernicus GLO-30 DEM (59 tiles, 5–17° E × 43–48° N, 2.1 GB in `data/dem/copernicus_glo30/`, from
+  `s3://copernicus-dem-30m`); `--compare DX` adds the block-averaged model view; `--overview`, `--list`
+- `visualize/terrain_flight/` — browser free-flight / walk viewer over the whole Alpine arc (three.js, WebGL,
+  quadtree LOD 30 m → 2 km). `build_tiles.py` once (~5 min) → `data/dem/glo30_lod/` (20 485 Terrarium PNG chunks,
+  1.7 GB); then `serve.py --open` → http://127.0.0.1:8765 (local only; three.js from unpkg, so needs internet).
+  WASD + mouse/arrows, G walk, O sun overlay (hours / sunless days from the finest `data/sun/*/viewer`),
+  URL hash = current view (bookmarkable)
 - `find_cloud.py`, `track_cloud.py`, `setup_nested.py`, `archive_current_nested.py`,
   `run_experiment.py`, `run_manager.py`, `debug_theta_l.py`, parameter-sweep scripts
 

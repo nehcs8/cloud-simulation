@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alps Terrain Flight</title>
+<style>
+  :root { --panel: rgba(12, 18, 26, 0.72); --text: #e8eef4; --dim: #9fb0c0; --accent: #ffd36b; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #8fb4d8; color: var(--text);
+               font: 13px/1.45 ui-monospace, "DejaVu Sans Mono", monospace; }
+  canvas#view { display: block; width: 100vw; height: 100vh; }
+  .panel { position: fixed; background: var(--panel); border-radius: 8px; padding: 10px 12px;
+           backdrop-filter: blur(4px); user-select: none; }
+  #hud { top: 12px; left: 12px; min-width: 250px; }
+  #hud b { color: var(--accent); font-weight: 600; }
+  #hud .row { display: flex; justify-content: space-between; gap: 16px; }
+  #hud .k { color: var(--dim); }
+  #places { margin-top: 8px; width: 100%; background: #1d2834; color: var(--text); border: 1px solid #3a4a5a;
+            border-radius: 4px; padding: 3px; font: inherit; }
+  #help { bottom: 12px; left: 12px; right: 360px; color: var(--dim); }
+  #help b { color: var(--text); }
+  #mini { bottom: 12px; right: 12px; padding: 6px; }
+  #mini canvas { display: block; width: 320px; cursor: crosshair; border-radius: 4px; }
+  #start { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+           pointer-events: none; }
+  #start div { background: var(--panel); padding: 14px 22px; border-radius: 10px; font-size: 15px; }
+  #cross { position: fixed; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px;
+           border: 1px solid rgba(255,255,255,0.6); border-radius: 50%; pointer-events: none; display: none; }
+  .hidden { display: none !important; }
+</style>
+<script type="importmap">
+  { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div id="cross"></div>
+<div id="hud" class="panel">
+  <div class="row"><span class="k">position</span><span id="h-pos">–</span></div>
+  <div class="row"><span class="k">altitude</span><span id="h-alt">–</span></div>
+  <div class="row"><span class="k">above ground</span><span id="h-agl">–</span></div>
+  <div class="row"><span class="k">ground</span><span id="h-gnd">–</span></div>
+  <div class="row"><span class="k">heading</span><span id="h-hdg">–</span></div>
+  <div class="row"><span class="k">speed</span><span id="h-spd">–</span></div>
+  <div class="row"><span class="k">mode</span><b id="h-mode">fly</b></div>
+  <div class="row"><span class="k">chunks drawn / cached</span><span id="h-lod">–</span></div>
+  <div class="row"><span class="k">fps</span><span id="h-fps">–</span></div>
+  <div class="row"><span class="k">sun here</span><span id="h-sun">O = overlay</span></div>
+  <div id="legend" class="hidden">
+    <div id="lg-title" class="k" style="margin-top:6px"></div>
+    <div id="lg-bar" style="height:10px;border-radius:3px;margin:3px 0"></div>
+    <div class="row"><span id="lg-lo"></span><span id="lg-hi"></span></div>
+  </div>
+  <select id="places"><option value="">— teleport to … —</option></select>
+</div>
+<div id="help" class="panel">
+  <b>click</b> to fly · <b>mouse / arrows</b> look · <b>W A S D</b> move · <b>Space / E</b> up · <b>Q</b> down ·
+  <b>Shift</b> ×50 (walk ×5) · <b>wheel</b> speed<br>
+  <b>G</b> walk / fly · <b>[ ]</b> sun azimuth · <b>, .</b> sun height · <b>F</b> haze · <b>L</b> detail · <b>O</b> sun overlay ·
+  <b>M</b> map · <b>H</b> hide panels · <b>Esc</b> release mouse (then click map to teleport)
+</div>
+<div id="mini" class="panel"><canvas id="minimap"></canvas></div>
+<div id="start"><div>Click to start · Esc to release the mouse</div></div>
+<script type="module" src="flight.js"></script>
+</body>
+</html>
